@@ -55,11 +55,13 @@ const statusStyles: Record<string, string> = {
 function InvoiceTable() {
 
   const [selectedStatus, setSelectedStatus] = React.useState('Toutes');
+  const [sortMethod, setSortMethod] = React.useState<'date' | 'amount'>('date')
+  const [isSortOpen, setIsSortOpen] = React.useState<boolean>(false)
   return (
     <>
       <div className="flex items-center justify-between">
         <InvoiceSelector selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
-        <InvoiceSorter />
+        <InvoiceSorter sortMethod={sortMethod} setSortMethod={setSortMethod} isOpen={isSortOpen} setIsOpen={setIsSortOpen} />
       </div>
       <div className="mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm">
         <table className="min-w-185 w-full border-collapse text-left">
