@@ -13,7 +13,10 @@ function Dashboard() {
         <span className="text-sm font-medium">Créer une facture</span>
       </button>
 
-      <InvoiceTable />
+      <h3 className="mt-4">Mes dernières factures</h3>
+      <div className="mt-4">
+        <InvoiceTable />
+      </div>
     </div>
   )
 }
