@@ -2,6 +2,7 @@
 import React from 'react'
 import InvoiceSelector from './InvoiceSelector'
 import InvoiceSorter from './InvoiceSorter';
+import { CirclePlusIcon } from 'lucide-react';
 
 const invoices = [
   {
@@ -89,7 +90,13 @@ function InvoiceTable() {
   const [isSortOpen, setIsSortOpen] = React.useState<boolean>(false)
   return (
     <>
-      <div className="flex items-center justify-between">
+      <div>
+        <button className="my-4 flex items-center justify-center gap-3 p-4 bg-white text-primary rounded-lg hover:bg-secondary transition-colors">
+          <CirclePlusIcon />
+          <span className="text-sm font-medium">Créer une facture</span>
+        </button>
+      </div>
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <InvoiceSelector selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
         <InvoiceSorter sortMethod={sortMethod} setSortMethod={setSortMethod} isOpen={isSortOpen} setIsOpen={setIsSortOpen} />
       </div>

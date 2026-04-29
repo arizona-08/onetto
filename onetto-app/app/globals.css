@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #F7F7F7;
+  --background: #F9F9F9;
   --foreground: #231942;
 }
 
@@ -10,7 +10,7 @@
   --color-foreground: var(--foreground);
 
   --color-custom-gray-dark: #EEEEEE;
-  --color-custom-gray-light: #F7F7F7;
+  --color-custom-gray-light: #F9F9F9;
   --color-primary: #231942;
   --color-secondary: #5E548E;
   --font-title: var(--font-manrope);
@@ -20,7 +20,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #231942;
-    --foreground: #F7F7F7;
+    --foreground: #F9F9F9;
   }
 }
 

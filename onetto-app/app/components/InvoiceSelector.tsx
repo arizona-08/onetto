@@ -13,7 +13,7 @@ function InvoiceSelector({ selectedStatus, onSelectStatus }: InvoiceSelectorProp
       {INVOICES_STATUS.map((status) => (
         <button
           key={status}
-          className={`p-2 rounded-lg transition-colors text-sm ${
+          className={`p-2 rounded-lg transition-colors text-xs ${
             selectedStatus === status
               ? 'bg-primary text-white'
               : 'text-zinc-700 hover:bg-gray-600/20'
