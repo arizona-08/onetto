@@ -6,10 +6,10 @@ interface AppLayoutProps {
 }
 function AppLayout({ children }: AppLayoutProps) {
   return (
-    <div className="min-h-full flex flex-col lg:flex-row">
+    <div className="h-screen flex flex-col lg:flex-row">
       <TopSidebar />
 
-      <main className="flex-1 w-full min-h-full p-4">
+      <main className="flex-1 w-full min-h-full p-4 overflow-y-auto">
         {children}
       </main>
     </div>

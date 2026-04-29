@@ -44,6 +44,36 @@ const invoices = [
     amount: '$1,500.00',
     status: 'OVERDUE',
   },
+  {
+    id: 'INV-8791',
+    type: 'Maintenance Retainer',
+    customer: 'Blue Valley Co.',
+    initials: 'BV',
+    date: 'Oct 05, 2023',
+    note: 'DUE 11 DAYS AGO',
+    amount: '$1,500.00',
+    status: 'OVERDUE',
+  },
+  {
+    id: 'INV-8792',
+    type: 'Maintenance Retainer',
+    customer: 'Blue Valley Co.',
+    initials: 'BV',
+    date: 'Oct 05, 2023',
+    note: 'DUE 11 DAYS AGO',
+    amount: '$1,500.00',
+    status: 'OVERDUE',
+  },
+  {
+    id: 'INV-8793',
+    type: 'Maintenance Retainer',
+    customer: 'Blue Valley Co.',
+    initials: 'BV',
+    date: 'Oct 05, 2023',
+    note: 'DUE 11 DAYS AGO',
+    amount: '$1,500.00',
+    status: 'OVERDUE',
+  },
 ]
 
 const statusStyles: Record<string, string> = {

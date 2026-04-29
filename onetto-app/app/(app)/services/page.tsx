@@ -1,9 +1,9 @@
 import React from 'react'
 
-function page() {
+function servcices() {
   return (
-    <div>page</div>
+    <div>servcices</div>
   )
 }
 
-export default page
+export default servcices

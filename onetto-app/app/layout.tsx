@@ -26,9 +26,9 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${manrope.variable} ${inter.variable} h-full antialiased`}
+      className={`${manrope.variable} ${inter.variable} h-full antialiased `}
     >
-      <body className="min-h-full font-body">{children}</body>
+      <body className="min-h-full font-body overflow-hidden">{children}</body>
     </html>
   );
 }
