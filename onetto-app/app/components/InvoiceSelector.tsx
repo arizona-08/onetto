@@ -15,7 +15,7 @@ function InvoiceSelector({ selectedStatus, onSelectStatus }: InvoiceSelectorProp
           key={status}
           className={`p-2 rounded-lg transition-colors text-xs ${
             selectedStatus === status
-              ? 'bg-primary text-white'
+              ? 'bg-white text-zinc-700'
               : 'text-zinc-700 hover:bg-gray-600/20'
           }`}
           onClick={() => onSelectStatus(status)}

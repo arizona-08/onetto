@@ -91,12 +91,12 @@ function InvoiceTable() {
   return (
     <>
       <div>
-        <button className="my-4 flex items-center justify-center gap-3 p-4 bg-white text-primary rounded-lg hover:bg-secondary transition-colors">
+        <button className="my-4 flex items-center justify-center gap-3 p-4 bg-secondary text-white rounded-lg hover:bg-primary/90 transition-colors cursor-pointer">
           <CirclePlusIcon />
           <span className="text-sm font-medium">Créer une facture</span>
         </button>
       </div>
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-center justify-start flex-wrap gap-5">
         <InvoiceSelector selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
         <InvoiceSorter sortMethod={sortMethod} setSortMethod={setSortMethod} isOpen={isSortOpen} setIsOpen={setIsSortOpen} />
       </div>
