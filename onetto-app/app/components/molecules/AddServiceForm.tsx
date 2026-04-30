@@ -52,8 +52,8 @@ function AddServiceForm({ isActive, setIsActive }: AddServiceFormProps) {
     <>
       <div className="dark-layer fixed z-20 inset-0 bg-black/50 backdrop-blur-lg"></div>
       <div className="fixed z-30 inset-0 flex items-center justify-center p-4 ">
-        <div className="form-container bg-white rounded-md shadow-lg overflow-y-auto max-h-160 w-full max-w-220 md:flex md:flex-row-reverse md:items-stretch">
-          <form className="p-6 w-full md:w-4/6">
+        <div className="form-container bg-white rounded-md shadow-lg overflow-y-auto max-h-160 w-full max-w-220 md:flex md:flex-row-reverse">
+          <form className="p-6 w-full md:w-4/6 md:h-full">
             <div className="mb-1 flex items-center justify-between">
               <h2 className="text-xl font-title font-black text-zinc-700">Créer un service</h2>
               <X onClick={() => {
@@ -161,7 +161,7 @@ function AddServiceForm({ isActive, setIsActive }: AddServiceFormProps) {
             </div>
           </form>
 
-          <div className="preview bg-custom-gray-light p-6 w-full md:w-2/6 md:h-full md:self-stretch">
+          <div className="preview bg-custom-gray-light p-6 w-full md:w-2/6 md:h-150">
             <span className="uppercase text-gray-300 text-xs font-title font-semibold tracking-wide">Aperçu direct</span>
             <div className="mt-4">
               <ServiceCard service={previewService} />
