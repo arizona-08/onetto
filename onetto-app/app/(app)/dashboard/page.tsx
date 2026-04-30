@@ -1,4 +1,5 @@
-import InvoiceTable from '@/app/components/InvoiceTable'
+
+import InvoiceTable from '@/app/components/organisms/InvoiceTable'
 import { AlertTriangle } from 'lucide-react'
 import { ChartLine } from 'lucide-react'
 import { Check } from 'lucide-react'

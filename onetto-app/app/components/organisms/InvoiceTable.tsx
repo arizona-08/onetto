@@ -1,8 +1,9 @@
 'use client';
 import React from 'react'
-import InvoiceSelector from './InvoiceSelector'
-import InvoiceSorter from './InvoiceSorter';
+
 import { CirclePlusIcon } from 'lucide-react';
+import InvoiceSelector from '../molecules/InvoiceSelector';
+import InvoiceSorter from '../molecules/InvoiceSorter';
 
 const invoices = [
   {
