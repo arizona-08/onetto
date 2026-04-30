@@ -21,7 +21,7 @@ function AddServiceForm({ isActive, setIsActive }: AddServiceFormProps) {
     description: '',
     category: '',
     unitPrice: 0,
-    unit: 'Unité',
+    unit: '',
     taxRate: 0,
   });
 
@@ -30,6 +30,18 @@ function AddServiceForm({ isActive, setIsActive }: AddServiceFormProps) {
       ...prev,
       [field]: value,
     }));
+  }
+
+  function resetForm() {
+    setPreviewService({
+      id: 'PREVIEW',
+      name: '',
+      description: '',
+      category: '',
+      unitPrice: 0,
+      unit: '',
+      taxRate: 0,
+    });
   }
 
   if(!isActive) {
@@ -44,7 +56,10 @@ function AddServiceForm({ isActive, setIsActive }: AddServiceFormProps) {
           <form className="p-6 w-full md:w-4/6">
             <div className="mb-1 flex items-center justify-between">
               <h2 className="text-xl font-title font-black text-zinc-700">Créer un service</h2>
-              <X onClick={closeForm} />
+              <X onClick={() => {
+                closeForm();
+                resetForm();
+                }} />
             </div>
             <p className="text-sm text-gray-400 mb-6">Remplissez les détails pour votre catalogue</p>
             
@@ -132,6 +147,7 @@ function AddServiceForm({ isActive, setIsActive }: AddServiceFormProps) {
                   className="bg-custom-gray-dark border-b border-gray-300 rounded-tr-md rounded-tl-md py-2 px-3 focus:outline-none"
                   placeholder='ex: 5.5'
                   min={0}
+                  step="0.01"
                   onChange={(e) => handleServiceChange('taxRate', e.target.value)}
                   value={previewService.taxRate}
                 />

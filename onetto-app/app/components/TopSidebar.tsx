@@ -6,8 +6,8 @@ import { usePathname } from 'next/navigation';
 
 const links = [
   { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboardIcon />  },
-  { name: 'Services', href: '/services', icon: <Waypoints /> },
   { name: 'Factures', href: '/invoices', icon: <FileChartColumnIncreasing />  },
+  { name: 'Services', href: '/services', icon: <Waypoints /> },
   { name: 'Clients', href: '/customers', icon: <UserIcon />  },
   { name: 'Paramètres', href: '/settings', icon: <SettingsIcon />  },
 ]
