@@ -1,13 +1,13 @@
 'use client';
 import React from 'react'
-import BurgerMenu from './BurgerMenu'
+import BurgerMenu from './molecules/BurgerMenu'
 import { FileChartColumnIncreasing, LayoutDashboardIcon, SettingsIcon, UserIcon, Waypoints } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
 const links = [
   { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboardIcon />  },
-  { name: 'Services', href: '/services', icon: <Waypoints /> },
   { name: 'Factures', href: '/invoices', icon: <FileChartColumnIncreasing />  },
+  { name: 'Services', href: '/services', icon: <Waypoints /> },
   { name: 'Clients', href: '/customers', icon: <UserIcon />  },
   { name: 'Paramètres', href: '/settings', icon: <SettingsIcon />  },
 ]
@@ -29,7 +29,7 @@ function TopSidebar() {
         <div className="w-8 h-8 bg-gray-200 rounded-full lg:hidden"></div>
       </div>
 
-      <div className={`bg-background border-b border-zinc-200 absolute left-0 top-full w-full h-0 overflow-hidden ${isOpen ? 'h-90' : ''} lg:h-full lg:relative lg:top-0 lg:border-b-0 lg:flex-1 lg:flex lg:flex-col lg:justify-between lg:bg-[#EEEEEE] transition-all duration-150`}>
+      <div className={`bg-background border-b border-zinc-200 absolute left-0 top-full z-10 w-full h-0 overflow-hidden ${isOpen ? 'h-90' : ''} lg:h-full lg:relative lg:top-0 lg:border-b-0 lg:flex-1 lg:flex lg:flex-col lg:justify-between lg:bg-[#EEEEEE] transition-all duration-150`}>
         <nav className="mt-4">
           <ul className="px-2 lg:px-0">
             {links.map((link) => {

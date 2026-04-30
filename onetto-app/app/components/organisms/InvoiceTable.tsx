@@ -1,8 +1,10 @@
 'use client';
 import React from 'react'
-import InvoiceSelector from './InvoiceSelector'
-import InvoiceSorter from './InvoiceSorter';
+
 import { CirclePlusIcon } from 'lucide-react';
+import InvoiceSelector from '../molecules/InvoiceSelector';
+import InvoiceSorter from '../molecules/InvoiceSorter';
+import Link from 'next/link';
 
 const invoices = [
   {
@@ -91,10 +93,10 @@ function InvoiceTable() {
   return (
     <>
       <div>
-        <button className="my-4 flex items-center justify-center gap-3 p-4 bg-secondary text-white rounded-lg hover:bg-primary/90 transition-colors cursor-pointer">
+        <Link href="/invoices/create" className="my-4 flex items-center justify-center gap-3 p-4 bg-secondary text-white rounded-lg hover:bg-primary/90 transition-colors cursor-pointer">
           <CirclePlusIcon />
           <span className="text-sm font-medium">Créer une facture</span>
-        </button>
+        </Link>
       </div>
       <div className="flex items-center justify-start flex-wrap gap-5">
         <InvoiceSelector selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
