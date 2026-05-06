@@ -7,3 +7,10 @@ export type Service = {
   taxRate: number
   category: string
 }
+
+export type ServiceLineItem = {
+  description: string
+  quantity: number
+  unitPrice: number
+  unit: string
+}
