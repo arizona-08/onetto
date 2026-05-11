@@ -6,7 +6,7 @@ interface InvoicePreviewProps {
 }
 function InvoicePreview({ client }: InvoicePreviewProps) {
   return (
-    <div className="w-full max-w-175 mt-10 lg:mt-0 rounded-2xl border border-gray-200 bg-linear-to-br from-white via-white to-gray-50/70 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.35)]">
+    <div className="w-full max-w-full mt-10 lg:mt-0 rounded-2xl border border-gray-200 bg-linear-to-br from-white via-white to-gray-50/70 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.35)]">
       <div className="flex items-center gap-2 w-fit text-sm bg-primary/10 text-primary px-3 py-1 rounded-full mb-4">
         <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
         <span>Aperçu de la facture</span>
@@ -65,7 +65,7 @@ function InvoicePreview({ client }: InvoicePreviewProps) {
 
       {/* Détails de la facture */}
       <div className="mt-6 w-full overflow-x-auto rounded-xl border border-gray-200 bg-white">
-        <table className="min-w-185 w-full text-left border-collapse">
+        <table className="w-full min-w-0 text-left border-collapse">
           <thead className="border-b border-gray-200 bg-gray-50/70 text-xs uppercase tracking-[0.18em] text-gray-500">
             <tr>
               <th className="px-4 py-3 font-semibold">Description</th>
@@ -99,7 +99,7 @@ function InvoicePreview({ client }: InvoicePreviewProps) {
 
       {/* Total de la facture */}
       <div className="mt-6 flex flex-col items-end gap-4">
-        <div className="w-full max-w-90 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="w-full sm:max-w-90 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex justify-between text-sm text-gray-600">
             <span>Total HT</span>
             <p className="font-semibold text-primary">6005€</p>
