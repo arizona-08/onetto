@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #F9F9F9;
+  --background: #F9F9FB;
   --foreground: #231942;
+  --primary: #454ADE;
+  --primary-hover: #3c40b8;
 }
 
 @theme inline {
@@ -11,8 +13,9 @@
 
   --color-custom-gray-dark: #EEEEEE;
   --color-custom-gray-light: #F9F9F9;
-  --color-primary: #231942;
-  --color-secondary: #5E548E;
+  --color-primary: #454ADE;
+  --color-primary-hover: #3c40b8;
+  --color-secondary: #1B1725;
   --font-title: var(--font-manrope);
   --font-body: var(--font-inter);
 }

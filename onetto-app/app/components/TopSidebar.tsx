@@ -18,7 +18,7 @@ function TopSidebar() {
   const pathname = usePathname();
   
   return (
-    <header className="relative w-full border-b border-zinc-200 lg:w-64 lg:h-screen bg-background p-4 lg:flex lg:flex-col lg:bg-[#EEEEEE]">
+    <header className="bg-white relative w-full border-b border-zinc-200 shadow-xs lg:w-64 lg:h-screen p-4 lg:flex lg:flex-col">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <BurgerMenu trigger={() => setIsOpen(!isOpen)} />
@@ -29,7 +29,7 @@ function TopSidebar() {
         <div className="w-8 h-8 bg-gray-200 rounded-full lg:hidden"></div>
       </div>
 
-      <div className={`bg-background border-b border-zinc-200 absolute left-0 top-full z-10 w-full h-0 overflow-hidden ${isOpen ? 'h-90' : ''} lg:h-full lg:relative lg:top-0 lg:border-b-0 lg:flex-1 lg:flex lg:flex-col lg:justify-between lg:bg-[#EEEEEE] transition-all duration-150`}>
+      <div className={`bg-white border-b border-zinc-200 absolute left-0 top-full z-10 w-full h-0 overflow-hidden ${isOpen ? 'h-90' : ''} lg:h-full lg:relative lg:top-0 lg:border-b-0 lg:flex-1 lg:flex lg:flex-col lg:justify-between transition-all duration-150`}>
         <nav className="mt-4">
           <ul className="px-2 lg:px-0">
             {links.map((link) => {

@@ -92,8 +92,8 @@ function InvoiceTable() {
   const [isSortOpen, setIsSortOpen] = React.useState<boolean>(false)
   return (
     <>
-      <div>
-        <Link href="/invoices/create" className="my-4 flex items-center justify-center gap-3 p-4 bg-secondary text-white rounded-lg hover:bg-primary/90 transition-colors cursor-pointer">
+      <div className=''>
+        <Link href="/invoices/create" className="shadow-md my-4 flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
           <CirclePlusIcon />
           <span className="text-sm font-medium">Créer une facture</span>
         </Link>

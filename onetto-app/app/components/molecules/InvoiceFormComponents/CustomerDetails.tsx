@@ -4,7 +4,7 @@ function CustomerDetails() {
   return (
     <div className="border border-gray-200 rounded-md p-4 mb-6">
       <header className="flex items-center gap-4 mb-6">
-        <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center text-white font-semibold font-title">
+        <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold font-title">
           <span>01</span>
         </div>
         <h2 className="text-lg font-title font-semibold mb-1">Détails du client</h2>

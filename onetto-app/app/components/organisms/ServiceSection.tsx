@@ -19,7 +19,7 @@ function ServiceSection({ services }: ServiceSectionProps) {
       />
       <div>
         <button 
-          className="bg-secondary hover:bg-primary text-white font-medium py-2 px-4 rounded flex items-center gap-2 mt-6"
+          className="bg-primary hover:bg-primary-hover text-white font-medium py-2 px-4 rounded flex items-center gap-2 mt-6"
           onClick={() => setIsAddFormActive(true)}
         >
           <Plus className='w-4 h-4'/>

@@ -9,7 +9,7 @@ interface InvoiceSelectorProps {
 }
 function InvoiceSelector({ selectedStatus, onSelectStatus }: InvoiceSelectorProps) {
   return (
-    <div className="flex items-center gap-1 w-fit bg-gray-600/10 p-1 rounded-lg">
+    <div className="flex items-center gap-1 w-fit bg-gray-600/10 p-1 rounded-lg shadow-sm">
       {INVOICES_STATUS.map((status) => (
         <button
           key={status}
