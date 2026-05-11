@@ -1,6 +1,10 @@
+import { Client } from '@/shared/types';
 import React from 'react'
 
-function InvoicePreview() {
+interface InvoicePreviewProps {
+  client: Client | null;
+}
+function InvoicePreview({ client }: InvoicePreviewProps) {
   return (
     <div className="w-full max-w-175 mt-10 lg:mt-0 rounded-2xl border border-gray-200 bg-linear-to-br from-white via-white to-gray-50/70 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.35)]">
       <div className="flex items-center gap-2 w-fit text-sm bg-primary/10 text-primary px-3 py-1 rounded-full mb-4">
@@ -29,10 +33,21 @@ function InvoicePreview() {
       <div className="mt-6 grid gap-6 md:grid-cols-[1.3fr,1fr]">
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <span className="text-xs font-semibold text-primary/70 uppercase tracking-[0.2em]">A destination de</span>
-          <p className="mt-2 text-lg font-semibold">Client Name</p>
+          {client ? (
+            <>
+              <p className="mt-2 text-lg font-semibold">{client.name && client.name !== "" ? client.name : "Nom du client"}</p>
+              <p className="text-xs text-primary/80">{client.street && client.street !== "" ? client.street : "10 rue de la Paix,"}</p>
+              <p className="text-xs text-primary/80">{client.postalCode && client.postalCode !== "" ? client.postalCode : "75002"}, {client.city && client.city !== "" ? client.city : "Paris"}</p>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-lg font-semibold">Nom du client</p>
+              <p className="text-xs text-primary/80">10 rue de la Paix,</p>
+              <p className="text-xs text-primary/80">75002, Paris</p>
+            </>
+          )}
 
-          <p className="text-xs text-primary/80">10 rue de la Paix,</p>
-          <p className="text-xs text-primary/80">75002, Paris</p>
+          
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
