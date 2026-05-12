@@ -6,9 +6,14 @@ interface AddLineItemModalProps {
   isVisible: boolean
   onClose: () => void
   onAddLineItem: (lineItem: ServiceLineItem) => void;
+  lineItemToModify: {
+    item: ServiceLineItem | null
+    index: number | null
+  } | null;
+  onEditLineItem: (lineItem: ServiceLineItem, index: number) => void;
 }
 
-function AddLineItemModal({ isVisible, onClose, onAddLineItem }: AddLineItemModalProps) {
+function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify, onEditLineItem }: AddLineItemModalProps) {
 
   const [lineItemDetails, setLineItemDetails] = React.useState<ServiceLineItem>({
     description: "",
@@ -16,6 +21,19 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem }: AddLineItemModa
     unitPrice: 0,
     unit: ""
   })
+
+  React.useEffect(() => {
+    if (lineItemToModify) {
+      setLineItemDetails(lineItemToModify.item || {
+        description: "",
+        quantity: 1,
+        unitPrice: 0,
+        unit: ""
+      })
+    } else {
+      resetLineItemDetails()
+    }
+  }, [lineItemToModify])
 
   function resetLineItemDetails() {
     setLineItemDetails({
@@ -103,7 +121,11 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem }: AddLineItemModa
                 <button type="button" className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors" onClick={onClose}>Annuler</button>
                 <button type="submit" className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-hover transition-colors" onClick={(e) => {
                   e.preventDefault();
-                  onAddLineItem(lineItemDetails);
+                  if (lineItemToModify) {
+                    onEditLineItem(lineItemDetails, lineItemToModify.index || 0);
+                  } else {
+                    onAddLineItem(lineItemDetails);
+                  }
                   resetLineItemDetails();
                   onClose();
                 }}>Ajouter</button>

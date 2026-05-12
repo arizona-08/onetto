@@ -1,5 +1,5 @@
 import { ServiceLineItem } from '@/app/types'
-import { Plus } from 'lucide-react'
+import { Edit, Plus, Trash2 } from 'lucide-react'
 import React from 'react'
 import AddLineItemModal from './AddLineItemModal'
 
@@ -30,6 +30,10 @@ function ServiceLineItems() {
 
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
   const [isModalVisible, setIsModalVisible] = React.useState(false)
+  const [lineItemToModify, setLineItemToModify] = React.useState<{
+    item: ServiceLineItem | null
+    index: number | null
+  } | null>(null)
 
   function handleOnCloseModal() {
     setIsModalVisible(false)
@@ -40,9 +44,27 @@ function ServiceLineItems() {
     setIsModalVisible(false)
   }
 
+  function handleOnEditLineItem(lineItem: ServiceLineItem, index: number) {
+    setLineItems(prev => {
+      const newLineItems = [...prev]
+      newLineItems[index] = lineItem
+      return newLineItems
+    })
+    setLineItemToModify(null)
+    setIsModalVisible(false)
+  }
+
+  function deleteLineItem(index: number) {
+    setLineItems(prev => {
+      const newLineItems = [...prev]
+      newLineItems.splice(index, 1)
+      return newLineItems
+    })
+  }
+
   return (
     <>
-      <AddLineItemModal isVisible={isModalVisible} onClose={handleOnCloseModal} onAddLineItem={handleOnAddLineItem} />
+      <AddLineItemModal isVisible={isModalVisible} onClose={handleOnCloseModal} onAddLineItem={handleOnAddLineItem} lineItemToModify={lineItemToModify} onEditLineItem={handleOnEditLineItem} />
       <div className="border border-gray-200 rounded-md p-4 mb-6">
         <header className="flex flex-col items-center mb-10 md:flex-row md:justify-between">
           <div className='flex items-center gap-4 w-full md:w-fit'>
@@ -69,6 +91,7 @@ function ServiceLineItems() {
                 <th className="pb-5 font-bold font-title tracking-wide">Quantité</th>
                 <th className="pb-5 font-bold font-title tracking-wide">Prix unitaire</th>
                 <th className="pb-5 font-bold font-title tracking-wide">Total</th>
+                <th className="pb-5 font-bold font-title tracking-wide">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -76,8 +99,19 @@ function ServiceLineItems() {
                 <tr key={index}>
                   <td className="py-4 border-b border-gray-200 font-semibold">{lineItem.description}</td>
                   <td className="py-4 border-b border-gray-200">{lineItem.quantity}</td>
-                  <td className="py-4 border-b border-gray-200">{lineItem.unitPrice} / {lineItem.unit}</td>
+                  <td className="py-4 border-b border-gray-200">{lineItem.unitPrice} € / {lineItem.unit}</td>
                   <td className="py-4 border-b border-gray-200 font-semibold">{lineItem.unitPrice * lineItem.quantity} €</td>
+                  <td className="py-4 border-b border-gray-200">
+                    <button className="text-primary hover:text-primary-hover" onClick={() => {
+                      setLineItemToModify({ item: lineItem, index })
+                      setIsModalVisible(true)
+                    }}>
+                      <Edit size={16} />
+                    </button>
+                    <button className="text-danger hover:text-danger-hover ml-2" onClick={() => deleteLineItem(index)}>
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
