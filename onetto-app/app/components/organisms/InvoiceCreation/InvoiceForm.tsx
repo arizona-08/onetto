@@ -1,7 +1,7 @@
 import React from 'react'
 import CustomerDetails from '../../molecules/InvoiceFormComponents/CustomerDetails'
 import ServiceLineItems from '../../molecules/InvoiceFormComponents/ServiceLineItems'
-import { Client } from '@/shared/types';
+import { Client } from '@/app/types';
 
 
 interface InvoiceFormProps {

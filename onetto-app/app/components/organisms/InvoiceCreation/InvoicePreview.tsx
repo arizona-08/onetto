@@ -1,4 +1,4 @@
-import { Client } from '@/shared/types';
+import { Client } from '@/app/types';
 import React from 'react'
 
 interface InvoicePreviewProps {
