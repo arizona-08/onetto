@@ -4,29 +4,10 @@ import React from 'react'
 import AddLineItemModal from './AddLineItemModal'
 
 
-const serviceLineItems: ServiceLineItem[] = [
-  {
-    description: "Développement site vitrine",
-    quantity: 1,
-    unitPrice: 1000,
-    unit: "site",
-  },
-  {
-    description: "Développement SaaS personnalisé",
-    quantity: 1,
-    unitPrice: 5000,
-    unit: "SaaS",
-  },
-  {
-    description: "Maintenance mensuelle",
-    quantity: 1,
-    unitPrice: 5,
-    unit: "session",
-  },
-
-]
-
-function ServiceLineItems() {
+interface ServiceLineItemsProps {
+  onLineItemsChange: (lineItems: ServiceLineItem[]) => void;
+}
+function ServiceLineItems({ onLineItemsChange }: ServiceLineItemsProps) {
 
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
   const [isModalVisible, setIsModalVisible] = React.useState(false)
@@ -42,24 +23,24 @@ function ServiceLineItems() {
   function handleOnAddLineItem(lineItem: ServiceLineItem) {
     setLineItems(prev => [...prev, lineItem])
     setIsModalVisible(false)
+    onLineItemsChange([...lineItems, lineItem])
   }
 
   function handleOnEditLineItem(lineItem: ServiceLineItem, index: number) {
-    setLineItems(prev => {
-      const newLineItems = [...prev]
-      newLineItems[index] = lineItem
-      return newLineItems
-    })
+    const newLineItems = [...lineItems]
+    newLineItems[index] = lineItem
+    setLineItems(newLineItems)
+    onLineItemsChange(newLineItems)
+
     setLineItemToModify(null)
     setIsModalVisible(false)
   }
 
   function deleteLineItem(index: number) {
-    setLineItems(prev => {
-      const newLineItems = [...prev]
-      newLineItems.splice(index, 1)
-      return newLineItems
-    })
+    const newLineItems = [...lineItems]
+    newLineItems.splice(index, 1)
+    setLineItems(newLineItems)
+    onLineItemsChange(newLineItems)
   }
 
   return (

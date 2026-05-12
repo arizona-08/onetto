@@ -1,10 +1,11 @@
-import { Client } from '@/app/types';
+import { Client, ServiceLineItem } from '@/app/types';
 import React from 'react'
 
 interface InvoicePreviewProps {
   client: Client | null;
+  lineItems: ServiceLineItem[];
 }
-function InvoicePreview({ client }: InvoicePreviewProps) {
+function InvoicePreview({ client, lineItems }: InvoicePreviewProps) {
   return (
     <div className="w-full max-w-full mt-10 lg:mt-0 rounded-2xl border border-gray-200 bg-linear-to-br from-white via-white to-gray-50/70 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.35)]">
       <div className="flex items-center gap-2 w-fit text-sm bg-primary/10 text-primary px-3 py-1 rounded-full mb-4">
@@ -75,24 +76,18 @@ function InvoicePreview({ client }: InvoicePreviewProps) {
             </tr>
           </thead>
           <tbody className="text-sm">
-            <tr className="border-b border-gray-200 last:border-b-0">
-              <td className="px-4 py-4 font-medium">Developpement site vitrine</td>
-              <td className="px-4 py-4">1</td>
-              <td className="px-4 py-4">1000€ / site</td>
-              <td className="px-4 py-4 text-right font-semibold">1000€</td>
-            </tr>
-            <tr className="border-b border-gray-200 last:border-b-0 bg-gray-50/40">
-              <td className="px-4 py-4 font-medium">Developpement SaaS personnalise</td>
-              <td className="px-4 py-4">1</td>
-              <td className="px-4 py-4">5000€ / site</td>
-              <td className="px-4 py-4 text-right font-semibold">5000€</td>
-            </tr>
-            <tr className="border-b border-gray-200 last:border-b-0">
-              <td className="px-4 py-4 font-medium">Maintenance mensuelle</td>
-              <td className="px-4 py-4">1</td>
-              <td className="px-4 py-4">5€ / site</td>
-              <td className="px-4 py-4 text-right font-semibold">5€</td>
-            </tr>
+            {lineItems.length > 0 ? lineItems.map((lineItem, index) => (
+              <tr key={index} className="border-b border-gray-200 last:border-b-0">
+                <td className="px-4 py-4 font-medium">{lineItem.description}</td>
+                <td className="px-4 py-4">{lineItem.quantity}</td>
+                <td className="px-4 py-4">{lineItem.unitPrice}€ / {lineItem.unit}</td>
+                <td className="px-4 py-4 text-right font-semibold">{lineItem.unitPrice * lineItem.quantity}€</td>
+              </tr>
+            )) : (
+              <tr className="border-b border-gray-200 last:border-b-0">
+                <td colSpan={4} className="px-4 py-4 text-center text-gray-500">Aucun service ajouté</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

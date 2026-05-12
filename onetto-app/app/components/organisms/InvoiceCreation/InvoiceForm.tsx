@@ -1,23 +1,20 @@
 import React from 'react'
 import CustomerDetails from '../../molecules/InvoiceFormComponents/CustomerDetails'
 import ServiceLineItems from '../../molecules/InvoiceFormComponents/ServiceLineItems'
-import { Client } from '@/app/types';
+import { Client, ServiceLineItem } from '@/app/types';
 
 
 interface InvoiceFormProps {
   onClientChange: (client: Client | null) => void;
+  onLineItemsChange: (lineItems: ServiceLineItem[]) => void;
 }
 
-function InvoiceForm({ onClientChange }: InvoiceFormProps) {
-  function handleClientChange(client: Client | null) {
-    onClientChange(client);
-  }
-
+function InvoiceForm({ onClientChange, onLineItemsChange }: InvoiceFormProps) {
   
   return (
     <div className="">
-      <CustomerDetails onClientChange={handleClientChange} />
-      <ServiceLineItems />
+      <CustomerDetails onClientChange={onClientChange} />
+      <ServiceLineItems onLineItemsChange={onLineItemsChange} />
     </div>
   )
 }
