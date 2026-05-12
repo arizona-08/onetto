@@ -1,4 +1,5 @@
-import { Client } from '@/shared/types'
+
+import { Client } from '@/app/types';
 import { ChevronDown } from 'lucide-react'
 import React from 'react'
 
