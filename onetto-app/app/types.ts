@@ -21,6 +21,7 @@ export type Service = {
 export type ServiceLineItem = {
   description: string
   quantity: number
+  taxRate: number
   unitPrice: number
   unit: string
 }

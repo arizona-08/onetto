@@ -6,6 +6,9 @@ interface InvoicePreviewProps {
   lineItems: ServiceLineItem[];
 }
 function InvoicePreview({ client, lineItems }: InvoicePreviewProps) {
+  const totalHT = lineItems.reduce((total, item) => total + (item.unitPrice * item.quantity), 0);
+  const tva = lineItems.reduce((total, item) => total + (item.unitPrice * item.quantity * (item.taxRate / 100)), 0);
+  const totalTTC = totalHT + tva;
   return (
     <div className="w-full max-w-full mt-10 lg:mt-0 rounded-2xl border border-gray-200 bg-linear-to-br from-white via-white to-gray-50/70 p-6 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.35)]">
       <div className="flex items-center gap-2 w-fit text-sm bg-primary/10 text-primary px-3 py-1 rounded-full mb-4">
@@ -72,20 +75,28 @@ function InvoicePreview({ client, lineItems }: InvoicePreviewProps) {
               <th className="px-4 py-3 font-semibold">Description</th>
               <th className="px-4 py-3 font-semibold">Quantite</th>
               <th className="px-4 py-3 font-semibold">Prix unitaire</th>
-              <th className="px-4 py-3 font-semibold text-right">Total</th>
+              <th className="px-4 py-3 font-semibold">TVA</th>
+              <th className="px-4 py-3 font-semibold">Total HT</th>
+              <th className="px-4 py-3 font-semibold">Total TTC</th>
             </tr>
           </thead>
           <tbody className="text-sm">
-            {lineItems.length > 0 ? lineItems.map((lineItem, index) => (
-              <tr key={index} className="border-b border-gray-200 last:border-b-0">
-                <td className="px-4 py-4 font-medium">{lineItem.description}</td>
-                <td className="px-4 py-4">{lineItem.quantity}</td>
-                <td className="px-4 py-4">{lineItem.unitPrice}€ / {lineItem.unit}</td>
-                <td className="px-4 py-4 text-right font-semibold">{lineItem.unitPrice * lineItem.quantity}€</td>
-              </tr>
-            )) : (
+            {lineItems.length > 0 ? lineItems.map((lineItem, index) => {
+              const totalHT = lineItem.unitPrice * lineItem.quantity
+              const totalTTC = totalHT + (totalHT * (lineItem.taxRate / 100))
+              return (
+                <tr key={index} className="border-b border-gray-200 last:border-b-0">
+                  <td className="px-4 py-4 font-medium">{lineItem.description}</td>
+                  <td className="px-4 py-4">{lineItem.quantity}</td>
+                  <td className="px-4 py-4">{lineItem.unitPrice}€ / {lineItem.unit}</td>
+                  <td className="px-4 py-4 text-right font-semibold">{lineItem.taxRate}%</td>
+                  <td className="px-4 py-4 text-right font-semibold">{totalHT.toFixed(2)}€</td>
+                  <td className="px-4 py-4 text-right font-semibold">{totalTTC.toFixed(2)}€</td>
+                </tr>
+              )
+            }) : (
               <tr className="border-b border-gray-200 last:border-b-0">
-                <td colSpan={4} className="px-4 py-4 text-center text-gray-500">Aucun service ajouté</td>
+                <td colSpan={6} className="px-4 py-4 text-center text-gray-500">Aucun service ajouté</td>
               </tr>
             )}
           </tbody>
@@ -97,19 +108,19 @@ function InvoicePreview({ client, lineItems }: InvoicePreviewProps) {
         <div className="w-full sm:max-w-90 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex justify-between text-sm text-gray-600">
             <span>Total HT</span>
-            <p className="font-semibold text-primary">6005€</p>
+            <p className="font-semibold text-primary">{totalHT.toFixed(2)}€</p>
           </div>
 
           <div className="mt-2 flex justify-between text-sm text-gray-600">
-            <span>TVA (20%)</span>
-            <p className="font-semibold text-primary">1201€</p>
+            <span>TVA</span>
+            <p className="font-semibold text-primary">{tva.toFixed(2)}€</p>
           </div>
 
           <div className="my-3 h-px w-full bg-gray-200" />
 
           <div className="flex justify-between">
             <span className="text-sm font-semibold text-gray-700">Total TTC</span>
-            <p className="text-2xl font-bold text-primary">7206€</p>
+            <p className="text-2xl font-bold text-primary">{totalTTC.toFixed(2)}€</p>
           </div>
         </div>
       </div>

@@ -71,17 +71,25 @@ function ServiceLineItems({ onLineItemsChange }: ServiceLineItemsProps) {
                 <th className="pb-5 font-bold font-title tracking-wide">Description</th>
                 <th className="pb-5 font-bold font-title tracking-wide">Quantité</th>
                 <th className="pb-5 font-bold font-title tracking-wide">Prix unitaire</th>
-                <th className="pb-5 font-bold font-title tracking-wide">Total</th>
+                <th className="pb-5 font-bold font-title tracking-wide">TVA</th>
+                <th className="pb-5 font-bold font-title tracking-wide">Total HT</th>
+                <th className="pb-5 font-bold font-title tracking-wide">Total TTC</th>
                 <th className="pb-5 font-bold font-title tracking-wide">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {lineItems.map((lineItem, index) => (
+              {lineItems.map((lineItem, index) => {
+                const totalHT = lineItem.unitPrice * lineItem.quantity
+                const totalTTC = totalHT + (totalHT * (lineItem.taxRate / 100))
+                return (
+
                 <tr key={index}>
                   <td className="py-4 border-b border-gray-200 font-semibold">{lineItem.description}</td>
                   <td className="py-4 border-b border-gray-200">{lineItem.quantity}</td>
                   <td className="py-4 border-b border-gray-200">{lineItem.unitPrice} € / {lineItem.unit}</td>
-                  <td className="py-4 border-b border-gray-200 font-semibold">{lineItem.unitPrice * lineItem.quantity} €</td>
+                  <td className="py-4 border-b border-gray-200">{lineItem.taxRate}%</td>
+                  <td className="py-4 border-b border-gray-200">{totalHT} €</td>
+                  <td className="py-4 border-b border-gray-200 font-semibold">{totalTTC} €</td>
                   <td className="py-4 border-b border-gray-200">
                     <button className="text-primary hover:text-primary-hover" onClick={() => {
                       setLineItemToModify({ item: lineItem, index })
@@ -94,7 +102,8 @@ function ServiceLineItems({ onLineItemsChange }: ServiceLineItemsProps) {
                     </button>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

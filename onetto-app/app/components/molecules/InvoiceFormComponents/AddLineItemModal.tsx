@@ -19,6 +19,7 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
     description: "",
     quantity: 1,
     unitPrice: 0,
+    taxRate: 0.00,
     unit: ""
   })
 
@@ -28,6 +29,7 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
         description: "",
         quantity: 1,
         unitPrice: 0,
+        taxRate: 0.00,
         unit: ""
       })
     } else {
@@ -40,6 +42,7 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
       description: "",
       quantity: 1,
       unitPrice: 0,
+      taxRate: 0.00,
       unit: ""
     })
   }
@@ -49,7 +52,7 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
     const { name, value } = e.target;
     setLineItemDetails(prev => ({
       ...prev,
-      [name]: name === "quantity" || name === "unitPrice" ? Number(value) : value
+      [name]: name === "quantity" || name === "unitPrice" || name === "taxRate" ? Number(value) : value
     }))
   }
 
@@ -112,6 +115,22 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
                     placeholder='application'
                     className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
                     value={lineItemDetails.unit}
+                    
+                    onChange={handleChange}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700">TVA (%)</label>
+                  <input
+                    type="number"
+                    id="taxRate"
+                    name="taxRate"
+                    placeholder='20'
+                    className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                    value={lineItemDetails.taxRate}
+                    min={0}
+                    max={100}
                     onChange={handleChange}
                   />
                 </div>
