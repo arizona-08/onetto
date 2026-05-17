@@ -6,11 +6,34 @@ import AddLineItemModal from './AddLineItemModal'
 
 interface ServiceLineItemsProps {
   onLineItemsChange: (lineItems: ServiceLineItem[]) => void;
+  onInvoiceDatesChange: (dates: { creationDate: string, dueDate: string }) => void;
 }
-function ServiceLineItems({ onLineItemsChange }: ServiceLineItemsProps) {
+function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange }: ServiceLineItemsProps) {
 
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
   const [isModalVisible, setIsModalVisible] = React.useState(false)
+
+  const [invoiceDates, setInvoiceDates] = React.useState(() => {
+    const d = new Date()
+    // set to one month ahead, handling month overflow
+    const month = d.getMonth()
+    const year = d.getFullYear()
+    const day = d.getDate()
+    const nextMonth = month + 1
+    const creationDate = d.toISOString().split('T')[0]
+    const dueDate = new Date(year, nextMonth, day)
+    return {
+      creationDate,
+      dueDate: dueDate.toISOString().split('T')[0]
+    }
+  })
+
+  function handleInvoiceDatesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const { name, value } = e.target
+    setInvoiceDates({ ...invoiceDates, [name]: value })
+    onInvoiceDatesChange({ ...invoiceDates, [name]: value })
+  }
+
   const [lineItemToModify, setLineItemToModify] = React.useState<{
     item: ServiceLineItem | null
     index: number | null
@@ -116,6 +139,8 @@ function ServiceLineItems({ onLineItemsChange }: ServiceLineItemsProps) {
                   type="date"
                   name="creationDate"
                   id=""
+                  value={invoiceDates.creationDate}
+                  onChange={handleInvoiceDatesChange}
                   className="bg-primary/20 rounded-md p-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50"
                   placeholder='11/07/2026'
                   />
@@ -127,6 +152,8 @@ function ServiceLineItems({ onLineItemsChange }: ServiceLineItemsProps) {
                   type="date"
                   name="dueDate"
                   id=""
+                  value={invoiceDates.dueDate}
+                  onChange={handleInvoiceDatesChange}
                   className="bg-primary/20 rounded-md p-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50"
                 />
               </div>

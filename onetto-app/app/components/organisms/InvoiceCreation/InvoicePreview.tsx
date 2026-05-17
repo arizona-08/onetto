@@ -1,11 +1,17 @@
 import { Client, ServiceLineItem } from '@/app/types';
+import { formatDate } from '@/shared/utils';
 import React from 'react'
 
 interface InvoicePreviewProps {
   client: Client | null;
   lineItems: ServiceLineItem[];
+  invoiceDates: {
+    creationDate: string;
+    dueDate: string;
+  }
 }
-function InvoicePreview({ client, lineItems }: InvoicePreviewProps) {
+
+function InvoicePreview({ client, lineItems, invoiceDates }: InvoicePreviewProps) {
   const totalHT = lineItems.reduce((total, item) => total + (item.unitPrice * item.quantity), 0);
   const tva = lineItems.reduce((total, item) => total + (item.unitPrice * item.quantity * (item.taxRate / 100)), 0);
   const totalTTC = totalHT + tva;
@@ -57,12 +63,12 @@ function InvoicePreview({ client, lineItems }: InvoicePreviewProps) {
         <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="mb-4">
             <span className="text-xs font-semibold text-primary/70 uppercase tracking-[0.2em]">Date de creation</span>
-            <p className="mt-1 font-semibold">01 Jui. 2026</p>
+            <p className="mt-1 font-semibold">{formatDate(invoiceDates.creationDate)}</p>
           </div>
 
           <div>
             <span className="text-xs font-semibold text-primary/70 uppercase tracking-[0.2em]">Date d'echeance</span>
-            <p className="mt-1 font-semibold">15 Jui. 2026</p>
+            <p className="mt-1 font-semibold">{formatDate(invoiceDates.dueDate)}</p>
           </div>
         </div>
       </div>

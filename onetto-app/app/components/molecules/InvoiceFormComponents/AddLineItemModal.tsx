@@ -78,61 +78,66 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
                 />
               </div>
 
-              <div className="flex flex-col gap-4 md:flex-row items-center bg-primary/10 p-4 rounded-md">
+              <div className="flex flex-col gap-4 items-center bg-primary/10 p-4 rounded-md">
 
-                <div>
-                  <label htmlFor="quantity" className="block text-sm font-medium text-gray-700">Quantité</label>
-                  <input
-                    type="number"
-                    id="quantity"
-                    name="quantity"
-                    placeholder='1'
-                    className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                    value={lineItemDetails.quantity}
-                    onChange={handleChange}
-                  />
+                <div className="w-full flex flex-col gap-4 md:flex-row">
+                  <div className="md:w-1/2">
+                    <label htmlFor="quantity" className="block text-sm font-medium text-gray-700">Quantité</label>
+                    <input
+                      type="number"
+                      id="quantity"
+                      name="quantity"
+                      placeholder='1'
+                      className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                      value={lineItemDetails.quantity}
+                      onChange={handleChange}
+                    />
+                  </div>
+
+                  <div className="md:w-1/2">
+                    <label htmlFor="unitPrice" className="block text-sm font-medium text-gray-700">Prix unitaire (€)</label>
+                    <input
+                      type="number"
+                      id="unitPrice"
+                      name="unitPrice"
+                      placeholder='5000'
+                      className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                      value={lineItemDetails.unitPrice}
+                      onChange={handleChange}
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label htmlFor="unitPrice" className="block text-sm font-medium text-gray-700">Prix unitaire (€)</label>
-                  <input
-                    type="number"
-                    id="unitPrice"
-                    name="unitPrice"
-                    placeholder='5000'
-                    className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                    value={lineItemDetails.unitPrice}
-                    onChange={handleChange}
-                  />
-                </div>
+                <div className="w-full flex flex-col gap-4 md:flex-row">
 
-                <div>
-                  <label htmlFor="unit" className="block text-sm font-medium text-gray-700">Unité</label>
-                  <input
-                    type="text"
-                    id="unit"
-                    name="unit"
-                    placeholder='application'
-                    className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                    value={lineItemDetails.unit}
-                    
-                    onChange={handleChange}
-                  />
-                </div>
+                  <div className="md:w-1/2">
+                    <label htmlFor="unit" className="block text-sm font-medium text-gray-700">Unité</label>
+                    <input
+                      type="text"
+                      id="unit"
+                      name="unit"
+                      placeholder='application'
+                      className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                      value={lineItemDetails.unit}
+                      
+                      onChange={handleChange}
+                    />
+                  </div>
 
-                <div>
-                  <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700">TVA (%)</label>
-                  <input
-                    type="number"
-                    id="taxRate"
-                    name="taxRate"
-                    placeholder='20'
-                    className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                    value={lineItemDetails.taxRate}
-                    min={0}
-                    max={100}
-                    onChange={handleChange}
-                  />
+                  <div className="md:w-1/2">
+                    <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700">TVA (%)</label>
+                    <input
+                      type="number"
+                      id="taxRate"
+                      name="taxRate"
+                      placeholder='20'
+                      className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                      value={lineItemDetails.taxRate}
+                      min={0}
+                      max={100}
+                      onChange={handleChange}
+                    />
+                  </div>
                 </div>
               </div>
 
