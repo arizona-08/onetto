@@ -2,8 +2,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white text-slate-900">
       <div className="relative overflow-hidden">
-        <div className="pointer-events-none absolute -top-32 right-[-120px] h-[420px] w-[420px] rounded-full bg-[#454ADE]/15 blur-3xl" />
-        <div className="pointer-events-none absolute -left-32 top-48 h-[360px] w-[360px] rounded-full bg-emerald-200/50 blur-3xl" />
+        <div className="pointer-events-none absolute -top-32 -right-32 h-105 w-105 rounded-full bg-[#454ADE]/15 blur-3xl" />
+        <div className="pointer-events-none absolute -left-32 top-48 h-70 w-70 rounded-full bg-emerald-200/50 blur-3xl" />
         <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-8 sm:px-10">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#454ADE] text-white shadow-lg shadow-[#454ADE]/30">
