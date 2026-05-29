@@ -1,5 +1,6 @@
 
-import { ServiceLineItem } from '@/app/types';
+import { Service, ServiceLineItem } from '@/app/types';
+import { ChevronDown, ChevronDownIcon } from 'lucide-react';
 import React from 'react'
 
 interface AddLineItemModalProps {
@@ -13,6 +14,36 @@ interface AddLineItemModalProps {
   onEditLineItem: (lineItem: ServiceLineItem, index: number) => void;
 }
 
+const predefinedServices: Service[] = [
+  {
+    id: "SERV-1",
+    name: "Développement d'application",
+    description: "Développement d'une application web ou mobile sur mesure.",
+    unitPrice: 5000,
+    taxRate: 20,
+    unit: "application",
+    category: "Développement"
+  },
+  {
+    id: "SERV-2",
+    name: "Pose de carrelage",
+    description: "Pose de carrelage dans un espace donné.",
+    unitPrice: 12,
+    taxRate: 20,
+    unit: "m²",
+    category: "Rénovation"
+  },
+  {
+    id: "SERV-3",
+    name: "Pose de peinture",
+    description: "Pose de peinture dans un espace donné.",
+    unitPrice: 15,
+    taxRate: 20,
+    unit: "m²",
+    category: "Maison"
+  },
+]
+
 function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify, onEditLineItem }: AddLineItemModalProps) {
 
   const [lineItemDetails, setLineItemDetails] = React.useState<ServiceLineItem>({
@@ -22,6 +53,31 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
     taxRate: 0.00,
     unit: ""
   })
+
+  const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
+  const [preSelectedService, setPreSelectedService] = React.useState<Service | null>(null);
+
+  function handleServiceSelect(service: Service | null) {
+    setPreSelectedService(service);
+    if(service) {
+      setLineItemDetails({
+        description: service.description as string,
+        quantity: 1,
+        unitPrice: service.unitPrice,
+        taxRate: service.taxRate,
+        unit: service.unit
+      })
+    } else {
+      setLineItemDetails({
+        description: "",
+        quantity: 1,
+        unitPrice: 0,
+        taxRate: 0.00,
+        unit: ""
+      })
+    }
+    setIsDropdownOpen(false);
+  }
 
   React.useEffect(() => {
     if (lineItemToModify) {
@@ -62,7 +118,30 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
         <>
           <div className="fixed inset-0 z-50 bg-black/25 backdrop-blur-xl"></div>
           <div className="w-full max-w-180 fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-white p-6 rounded-md">
-            <h2 className="text-lg font-title font-semibold mb-4">Ajouter un service</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-title font-semibold mb-4">Ajouter un service</h2>
+              {/* service dropdown */}
+              <div
+                className="relative flex items-center gap-2 border border-gray-300 rounded-md px-2 py-1 cursor-pointer"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              >
+                <ChevronDown/> <span className={`${preSelectedService ? 'text-gray-700' : 'text-gray-400'}`}>{preSelectedService?.name || "Choisir un service"}</span>
+
+                <ul className={`absolute top-full right-0 w-75 bg-white border border-gray-300 rounded-md  mt-1 shadow-lg z-10  ${isDropdownOpen ? 'block' : 'hidden'}`}>
+                  <li
+                    className="px-3 py-1 text-gray-400 hover:bg-gray-200"
+                    onClick={() => handleServiceSelect(null)}
+                    >
+                      Choisir un service
+                    </li>
+                  {predefinedServices.map(service => (
+                    <li key={service.id} className=" px-3 py-1 hover:bg-gray-200" onClick={() => handleServiceSelect(service)}>
+                      {service.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
             {/* Formulaire d'ajout de service */}
             <form className="space-y-4">
               <div>
@@ -152,7 +231,7 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
                   }
                   resetLineItemDetails();
                   onClose();
-                }}>Ajouter</button>
+                }}>{lineItemToModify ? "Modifier" : "Ajouter"}</button>
               </div>
             </form>
           </div>
