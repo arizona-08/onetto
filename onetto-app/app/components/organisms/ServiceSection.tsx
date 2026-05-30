@@ -11,11 +11,18 @@ interface ServiceSectionProps {
 function ServiceSection({ services }: ServiceSectionProps) {
 
   const [isAddFormActive, setIsAddFormActive] = React.useState(false);
+  const [masterServiceList, setMasterServiceList] = React.useState<Service[]>(services);
+
+  function handleAddService(newService: Service) {
+    setMasterServiceList(prevList => [...prevList, newService]);
+  }
+
   return (
     <>
       <AddServiceForm
         isActive={isAddFormActive}
         setIsActive={setIsAddFormActive}
+        handleAddService={handleAddService}
       />
       <div>
         <button 
@@ -28,7 +35,7 @@ function ServiceSection({ services }: ServiceSectionProps) {
 
         <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
           {/* Render your list of services here */}
-          {services.map((service) => (
+          {masterServiceList.map((service) => (
             <li key={service.id} className="h-full">
               <ServiceCard service={service} />
             </li>

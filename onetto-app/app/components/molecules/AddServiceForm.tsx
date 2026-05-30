@@ -8,9 +8,10 @@ import ServiceCard from './ServiceCard';
 interface AddServiceFormProps {
   isActive: boolean;
   setIsActive: (active: boolean) => void;
+  handleAddService: (newService: Service) => void;
 }
 
-function AddServiceForm({ isActive, setIsActive }: AddServiceFormProps) {
+function AddServiceForm({ isActive, setIsActive, handleAddService }: AddServiceFormProps) {
   function closeForm() {
     setIsActive(false);
   }
@@ -155,7 +156,14 @@ function AddServiceForm({ isActive, setIsActive }: AddServiceFormProps) {
             </div>
 
             <div className="flex items-center justify-end mt-6">
-              <button className="bg-primary hover:bg-bg-secondary text-white py-2 px-4 rounded-md focus:outline-none">
+              <button
+                className="bg-primary hover:bg-bg-secondary text-white py-2 px-4 rounded-md focus:outline-none"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleAddService(previewService);
+                  setIsActive(false);
+                }}
+              >
                 Créer le service
               </button>
             </div>
