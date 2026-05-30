@@ -1,6 +1,6 @@
 'use client';
 import React from 'react'
-import { Service } from '../../types'
+import { Service } from '../../../types'
 import ServiceCardMenu from './ServiceCardMenu'
 
 interface ServiceCardProps {

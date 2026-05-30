@@ -2,8 +2,8 @@
 import { Service } from '@/app/types'
 import { Plus } from 'lucide-react'
 import React from 'react'
-import ServiceCard from '../molecules/ServiceCard'
-import AddServiceForm from '../molecules/AddServiceForm'
+import ServiceCard from '../molecules/Service/ServiceCard'
+import AddServiceForm from '../molecules/Service/AddServiceForm'
 
 interface ServiceSectionProps {
   services: Service[]
