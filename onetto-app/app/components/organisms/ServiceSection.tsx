@@ -13,9 +13,28 @@ function ServiceSection({ services }: ServiceSectionProps) {
   const [isAddFormActive, setIsAddFormActive] = React.useState(false);
   const [masterServiceList, setMasterServiceList] = React.useState<Service[]>(services);
 
+  const [serviceToEdit, setServiceToEdit] = React.useState<Service | null>(null);
+
   function handleAddService(newService: Service) {
     setMasterServiceList(prevList => [...prevList, newService]);
   }
+
+  function handleTriggerEdit(serviceId: string) {
+    console.log('Trigger edit for service ID:', serviceId);
+    const service = masterServiceList.find(service => service.id === serviceId);
+    if(service) {
+      setServiceToEdit(service);
+      setIsAddFormActive(true);
+    }
+  }
+  function handleEditService(serviceToEdit: Service) {
+    setMasterServiceList(prevList => prevList.map(service => service.id === serviceToEdit.id ? serviceToEdit : service));
+  }
+
+  function handleDeleteService(serviceId: string) {
+    setMasterServiceList(prevList => prevList.filter(service => service.id !== serviceId));
+  }
+
 
   return (
     <>
@@ -23,6 +42,8 @@ function ServiceSection({ services }: ServiceSectionProps) {
         isActive={isAddFormActive}
         setIsActive={setIsAddFormActive}
         handleAddService={handleAddService}
+        serviceToEdit={serviceToEdit}
+        handleEditService={handleEditService}
       />
       <div>
         <button 
@@ -37,7 +58,7 @@ function ServiceSection({ services }: ServiceSectionProps) {
           {/* Render your list of services here */}
           {masterServiceList.map((service) => (
             <li key={service.id} className="h-full">
-              <ServiceCard service={service} />
+              <ServiceCard service={service} triggerEdit={handleTriggerEdit} triggerDelete={handleDeleteService} />
             </li>
           ))}
         </ul>

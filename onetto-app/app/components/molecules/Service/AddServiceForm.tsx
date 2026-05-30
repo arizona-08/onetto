@@ -9,9 +9,11 @@ interface AddServiceFormProps {
   isActive: boolean;
   setIsActive: (active: boolean) => void;
   handleAddService: (newService: Service) => void;
+  serviceToEdit: Service | null;
+  handleEditService: (serviceToEdit: Service) => void;
 }
 
-function AddServiceForm({ isActive, setIsActive, handleAddService }: AddServiceFormProps) {
+function AddServiceForm({ isActive, setIsActive, handleAddService, serviceToEdit, handleEditService }: AddServiceFormProps) {
   function closeForm() {
     setIsActive(false);
   }
@@ -25,6 +27,12 @@ function AddServiceForm({ isActive, setIsActive, handleAddService }: AddServiceF
     unit: '',
     taxRate: 0,
   });
+
+  React.useEffect(() => {
+    if(serviceToEdit) {
+      setPreviewService(serviceToEdit);
+    }
+  }, [serviceToEdit]);
 
   function handleServiceChange(field: keyof Service, value: string | number) {
     setPreviewService((prev) => ({
@@ -160,11 +168,17 @@ function AddServiceForm({ isActive, setIsActive, handleAddService }: AddServiceF
                 className="bg-primary hover:bg-bg-secondary text-white py-2 px-4 rounded-md focus:outline-none"
                 onClick={(e) => {
                   e.preventDefault();
-                  handleAddService(previewService);
-                  setIsActive(false);
+                  if(serviceToEdit) {
+                    handleEditService(previewService);
+                  } else {
+                    handleAddService(previewService);
+                  }
+                  
+                  resetForm();
+                  closeForm();
                 }}
               >
-                Créer le service
+                {serviceToEdit ? 'Modifier le service' : 'Créer le service'}
               </button>
             </div>
           </form>

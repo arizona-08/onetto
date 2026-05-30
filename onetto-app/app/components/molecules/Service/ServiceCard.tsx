@@ -5,10 +5,11 @@ import ServiceCardMenu from './ServiceCardMenu'
 
 interface ServiceCardProps {
   service: Service
-  
+  triggerEdit?: (serviceId: string) => void;
+  triggerDelete?: (serviceId: string) => void;
 }
 
-function ServiceCard({ service }: ServiceCardProps) {
+function ServiceCard({ service, triggerEdit, triggerDelete }: ServiceCardProps) {
 
   const unitPriceValue = typeof service.unitPrice === 'number'
     ? service.unitPrice
@@ -22,7 +23,7 @@ function ServiceCard({ service }: ServiceCardProps) {
       <div className="absolute top-0 left-0 w-full h-1 bg-primary opacity-75"></div>
       <div className="flex items-center justify-between">
         <span className="text-xs text-zinc-400 uppercase">{service.category}</span>
-        <ServiceCardMenu isOpen={isMenuOpen} setIsOpen={setIsMenuOpen} />
+        <ServiceCardMenu isOpen={isMenuOpen} setIsOpen={setIsMenuOpen} serviceId={service.id} triggerEdit={triggerEdit} triggerDelete={triggerDelete} />
       </div>
       <h4 className="text-xl font-bold font-title mb-2">{service.name}</h4>
       <p className="text-sm text-zinc-400">{service.description}</p>
