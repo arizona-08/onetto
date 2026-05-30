@@ -1,6 +1,6 @@
 'use client';
 
-import { Client, Service } from '@/app/types';
+import { Client } from '@/app/types';
 import { X } from 'lucide-react'
 import React from 'react'
 import ClientCard from './ClientCard';
@@ -9,9 +9,11 @@ interface AddClientFormProps {
   isActive: boolean;
   setIsActive: (active: boolean) => void;
   handleAddClient: (newClient: Client) => void;
+  clientToEdit: Client | null;
+  handleEditClient: (clientToEdit: Client) => void;
 }
 
-function AddClientForm({ isActive, setIsActive, handleAddClient }: AddClientFormProps) {
+function AddClientForm({ isActive, setIsActive, handleAddClient, clientToEdit, handleEditClient }: AddClientFormProps) {
   function closeForm() {
     setIsActive(false);
   }
@@ -25,6 +27,12 @@ function AddClientForm({ isActive, setIsActive, handleAddClient }: AddClientForm
     postalCode: "",
     country: "",
   });
+
+  React.useEffect(() => {
+    if (clientToEdit) {
+      setPreviewClient(clientToEdit);
+    }
+  }, [clientToEdit]);
 
   function handleClientChange(field: keyof Client, value: string | number) {
     setPreviewClient((prev) => ({
@@ -150,12 +158,16 @@ function AddClientForm({ isActive, setIsActive, handleAddClient }: AddClientForm
                 className="bg-primary hover:bg-bg-secondary text-white py-2 px-4 rounded-md focus:outline-none"
                 onClick={(e) => {
                   e.preventDefault();
-                  handleAddClient(previewClient);
+                  if (clientToEdit) {
+                    handleEditClient(previewClient);
+                  } else {
+                    handleAddClient(previewClient);
+                  }
                   resetForm();
                   closeForm();
                 }}
               >
-                Créer le client
+                {clientToEdit ? 'Modifier le client' : 'Créer le client'}
               </button>
             </div>
           </form>

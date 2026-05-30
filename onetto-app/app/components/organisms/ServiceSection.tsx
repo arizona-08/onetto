@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react'
 import React from 'react'
 import ServiceCard from '../molecules/Service/ServiceCard'
 import AddServiceForm from '../molecules/Service/AddServiceForm'
+import DeleteServiceModal from '../molecules/Service/DeleteServiceModal'
 
 interface ServiceSectionProps {
   services: Service[]
@@ -14,13 +15,13 @@ function ServiceSection({ services }: ServiceSectionProps) {
   const [masterServiceList, setMasterServiceList] = React.useState<Service[]>(services);
 
   const [serviceToEdit, setServiceToEdit] = React.useState<Service | null>(null);
+  const [serviceToDelete, setServiceToDelete] = React.useState<Service | null>(null);
 
   function handleAddService(newService: Service) {
     setMasterServiceList(prevList => [...prevList, newService]);
   }
 
   function handleTriggerEdit(serviceId: string) {
-    console.log('Trigger edit for service ID:', serviceId);
     const service = masterServiceList.find(service => service.id === serviceId);
     if(service) {
       setServiceToEdit(service);
@@ -35,6 +36,20 @@ function ServiceSection({ services }: ServiceSectionProps) {
     setMasterServiceList(prevList => prevList.filter(service => service.id !== serviceId));
   }
 
+  function handleTriggerDelete(serviceId: string) {
+    const service = masterServiceList.find(service => service.id === serviceId);
+    if (service) {
+      setServiceToDelete(service);
+    }
+  }
+
+  function handleConfirmDelete() {
+    if (serviceToDelete) {
+      handleDeleteService(serviceToDelete.id);
+      setServiceToDelete(null);
+    }
+  }
+
 
   return (
     <>
@@ -45,6 +60,15 @@ function ServiceSection({ services }: ServiceSectionProps) {
         serviceToEdit={serviceToEdit}
         handleEditService={handleEditService}
       />
+      {serviceToDelete && (
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-xl z-40 flex items-center justify-center p-4">
+          <DeleteServiceModal
+            service={serviceToDelete}
+            onCancel={() => setServiceToDelete(null)}
+            onConfirm={handleConfirmDelete}
+          />
+        </div>
+      )}
       <div>
         <button 
           className="bg-primary hover:bg-primary-hover text-white font-medium py-2 px-4 rounded flex items-center gap-2 mt-6"
@@ -58,7 +82,7 @@ function ServiceSection({ services }: ServiceSectionProps) {
           {/* Render your list of services here */}
           {masterServiceList.map((service) => (
             <li key={service.id} className="h-full">
-              <ServiceCard service={service} triggerEdit={handleTriggerEdit} triggerDelete={handleDeleteService} />
+              <ServiceCard service={service} triggerEdit={handleTriggerEdit} triggerDelete={handleTriggerDelete} />
             </li>
           ))}
         </ul>
