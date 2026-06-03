@@ -15,7 +15,7 @@ function Dashboard() {
 
         <div className="flex items-center gap-4 mt-2">
           {/* progress bar */}
-          <div className="relative h-2 w-90 bg-white rounded-full">
+          <div className="relative h-2 w-90 bg-white rounded-full shadow-xs">
             <div className="absolute top-0 left-0 h-full w-3/4 bg-green-500 rounded-full"></div>
           </div>
 
@@ -25,7 +25,7 @@ function Dashboard() {
 
       <div className="mt-8 w-full overflow-x-auto pb-4">
         <div className="flex items-center gap-3 flex-nowrap min-w-max">
-          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-green-100 rounded-lg ">
+          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-white rounded-lg shadow-md ">
             <div className="flex items-center gap-1">
               <Check className="w-4 h-4 text-green-800" />
               <span className="text-xs uppercase text-gray-500">Payées</span>
@@ -34,7 +34,7 @@ function Dashboard() {
             <p className="text-sm text-zinc-500">(5 factures payées)</p>
           </div>
 
-          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-orange-100 rounded-lg">
+          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-white rounded-lg shadow-md">
             <div className="flex items-center gap-1">
               <CirclePlusIcon className="w-4 h-4 text-yellow-800" />
               <span className="text-xs uppercase text-gray-500">En attente</span>
@@ -43,7 +43,7 @@ function Dashboard() {
             <p className="text-sm text-zinc-500">(5 factures impayées)</p>
           </div>
 
-          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-red-100 rounded-lg">
+          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-white rounded-lg shadow-md">
             <div className="flex items-center gap-1">
               <AlertTriangle className="w-4 h-4 text-red-800" />
               <span className="text-xs uppercase text-gray-500">En retard</span>
@@ -52,7 +52,7 @@ function Dashboard() {
             <p className="text-sm text-zinc-500">(5 factures en retard)</p>
           </div>
 
-          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-indigo-100 rounded-lg">
+          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-white rounded-lg shadow-md">
             <div className="flex items-center gap-1">
               <ChartLine className="w-4 h-4 text-indigo-800" />
               <span className="text-xs uppercase text-gray-500">Économies</span>
