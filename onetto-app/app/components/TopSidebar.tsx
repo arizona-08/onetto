@@ -9,7 +9,7 @@ const links = [
   { name: 'Factures', href: '/invoices', icon: <FileChartColumnIncreasing />  },
   { name: 'Services', href: '/services', icon: <Waypoints /> },
   { name: 'Clients', href: '/customers', icon: <UserIcon />  },
-  { name: 'Paramètres', href: '/settings', icon: <SettingsIcon />  },
+  { name: 'Paramètres', href: '/settings/account', icon: <SettingsIcon />  },
 ]
 
 function TopSidebar() {
@@ -33,8 +33,9 @@ function TopSidebar() {
         <nav className="mt-4">
           <ul className="px-2 lg:px-0">
             {links.map((link) => {
-              
-              const isCurrentPathName = link.href.startsWith(pathname);
+              const currentPathNameCategory = pathname.split('/')[1];
+              const linkPathNameCategory = link.href.split('/')[1];
+              const isCurrentPathName = currentPathNameCategory === linkPathNameCategory;
               return (
               <li key={link.name} className="mb-2">
                 <a

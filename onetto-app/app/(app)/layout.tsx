@@ -9,7 +9,7 @@ function AppLayout({ children }: AppLayoutProps) {
     <div className="h-screen flex flex-col lg:flex-row">
       <TopSidebar />
 
-      <main className="flex-1 w-full min-h-0 p-4 overflow-y-auto">
+      <main className="flex-1 w-full min-h-0  overflow-y-auto">
         {children}
       </main>
     </div>

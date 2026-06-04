@@ -8,7 +8,7 @@ import React from 'react'
 
 function Dashboard() {
   return (
-    <div className="w-full">
+    <div className="w-full p-4">
       <div>
         <span className="text-xs text-zinc-500">MON CHIFFRE D'AFFAIRES</span>
         <h1 className="text-5xl font-title font-black text-zinc-700">€12,345.67</h1>
