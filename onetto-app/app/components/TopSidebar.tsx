@@ -40,7 +40,7 @@ function TopSidebar() {
               <li key={link.name} className="mb-2">
                 <a
                   href={link.href}
-                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${isCurrentPathName ? 'bg-zinc-300 text-zinc-900' : 'text-zinc-700 hover:bg-zinc-300'}`}
+                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${isCurrentPathName ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-700 hover:bg-zinc-200'}`}
                 >
                   {link.icon}
                   {link.name}
@@ -50,7 +50,7 @@ function TopSidebar() {
           </ul>
         </nav>
 
-        <div className="hidden lg:block w-full hover:bg-zinc-300 p-2 rounded-lg transition-colors cursor-pointer">
+        <div className="hidden lg:block w-full hover:bg-zinc-200 p-2 rounded-lg transition-colors cursor-pointer">
           <div>
             <p className="text-zinc-700">Jonathan ASSI</p>
             <span className="text-sm text-zinc-500">assijoanthan2@gmail.com</span>
