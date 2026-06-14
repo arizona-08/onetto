@@ -18,6 +18,10 @@ model User {
   email String @unique
   password String
   role Role @default(BASIC_USER)
+
+  invoices Invoice[]
+  services UserService[]
+  clients UserClient[]
 }
 
 enum Role {
@@ -25,4 +29,69 @@ enum Role {
   PREMIUM_USER
   PRO_USER
   ADMIN_USER
+}
+
+model Invoice {
+  id String @id @default(uuid())
+  authorId String
+  clientName String
+  clientEmail String
+  clientAddress String
+  clientCity String
+  clientPostalCode String
+  clientCountry String
+  totalPrice Float
+  createdAt DateTime @default(now())
+  invoiceNumber String @unique
+  urlDocumentPdf String
+  paymentDueAt DateTime
+  status InvoiceStatus
+
+  author User @relation(fields: [authorId], references: [id])
+  services InvoiceService[]
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  PAID
+  OVERDUE
+}
+
+model InvoiceService {
+  id String @id @default(uuid())
+  invoiceId String
+  description String
+  quantity Int
+  unitPrice Float
+  vat Float?
+  wtPrice Float
+  totalPrice Float
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model UserService {
+  id String @id @default(uuid())
+  userId String
+  description String
+  unitPrice Float
+  vat Float?
+  wtPrice Float
+  totalPrice Float
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model UserClient {
+  id String @id @default(uuid())
+  authorId String
+  name String
+  email String
+  address String
+  city String
+  postalCode String
+  country String
+
+  author User @relation(fields: [authorId], references: [id])
 }

@@ -18,7 +18,7 @@ export class AuthController {
 
   @UseGuards(AuthGuard)
   @Get('me')
-  async me(@Request() req){
+  async me(@Request() req: any){
     return req.user;
   }
 }
