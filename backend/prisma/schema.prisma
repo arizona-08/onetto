@@ -43,7 +43,7 @@ model Invoice {
   totalPrice Float
   createdAt DateTime @default(now())
   invoiceNumber String @unique
-  urlDocumentPdf String
+  urlDocumentPdf String?
   paymentDueAt DateTime
   status InvoiceStatus
 
@@ -64,6 +64,7 @@ model InvoiceService {
   description String
   quantity Int
   unitPrice Float
+  unit String
   vat Float?
   wtPrice Float
   totalPrice Float
