@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, HttpException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateUserDto } from "./dtos/create-user.dto";
 import argon2 from "argon2";
@@ -46,6 +46,10 @@ export class UserService {
       }
       
     } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
       throw new InternalServerErrorException("An unexpected error occured while creating the user.", error instanceof Error ? error.message : undefined);
     }
     
