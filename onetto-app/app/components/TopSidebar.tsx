@@ -2,7 +2,8 @@
 import React from 'react'
 import BurgerMenu from './molecules/BurgerMenu'
 import { FileChartColumnIncreasing, LayoutDashboardIcon, LogOut, SettingsIcon, UserIcon, Waypoints } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { logout } from '@/lib/auth/auth';
 
 const links = [
   { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboardIcon />  },
@@ -22,7 +23,7 @@ function TopSidebar() {
     const response = await logout();
 
     if(!response.ok) {
-
+      console.error('Failed to logout');
     }
 
     router.push("/auth/login")
@@ -64,7 +65,7 @@ function TopSidebar() {
         <div className="hidden lg:block relative w-full hover:bg-zinc-200 p-2 rounded-lg transition-colors cursor-pointer group duration-300">
           <div
             className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-full flex justify-center items-center gap-3 rounded-md bg-white px-4 py-2 text-red-500 border border-gray-200 shadow-xs cursor-pointer opacity-0 invisible group-hover:visible group-hover:opacity-100 transition-all duration-150"
-            onClick={() => {}}
+            onClick={handleLogout}
           >
             <p>Me déconnecter</p>
             <LogOut className="w-5 h-5"/>
