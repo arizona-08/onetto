@@ -4,6 +4,7 @@ import { RegisterDto } from "./dtos/register.dto";
 import { LoginResponse } from "./responses/login.response";
 import { RegisterResponse } from "./responses/register.response";
 import { Result } from "../result";
+import { LogoutResponse } from "./responses/logout.response";
 
 export async function register(data: RegisterDto): Promise<Result<RegisterResponse, ApiError>> {
   return apiClient<RegisterResponse>("api/users/create", {
@@ -19,6 +20,14 @@ export async function login(data: LoginDto): Promise<Result<LoginResponse, ApiEr
   });
 }
 
-export async function refreshToken() {
-  
+export async function me(): Promise<Result<MeResponse, ApiError>> {
+  return apiClient<MeResponse>("api/auth/me", {
+    method: "GET",
+  });
+}
+
+export async function logout(): Promise<Result<LogoutResponse, ApiError>>{
+  return apiClient<LogoutResponse>("api/auth/logout", {
+    method: "DELETE",
+  });
 }

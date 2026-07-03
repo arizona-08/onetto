@@ -35,15 +35,21 @@ function getClientHeaders(options?: RequestInit): Headers {
     headers.set("Content-Type", "application/json");
   }
 
-  if (typeof window !== "undefined") {
-    const token = window.localStorage.getItem("onetto_access_token");
-
-    if (token && !headers.has("Authorization")) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
-  }
-
   return headers;
+}
+
+function isPublicAuthPath(path: string): boolean {
+  const normalizedPath = path.replace(/^\/+/, "");
+
+  return [
+    "api/auth/login",
+    "api/auth/refresh",
+    "api/users/create",
+  ].includes(normalizedPath);
+}
+
+function isRefreshPath(path: string): boolean {
+  return path.replace(/^\/+/, "") === "api/auth/refresh";
 }
 
 function toApiError(payload: unknown, statusCode: number): ApiError {
@@ -64,15 +70,43 @@ function toApiError(payload: unknown, statusCode: number): ApiError {
   };
 }
 
+async function fetchClientApi(path: string, options?: RequestInit) {
+  const headers = getClientHeaders(options);
+
+  const res = await fetch(buildApiUrl(process.env.NEXT_PUBLIC_API_URL, path), {
+    credentials: "include",
+    ...options,
+    headers,
+  });
+  const payload = await parseJsonResponse(res);
+
+  return { res, payload };
+}
+
+async function refreshClientAuthCookies(): Promise<boolean> {
+  const { res } = await fetchClientApi("/api/auth/refresh", {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    return false;
+  }
+
+  return true;
+}
+
 export async function apiClient<T, E = ApiError>(path: string, options?: RequestInit): Promise<Result<T, E>> {
   try {
-    const res = await fetch(buildApiUrl(process.env.NEXT_PUBLIC_API_URL, path), {
-      credentials: "include",
-      ...options,
-      headers: getClientHeaders(options),
-    });
+    let { res, payload } = await fetchClientApi(path, options);
+    const shouldRefresh = res.status === 401 && !isPublicAuthPath(path) && !isRefreshPath(path);
 
-    const payload = await parseJsonResponse(res);
+    if (shouldRefresh) {
+      const didRefresh = await refreshClientAuthCookies();
+
+      if (didRefresh) {
+        ({ res, payload } = await fetchClientApi(path, options));
+      }
+    }
 
     if (!res.ok) {
       return err<E>(toApiError(payload, res.status) as E);

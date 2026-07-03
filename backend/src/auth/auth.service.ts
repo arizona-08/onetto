@@ -12,6 +12,24 @@ export class AuthService {
     private readonly jwtService: JwtService
   ) {}
 
+  private setAccessTokenCookie(response: Response, accessToken: string) {
+    response.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000,
+    });
+  }
+
+  private setRefreshTokenCookie(response: Response, refreshToken: string) {
+    response.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+  }
+
   async login(data: LoginDto, response: Response){
     try {
       const existingUser = await this.prismaService.user.findUnique({
@@ -38,18 +56,13 @@ export class AuthService {
         expiresIn: '7d'
       });
 
-      response.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-      });
+      this.setAccessTokenCookie(response, token);
+      this.setRefreshTokenCookie(response, refreshToken);
 
       const { password, ...userWithoutPassword } = existingUser;
       return {
         message: "Login successful.",
         user: userWithoutPassword,
-        access_token: token
       }
     } catch (error: unknown) {
       if (error instanceof HttpException) {
@@ -61,7 +74,7 @@ export class AuthService {
     
   }
 
-  async refreshToken(req: Request){
+  async refreshToken(req: Request, response: Response){
     const refreshToken = req.cookies["refresh_token"];
 
     if(!refreshToken){
@@ -76,17 +89,20 @@ export class AuthService {
       // 3. Si valide, créer un nouvel access token tout neuf
       const newPayload = { sub: payload.sub, email: payload.email };
       const newAccessToken = await this.jwtService.signAsync(newPayload, {
-        secret: process.env.JWT_ACCESS_SECRET,
+        secret: process.env.JWT_SECRET,
         expiresIn: '15m',
       });
 
-      return { accessToken: newAccessToken };
-    } catch  {
+      this.setAccessTokenCookie(response, newAccessToken);
+
+      return { message: "Token refreshed." };
+    } catch {
       throw new UnauthorizedException("Invalid or expired refresh token.");
     }
   }
 
   async logout(response: Response){
+    response.clearCookie('access_token');
     response.clearCookie('refresh_token');
     return { message: 'Déconnexion réussie' };
   }

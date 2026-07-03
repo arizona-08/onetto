@@ -6,6 +6,7 @@ import React from 'react'
 import AuthShell from '../AuthShell'
 import { login } from '@/lib/auth/auth';
 import { ApiError } from '@/lib/api';
+import { useAuthUser } from '@/app/components/context/AuthUserContext';
 
 function getErrorMessage(error: ApiError): string {
   return Array.isArray(error.message) ? error.message.join(' ') : error.message;
@@ -15,6 +16,8 @@ function LoginPage() {
   const router = useRouter();
   const [error, setError] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
+
+  const {setUser} = useAuthUser();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,7 +37,9 @@ function LoginPage() {
       return;
     }
 
-    window.localStorage.setItem('onetto_access_token', result.data.access_token);
+    const user = result.data.user;
+    setUser(user);
+
     router.push('/dashboard');
   }
 
