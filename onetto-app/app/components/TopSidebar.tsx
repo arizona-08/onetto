@@ -1,7 +1,7 @@
 'use client';
 import React from 'react'
 import BurgerMenu from './molecules/BurgerMenu'
-import { FileChartColumnIncreasing, LayoutDashboardIcon, SettingsIcon, UserIcon, Waypoints } from 'lucide-react';
+import { FileChartColumnIncreasing, LayoutDashboardIcon, LogOut, SettingsIcon, UserIcon, Waypoints } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
 const links = [
@@ -16,7 +16,18 @@ function TopSidebar() {
   const [isOpen, setIsOpen] = React.useState(false)
 
   const pathname = usePathname();
+  const router = useRouter();
   
+  async function handleLogout(){
+    const response = await logout();
+
+    if(!response.ok) {
+
+    }
+
+    router.push("/auth/login")
+  }
+
   return (
     <header className="bg-white relative w-full border-b border-zinc-200 shadow-xs lg:w-64 lg:h-screen p-4 lg:flex lg:flex-col">
       <div className="flex items-center justify-between">
@@ -50,7 +61,14 @@ function TopSidebar() {
           </ul>
         </nav>
 
-        <div className="hidden lg:block w-full hover:bg-zinc-200 p-2 rounded-lg transition-colors cursor-pointer">
+        <div className="hidden lg:block relative w-full hover:bg-zinc-200 p-2 rounded-lg transition-colors cursor-pointer group duration-300">
+          <div
+            className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-full flex justify-center items-center gap-3 rounded-md bg-white px-4 py-2 text-red-500 border border-gray-200 shadow-xs cursor-pointer opacity-0 invisible group-hover:visible group-hover:opacity-100 transition-all duration-150"
+            onClick={() => {}}
+          >
+            <p>Me déconnecter</p>
+            <LogOut className="w-5 h-5"/>
+          </div>
           <div>
             <p className="text-zinc-700">Jonathan ASSI</p>
             <span className="text-sm text-zinc-500">assijoanthan2@gmail.com</span>
