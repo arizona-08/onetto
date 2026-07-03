@@ -1,9 +1,12 @@
 export interface ExtendedResponse extends Response {
   user?: {
-    id: string;
-    email: string;
-    role: string;
-    firstname: string;
-    lastname: string;
+    sub: string,
+    email: string,
+    iat: number,
+    exp: number,
+    id: string,
+    firstname: string,
+    lastname: string,
+    role: string
   }
 }

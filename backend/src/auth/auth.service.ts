@@ -4,12 +4,13 @@ import { LoginDto } from "./dtos/login.dto";
 import argon2 from "argon2";
 import { JwtService } from '@nestjs/jwt';
 import { Request, Response } from "express";
+import { UserService } from "src/user/user.service";
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly jwtService: JwtService
+    private readonly jwtService: JwtService,
   ) {}
 
   private setAccessTokenCookie(response: Response, accessToken: string) {

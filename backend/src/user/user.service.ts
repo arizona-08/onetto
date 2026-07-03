@@ -2,6 +2,7 @@ import { BadRequestException, HttpException, Injectable, InternalServerErrorExce
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateUserDto } from "./dtos/create-user.dto";
 import argon2 from "argon2";
+import { Prisma } from "@prisma/client";
 
 @Injectable()
 export class UserService {
@@ -53,5 +54,23 @@ export class UserService {
       throw new InternalServerErrorException("An unexpected error occured while creating the user.", error instanceof Error ? error.message : undefined);
     }
     
+  }
+
+  async findBy(search: 'email' | 'id', value: string){
+    try{
+      const user = await this.prismaService.user.findFirst({
+        where: { [search]: value }
+      });
+
+      if(!user){
+        throw new BadRequestException(`User with ${search} ${value} not found.`);
+      }
+
+      const { password, ...userWithoutPassword } = user;
+
+      return userWithoutPassword;
+    } catch (error: any) {
+      throw new InternalServerErrorException(`An unexpected error occured while retrieving the user with ${search}: ${value}`, error instanceof Error ? error.message : undefined)
+    }
   }
 }
