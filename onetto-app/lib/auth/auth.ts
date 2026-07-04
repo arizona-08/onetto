@@ -3,7 +3,7 @@ import { LoginDto } from "./dtos/login.dto";
 import { RegisterDto } from "./dtos/register.dto";
 import { LoginResponse } from "./responses/login.response";
 import { RegisterResponse } from "./responses/register.response";
-import { Result } from "../result";
+import { Result } from "../../shared/result";
 import { LogoutResponse } from "./responses/logout.response";
 
 export async function register(data: RegisterDto): Promise<Result<RegisterResponse, ApiError>> {

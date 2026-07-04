@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { ApiError, buildApiUrl, parseJsonResponse, toApiError } from "./api";
-import { err, ok, Result } from "./result";
+import { err, ok, Result } from "../shared/result";
 
 function isPublicAuthPath(path: string): boolean {
   const normalizedPath = path.replace(/^\/+/, "");

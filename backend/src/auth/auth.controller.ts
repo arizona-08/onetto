@@ -22,9 +22,6 @@ export class AuthController {
   @UseGuards(AuthGuard)
   @Get('me')
   async me(@Req() req: ExtendedResponse){
-    if(!req.user) {
-      throw new UnauthorizedException("Non authentifié");
-    }
     return req.user;
   }
 

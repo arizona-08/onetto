@@ -28,6 +28,7 @@ function ServiceSection({ services }: ServiceSectionProps) {
       setIsAddFormActive(true);
     }
   }
+  
   function handleEditService(serviceToEdit: Service) {
     setMasterServiceList(prevList => prevList.map(service => service.id === serviceToEdit.id ? serviceToEdit : service));
   }

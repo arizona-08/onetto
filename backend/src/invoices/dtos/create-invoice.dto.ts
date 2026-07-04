@@ -1,55 +1,45 @@
-import { IsDate, IsNotEmpty, IsNumber, IsString } from "class-validator";
+import { Type } from "class-transformer";
+import { IsArray, IsDate, IsDefined, IsNotEmpty, IsNumber, IsString, ValidateNested } from "class-validator";
 
-export class CreateInvoiceDto {
-  @IsString()
-  @IsNotEmpty()
-  clientName: string;
 
-  @IsString()
-  @IsNotEmpty()
-  clientEmail: string
-
-  @IsString()
-  @IsNotEmpty()
-  clientAddress: string
-
-  @IsString()
-  @IsNotEmpty()
-  clientCity: string
-
-  @IsString()
-  @IsNotEmpty()
-  clientPostalCode: string
-
-  @IsString()
-  @IsNotEmpty()
-  clientCountry: string
-
-  @IsNumber()
-  @IsNotEmpty()
-  totalPrice: number;
-
-  urlDocumentPdf?: string;
-
-  @IsDate()
-  @IsNotEmpty()
-  createdAt: Date;
-
-  @IsDate()
-  @IsNotEmpty()
-  paymentDueAt: Date;
-
-  @IsNotEmpty()
-  services: InvoiceServiceDto[];
-
+export class InvoiceClientDto {
+  name: string;
+  email: string
+  street: string;
+  city: string;
+  postalCode: string;
+  country: string;
 }
 
-export type InvoiceServiceDto = {
+export class LineItemsDto {
   description: string;
   quantity: number;
+  taxRate?: number;
   unitPrice: number;
   unit: string;
-  vat?: number;
   wtPrice: number;
   totalPrice: number; 
 }
+
+export class InvoiceDateDto {
+  creationDate: string;
+  dueDate: string;
+}
+
+export class CreateInvoiceDto {
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => InvoiceClientDto)
+  client: InvoiceClientDto;
+
+  @IsArray()
+  @ValidateNested({each: true})
+  @Type(() => LineItemsDto)
+  lineItems: LineItemsDto[];
+
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => InvoiceDateDto)
+  invoiceDates: InvoiceDateDto;
+}
+

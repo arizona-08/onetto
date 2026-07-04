@@ -25,3 +25,8 @@ export type ServiceLineItem = {
   unitPrice: number
   unit: string
 }
+
+export type InvoiceDates = {
+  creationDate: string,
+  dueDate: string
+}

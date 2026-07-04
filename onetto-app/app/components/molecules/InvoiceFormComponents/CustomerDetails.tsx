@@ -1,11 +1,13 @@
 
 import { Client } from '@/app/types';
+import { InvoiceClientError } from '@/shared/invoiceErrorsTypes';
 import { ChevronDown } from 'lucide-react'
 import React from 'react'
 
 
 interface CustomerDetailsProps {
   onClientChange: (client: Client | null) => void;
+  invoiceClientErrors?: InvoiceClientError
 }
 const clients : Client[] = [
   {
@@ -37,7 +39,7 @@ const clients : Client[] = [
   }
 ]
 
-function CustomerDetails({ onClientChange }: CustomerDetailsProps) {
+function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetailsProps) {
   const [selectedClient, setSelectedClient] = React.useState<Client | null>(null);
   const [clientInfos, setClientInfos] = React.useState<Client>({
     id: "",
@@ -218,6 +220,16 @@ function CustomerDetails({ onClientChange }: CustomerDetailsProps) {
             />
           </div>
 
+          {invoiceClientErrors && invoiceClientErrors.general && (
+            <>
+              <ul>
+                { invoiceClientErrors.general.map((error, index) => (
+                    <span key={index} className="text-red-500">{error}</span>
+                  ))
+                }
+              </ul>
+            </>
+          )}
         </div>
     </div>
   )

@@ -2,13 +2,15 @@ import { ServiceLineItem } from '@/app/types'
 import { Edit, Plus, Trash2 } from 'lucide-react'
 import React from 'react'
 import AddLineItemModal from './AddLineItemModal'
+import { InvoiceDateError } from '@/shared/invoiceErrorsTypes';
 
 
 interface ServiceLineItemsProps {
   onLineItemsChange: (lineItems: ServiceLineItem[]) => void;
   onInvoiceDatesChange: (dates: { creationDate: string, dueDate: string }) => void;
+  invoiceDateErrors?: InvoiceDateError
 }
-function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange }: ServiceLineItemsProps) {
+function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange, invoiceDateErrors }: ServiceLineItemsProps) {
 
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
   const [isModalVisible, setIsModalVisible] = React.useState(false)
@@ -144,6 +146,15 @@ function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange }: ServiceLi
                   className="bg-primary/20 rounded-md p-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50"
                   placeholder='11/07/2026'
                   />
+                  {invoiceDateErrors && invoiceDateErrors.creationDate && (
+                    <ul>
+                      {
+                        invoiceDateErrors.creationDate.map((error, index) => (
+                          <li><span key={index} className='text-red-500'>{error}</span></li> 
+                        ))
+                      }
+                    </ul>
+                  )}
               </div>
 
               <div className="flex flex-col gap-2 w-full">
@@ -156,6 +167,15 @@ function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange }: ServiceLi
                   onChange={handleInvoiceDatesChange}
                   className="bg-primary/20 rounded-md p-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50"
                 />
+                {invoiceDateErrors && invoiceDateErrors.dueDate && (
+                    <ul>
+                      {
+                        invoiceDateErrors.dueDate.map((error, index) => (
+                          <li><span key={index} className='text-red-500'>{error}</span></li> 
+                        ))
+                      }
+                    </ul>
+                  )}
               </div>
           </div>
         </div>

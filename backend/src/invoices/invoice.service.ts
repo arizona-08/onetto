@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateInvoiceDto } from "./dtos/create-invoice.dto";
+import { User } from "src/types/extended-response.types";
 
 @Injectable()
 export class InvoiceService {
@@ -8,27 +9,36 @@ export class InvoiceService {
     private readonly prismaService: PrismaService
   ) {}
 
-  async createInvoice(data: CreateInvoiceDto) {
+  async createInvoice(data: CreateInvoiceDto, user: User) {
     try {
-      const {services, ...invoiceData} = data;
+      const {lineItems, ...invoiceData} = data;
       const invoiceNumber = await this.createInvoiceNumber();
+
+      const totalInvoicePrice = lineItems.reduce((acc, item) => acc + item.totalPrice, 0);
 
       const invoice = await this.prismaService.invoice.create({
         data: {
-          ...invoiceData,
+          clientName: invoiceData.client.name,
+          clientEmail: invoiceData.client.email,
+          clientAddress: invoiceData.client.street,
+          clientCity: invoiceData.client.city,
+          clientCountry: invoiceData.client.country,
+          clientPostalCode: invoiceData.client.postalCode,
+          totalPrice: totalInvoicePrice,
           invoiceNumber,
           status: "DRAFT",
-          authorId: "CRAFTED_ID",
-          createdAt: new Date(data.createdAt),
-          paymentDueAt: new Date(data.paymentDueAt)
+          authorId: user.id,
+          createdAt: new Date(data.invoiceDates.creationDate),
+          paymentDueAt: new Date(data.invoiceDates.dueDate),
         }
       });
 
+
       await this.prismaService.$transaction(async (prisma) => {
-        for (const service of services) {
+        for (const lineItem of lineItems) {
           await prisma.invoiceService.create({
             data: {
-              ...service,
+              ...lineItem,
               invoiceId: invoice.id
             }
           });
