@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateInvoiceDto } from "./dtos/create-invoice.dto";
 import { User } from "src/types/extended-response.types";
@@ -84,5 +84,46 @@ export class InvoiceService {
 
     const newInvoiceNumber = lastInvoiceNumber + 1;
     return `#FACT-${currentYear}-${newInvoiceNumber.toString().padStart(4, '0')}`;
+  }
+
+  async getInvoicesByUser(userId: string, withServices: boolean = true){
+    try {
+      const invoices = await this.prismaService.invoice.findMany({
+        where: {
+          authorId: userId
+        }, 
+        include: {
+          services: withServices
+        }
+      });
+
+      return invoices;
+    } catch (error: any) {
+      console.error("Error fetching invoices by user:", error);
+      throw new InternalServerErrorException("Une erreur est survenue lors de la récupération des factures de l'utilisateur.");
+    }
+  }
+
+  async getInvoiceById(invoiceId: string, userId: string, withServices: boolean = true){
+    try {
+      const invoice = await this.prismaService.invoice.findFirst({
+        where: {
+          id: invoiceId,
+          authorId: userId
+        },
+        include: {
+          services: withServices
+        }
+      });
+
+      if(!invoice){
+        throw new BadRequestException("Facture introuvable ou vous n'avez pas la permission d'y accéder.");
+      }
+
+      return invoice;
+    } catch (error: any) {
+      console.error("Error fetching invoice by ID:", error);
+      throw new InternalServerErrorException("Une erreur est survenue lors de la récupération de la facture.");
+    }
   }
 }

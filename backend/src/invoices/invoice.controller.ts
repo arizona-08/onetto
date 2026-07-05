@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, Req, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { InvoiceService } from "./invoice.service";
 import { CreateInvoiceDto } from "./dtos/create-invoice.dto";
 import type { ExtendedResponse, User } from "src/types/extended-response.types";
@@ -10,6 +10,27 @@ export class InvoiceController {
   constructor(
     private readonly invoiceService: InvoiceService
   ) {}
+
+  @Get("mines")
+  async getMyInvoices(@Req() req: ExtendedResponse, @Query("with-services") withServices: boolean) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.invoiceService.getInvoicesByUser(user.id, withServices);
+  }
+
+  @Get(":invoiceId")
+  async getInvoiceById(@Param("invoiceId") invoiceId: string, @Query("with-services") withServices: boolean, @Req() req: ExtendedResponse) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.invoiceService.getInvoiceById(invoiceId, user.id, withServices);
+
+  }
 
   @Post("create")
   async createInvoice(@Body() body: CreateInvoiceDto, @Req() req: ExtendedResponse){
