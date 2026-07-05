@@ -65,7 +65,7 @@ model InvoiceService {
   quantity Int
   unitPrice Float
   unit String
-  vat Float?
+  taxRate Float?
   wtPrice Float
   totalPrice Float
 
@@ -77,7 +77,7 @@ model UserService {
   userId String
   description String
   unitPrice Float
-  vat Float?
+  taxRate Float?
   wtPrice Float
   totalPrice Float
 

@@ -145,6 +145,14 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
                 value={clientInfos.name}
                 onChange={handleChange}
               />
+              {invoiceClientErrors && invoiceClientErrors.name && (
+                <ul>
+                  { invoiceClientErrors.name.map((error, index) => (
+                      <li><span key={index} className="text-red-500">{error}</span></li>
+                    ))
+                  }
+                </ul>
+              )}
             </div>
 
             <div>
@@ -158,6 +166,14 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
                 value={clientInfos.email}
                 onChange={handleChange}
               />
+              {invoiceClientErrors && invoiceClientErrors.email && (
+                <ul>
+                  { invoiceClientErrors.email.map((error, index) => (
+                      <li><span key={index} className="text-red-500">{error}</span></li>
+                    ))
+                  }
+                </ul>
+              )}
             </div>
           </div>
 
@@ -173,6 +189,14 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
               value={clientInfos.street}
               onChange={handleChange}
             />
+              {invoiceClientErrors && invoiceClientErrors.address && (
+                <ul>
+                  { invoiceClientErrors.address.map((error, index) => (
+                      <li><span key={index} className="text-red-500">{error}</span></li>
+                    ))
+                  }
+                </ul>
+              )}
           </div>
 
           {/* city and postal code */}
@@ -189,6 +213,14 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
                 value={clientInfos.city}
                 onChange={handleChange}
               />
+              {invoiceClientErrors && invoiceClientErrors.city && (
+                <ul>
+                  { invoiceClientErrors.city.map((error, index) => (
+                      <li><span key={index} className="text-red-500">{error}</span></li>
+                    ))
+                  }
+                </ul>
+              )}
             </div>
 
             <div className="md:w-1/2">
@@ -202,6 +234,14 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
                 value={clientInfos.postalCode}
                 onChange={handleChange}
               />
+              {invoiceClientErrors && invoiceClientErrors.name && (
+                <ul>
+                  { invoiceClientErrors.name.map((error, index) => (
+                      <li><span key={index} className="text-red-500">{error}</span></li>
+                    ))
+                  }
+                </ul>
+              )}
             </div>
 
           </div>

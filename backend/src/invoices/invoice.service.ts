@@ -14,7 +14,11 @@ export class InvoiceService {
       const {lineItems, ...invoiceData} = data;
       const invoiceNumber = await this.createInvoiceNumber();
 
-      const totalInvoicePrice = lineItems.reduce((acc, item) => acc + item.totalPrice, 0);
+      const totalInvoicePrice = lineItems.reduce((acc, item) => {
+        const basePrice = item.unitPrice * item.quantity;
+        const taxAmount = basePrice * ((item.taxRate ? item.taxRate : 0) / 100);
+        return acc + (basePrice + taxAmount);
+      }, 0);
 
       const invoice = await this.prismaService.invoice.create({
         data: {
@@ -36,10 +40,18 @@ export class InvoiceService {
 
       await this.prismaService.$transaction(async (prisma) => {
         for (const lineItem of lineItems) {
+          const wtPrice = lineItem.unitPrice * lineItem.quantity;
+          const totalPrice = wtPrice + (lineItem.taxRate ? (wtPrice * lineItem.taxRate / 100) : 0);
           await prisma.invoiceService.create({
             data: {
-              ...lineItem,
-              invoiceId: invoice.id
+              description: lineItem.description,
+              quantity: lineItem.quantity,
+              taxRate: lineItem.taxRate,
+              unitPrice: lineItem.unitPrice,
+              unit: lineItem.unit,
+              invoiceId: invoice.id,
+              wtPrice,
+              totalPrice
             }
           });
         }

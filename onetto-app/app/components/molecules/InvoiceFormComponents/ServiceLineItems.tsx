@@ -2,15 +2,16 @@ import { ServiceLineItem } from '@/app/types'
 import { Edit, Plus, Trash2 } from 'lucide-react'
 import React from 'react'
 import AddLineItemModal from './AddLineItemModal'
-import { InvoiceDateError } from '@/shared/invoiceErrorsTypes';
+import { InvoiceDateError, InvoiceLineItemsError } from '@/shared/invoiceErrorsTypes';
 
 
 interface ServiceLineItemsProps {
   onLineItemsChange: (lineItems: ServiceLineItem[]) => void;
   onInvoiceDatesChange: (dates: { creationDate: string, dueDate: string }) => void;
-  invoiceDateErrors?: InvoiceDateError
+  invoiceDateErrors?: InvoiceDateError,
+  invoiceLineItemsErrors?: InvoiceLineItemsError
 }
-function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange, invoiceDateErrors }: ServiceLineItemsProps) {
+function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange, invoiceDateErrors, invoiceLineItemsErrors }: ServiceLineItemsProps) {
 
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
   const [isModalVisible, setIsModalVisible] = React.useState(false)
@@ -179,6 +180,15 @@ function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange, invoiceDate
               </div>
           </div>
         </div>
+        {invoiceLineItemsErrors && invoiceLineItemsErrors.general && (
+          <ul>
+            {
+              invoiceLineItemsErrors.general.map((error, index) => (
+                <li><span key={index} className='text-red-500'>{error}</span></li> 
+              ))
+            }
+          </ul>
+        )}
       </div>
     </>
   )

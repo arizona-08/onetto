@@ -12,3 +12,7 @@ export type InvoiceClientError = {
   country?: string[];
   general?: string[];
 }
+
+export type InvoiceLineItemsError = {
+  general?: string[];
+}

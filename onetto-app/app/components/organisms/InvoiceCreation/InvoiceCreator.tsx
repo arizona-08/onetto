@@ -3,8 +3,8 @@ import React, { useState } from 'react'
 import InvoiceForm from './InvoiceForm'
 import InvoicePreview from './InvoicePreview'
 import { Client, ServiceLineItem } from '@/app/types';
-import { InvoiceClientError, InvoiceDateError } from '@/shared/invoiceErrorsTypes';
-import { verifyClient, verifyDates } from '@/shared/InvoiceValidation';
+import { InvoiceClientError, InvoiceDateError, InvoiceLineItemsError } from '@/shared/invoiceErrorsTypes';
+import { verifyClient, verifyDates, verifyLineItems } from '@/shared/InvoiceValidation';
 import { createInvoice } from '@/lib/invoices/invoices';
 
 function InvoiceCreator() {
@@ -26,18 +26,26 @@ function InvoiceCreator() {
   })
 
   const [invoiceClientErrors, setInvoiceClientErrors] = useState<InvoiceClientError | null>(null);
-  const [invoiceLineItemsErrors, setInvoiceLineItemsErrors] = useState<Record<string, string> | null>(null);
+  const [invoiceLineItemsErrors, setInvoiceLineItemsErrors] = useState<InvoiceLineItemsError | null>(null);
   const [invoiceDatesErrors, setInvoiceDatesErrors] = useState<InvoiceDateError | null>(null);
 
+  function resetErrors() {
+    setInvoiceClientErrors(null);
+    setInvoiceLineItemsErrors(null);
+    setInvoiceDatesErrors(null);
+  }
   async function handleConfirmInvoice(e: React.MouseEvent<HTMLButtonElement>){
     e.preventDefault();
 
+    resetErrors();
     const checkDates = verifyDates(invoiceDates)
     const checkClient = verifyClient(client);
+    const checkLineItems = verifyLineItems(lineItems);
 
     if(!checkClient.ok){
       setInvoiceClientErrors(checkClient.error)
       console.log(checkClient.error);
+      return;
     }
 
     if(!checkDates.ok){
@@ -46,18 +54,26 @@ function InvoiceCreator() {
       return;
     }
 
+    if(!checkLineItems.ok){
+      setInvoiceLineItemsErrors(checkLineItems.error)
+      return;
+    }
 
-    return;
+    const {id, ...clientData} = client as Client;
 
-    // const payload = {client, lineItems, invoiceDates}
-    // const response = await createInvoice(payload);
+    const response = await createInvoice({
+      client: clientData,
+      lineItems,
+      invoiceDates
+    });
 
-    // if(!response.ok) {
-    //   console.error("Erreur lors de la création de la facture", response.error);
-    //   return
-    // }
+    if(!response.ok) {
+      console.error("Erreur lors de la création de la facture", response.error);
+      return
+    }
 
-    // console.log("Facture créée avec succès", response.data);
+    console.log("Facture créée avec succès", response.data);
+
   }
 
   
@@ -72,7 +88,8 @@ function InvoiceCreator() {
         onInvoiceDatesChange={setInvoiceDates}
         errors={{
           invoiceDateErrors: invoiceDatesErrors as InvoiceDateError | undefined,
-          invoiceClientErrors: invoiceClientErrors as InvoiceClientError | undefined
+          invoiceClientErrors: invoiceClientErrors as InvoiceClientError | undefined,
+          invoiceLineItemsErrors: invoiceLineItemsErrors as InvoiceLineItemsError | undefined
         }}
       />
 
