@@ -29,15 +29,20 @@ function getAccessToken(payload: unknown): string | undefined {
 
 async function getServerHeaders(options?: RequestInit, accessToken?: string): Promise<Headers> {
   const fetchHeaders = new Headers(options?.headers || {});
+
+  if (accessToken) {
+    fetchHeaders.set("Authorization", `Bearer ${accessToken}`);
+  }
+
+  if (fetchHeaders.has("Cookie")) {
+    return fetchHeaders;
+  }
+
   const cookieStore = await cookies();
   const allCookiesString = cookieStore.toString();
 
   if (allCookiesString) {
     fetchHeaders.set("Cookie", allCookiesString);
-  }
-
-  if (accessToken) {
-    fetchHeaders.set("Authorization", `Bearer ${accessToken}`);
   }
 
   return fetchHeaders;
@@ -54,9 +59,10 @@ async function fetchServerApi(path: string, options?: RequestInit, accessToken?:
   return { res, payload };
 }
 
-async function refreshServerAccessToken(): Promise<string | undefined> {
+async function refreshServerAccessToken(options?: RequestInit): Promise<string | undefined> {
   const { res, payload } = await fetchServerApi("/api/auth/refresh", {
     method: "POST",
+    headers: options?.headers,
   });
 
   if (!res.ok) {
@@ -72,7 +78,7 @@ export async function apiServer<T, E = ApiError>(path: string, options?: Request
     const shouldRefresh = res.status === 401 && !isPublicAuthPath(path) && !isRefreshPath(path);
 
     if (shouldRefresh) {
-      const accessToken = await refreshServerAccessToken();
+      const accessToken = await refreshServerAccessToken(options);
 
       if (accessToken) {
         ({ res, payload } = await fetchServerApi(path, options, accessToken));

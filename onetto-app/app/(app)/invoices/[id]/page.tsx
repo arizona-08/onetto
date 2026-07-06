@@ -11,10 +11,11 @@ async function ShowInvoicePage({ params }: { params: Promise<{ id: string }> }) 
   }
 
   const invoice = invoiceResponse.data;
+  console.log(invoice.services);
   
   return (
-    <div>
-      <h1 className="text-2xl font-black font-title">Détails de la facture #{id}</h1>
+    <div className="p-5">
+      <h1 className="text-2xl font-black font-title">Détails de la facture {invoice.invoiceNumber}</h1>
 
       <InvoiceDisplayComponent invoice={invoice} />
     </div>
