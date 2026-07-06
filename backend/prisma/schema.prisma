@@ -19,6 +19,8 @@ model User {
   password String
   role Role @default(BASIC_USER)
 
+  ownedCompany Company?
+  companies CompanyUser[]
   invoices Invoice[]
   services UserService[]
   clients UserClient[]
@@ -31,6 +33,43 @@ enum Role {
   ADMIN_USER
 }
 
+model Company {
+  id String @id @default(uuid())
+  ownerId String @unique
+  name String
+  email String @unique
+  phoneNumber String @unique
+  siren String @unique
+  siret String @unique
+  address String
+  city String
+  postalCode String
+  country String
+  subjectToVat Boolean
+  vatNumber String?
+  IBAN String
+  BIC String
+
+  owner User @relation(fields: [ownerId], references: [id])
+  companyUsers CompanyUser[]
+}
+
+model CompanyUser {
+  id String @id @default(uuid())
+  companyId String
+  userId String
+  role CompanyUserRole
+
+  company Company @relation(fields: [companyId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+}
+
+enum CompanyUserRole {
+  ADMIN
+  ACCOUNTANT
+  EMPLOYEE
+}
+
 model Invoice {
   id String @id @default(uuid())
   authorId String
@@ -40,6 +79,7 @@ model Invoice {
   clientCity String
   clientPostalCode String
   clientCountry String
+  totalPriceExcludingTax Float
   totalPrice Float
   createdAt DateTime @default(now())
   invoiceNumber String @unique

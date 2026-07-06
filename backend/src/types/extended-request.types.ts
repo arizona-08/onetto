@@ -9,6 +9,6 @@ export type User = {
   role: string
 }
 
-export interface ExtendedResponse extends Response {
+export interface ExtendedRequest extends Response {
   user?: User
 }

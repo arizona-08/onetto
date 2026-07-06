@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateInvoiceDto } from "./dtos/create-invoice.dto";
-import { User } from "src/types/extended-response.types";
+import { User } from "src/types/extended-request.types";
 
 @Injectable()
 export class InvoiceService {
@@ -14,11 +14,18 @@ export class InvoiceService {
       const {lineItems, ...invoiceData} = data;
       const invoiceNumber = await this.createInvoiceNumber();
 
-      const totalInvoicePrice = lineItems.reduce((acc, item) => {
+      const totalPriceExludingTax = lineItems.reduce((acc, item) => {
+        const basePrice = item.unitPrice * item.quantity;
+        return acc + basePrice;
+      }, 0);
+
+      const totalVatAmount = lineItems.reduce((acc, item) => {
         const basePrice = item.unitPrice * item.quantity;
         const taxAmount = basePrice * ((item.taxRate ? item.taxRate : 0) / 100);
-        return acc + (basePrice + taxAmount);
+        return acc + taxAmount;
       }, 0);
+
+      const totalInvoicePrice = totalPriceExludingTax + totalVatAmount;
 
       const invoice = await this.prismaService.invoice.create({
         data: {
@@ -28,6 +35,7 @@ export class InvoiceService {
           clientCity: invoiceData.client.city,
           clientCountry: invoiceData.client.country,
           clientPostalCode: invoiceData.client.postalCode,
+          totalPriceExcludingTax: totalPriceExludingTax,
           totalPrice: totalInvoicePrice,
           invoiceNumber,
           status: "DRAFT",

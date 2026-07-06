@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { InvoiceModule } from './invoices/invoice.module';
+import { CompaniesModule } from './companies/companies.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
@@ -14,7 +15,8 @@ import { InvoiceModule } from './invoices/invoice.module';
     PrismaModule,
     AuthModule,
     UserModule,
-    InvoiceModule
+    InvoiceModule,
+    CompaniesModule
   ],
   controllers: [AppController],
   providers: [AppService],

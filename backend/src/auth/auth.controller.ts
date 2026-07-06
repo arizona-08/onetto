@@ -3,7 +3,7 @@ import { LoginDto } from "./dtos/login.dto";
 import { AuthService } from "./auth.service";
 import { AuthGuard } from "./auth.guard";
 import type { Request, Response } from "express";
-import type { ExtendedResponse } from "src/types/extended-response.types";
+import type { ExtendedRequest } from "src/types/extended-request.types";
 
 @Controller('api/auth')
 export class AuthController {
@@ -21,7 +21,7 @@ export class AuthController {
 
   @UseGuards(AuthGuard)
   @Get('me')
-  async me(@Req() req: ExtendedResponse){
+  async me(@Req() req: ExtendedRequest){
     return req.user;
   }
 
