@@ -41,7 +41,7 @@ function RegisterPage() {
 
 
     setSuccess('Votre compte a bien été créé. Vous pouvez maintenant vous connecter.');
-    setTimeout(() => router.push(`/auth/login?companyOwnerId=${result.data.user.id}`), 900);
+    setTimeout(() => router.push(`/auth/register/create-company/?companyOwnerId=${result.data.user.id}`), 900);
   }
 
   return (

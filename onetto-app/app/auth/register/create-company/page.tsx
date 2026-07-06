@@ -6,12 +6,12 @@ async function CreateCompanyPage({ searchParams }: {searchParams : Promise<{ com
   const params = await searchParams;
 
   return (
-    <div>
-      <h1>Créer mon entreprise</h1>
+    <div className="p-4 flex flex-col gap-6 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold text-zinc-800 text-center">Créer mon entreprise</h1>
 
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-end">
-          <Link href="/auth/login" className="inline-block px-3 py-2 bg-primary text-white font-medium">Passer cette étape et me connecter</Link>
+          <Link href="/auth/login" className="inline-block px-3 py-2 bg-primary rounded-full text-sm text-white font-medium">Passer cette étape et me connecter</Link>
         </div>
 
         <CreateCompanyForm companyOwnerId={params.companyOwnerId || ''} />
