@@ -2,15 +2,18 @@ import InvoiceTable from '@/app/components/organisms/InvoiceTable'
 import { getMyInvoicesServer } from '@/lib/invoices/invoice.server';
 import { AlertTriangle, ChartLine, Check, CirclePlusIcon, File } from 'lucide-react';
 import React from 'react'
+export const dynamic = 'force-dynamic'
 
 async function invoices() {
   const invoicesResponse = await getMyInvoicesServer(false);
+  
   if(!invoicesResponse.ok) {
     console.error('Failed to fetch invoices:', invoicesResponse.error);
     throw new Error('Failed to fetch invoices');
   }
 
   const invoices = invoicesResponse.data;
+  console.log('Fetched invoices:', invoices);
   const currentDate = new Date().toISOString();
   
   return (

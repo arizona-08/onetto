@@ -6,6 +6,7 @@ import { Client, ServiceLineItem } from '@/app/types';
 import { InvoiceClientError, InvoiceDateError, InvoiceLineItemsError } from '@/shared/invoiceErrorsTypes';
 import { verifyClient, verifyDates, verifyLineItems } from '@/shared/InvoiceValidation';
 import { createInvoice } from '@/lib/invoices/invoices';
+import { CheckCircle2, X } from 'lucide-react';
 
 function InvoiceCreator() {
   const [client, setClient] = React.useState<Client | null>(null);
@@ -28,13 +29,21 @@ function InvoiceCreator() {
   const [invoiceClientErrors, setInvoiceClientErrors] = useState<InvoiceClientError | null>(null);
   const [invoiceLineItemsErrors, setInvoiceLineItemsErrors] = useState<InvoiceLineItemsError | null>(null);
   const [invoiceDatesErrors, setInvoiceDatesErrors] = useState<InvoiceDateError | null>(null);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+
+  React.useEffect(() => {
+    if (!showSuccessToast) return;
+
+    const timeout = window.setTimeout(() => setShowSuccessToast(false), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [showSuccessToast]);
 
   function resetErrors() {
     setInvoiceClientErrors(null);
     setInvoiceLineItemsErrors(null);
     setInvoiceDatesErrors(null);
   }
-  async function handleConfirmInvoice(e: React.MouseEvent<HTMLButtonElement>){
+  async function handleSaveDraft(e: React.MouseEvent<HTMLButtonElement>){
     e.preventDefault();
 
     resetErrors();
@@ -59,7 +68,8 @@ function InvoiceCreator() {
       return;
     }
 
-    const {id, ...clientData} = client as Client;
+    const { name, email, street, city, postalCode, country } = client as Client;
+    const clientData = { name, email, street, city, postalCode, country };
 
     const response = await createInvoice({
       client: clientData,
@@ -72,6 +82,7 @@ function InvoiceCreator() {
       return
     }
 
+    setShowSuccessToast(true);
     console.log("Facture créée avec succès", response.data);
 
   }
@@ -99,14 +110,52 @@ function InvoiceCreator() {
         invoiceDates={invoiceDates}
       />
 
-      <div className="flex items-center justify-end mt-4">
+      <div className="mt-4 flex flex-col-reverse items-stretch justify-end gap-3 sm:flex-row sm:items-center">
         <button
-          className="px-3 py-2 rounded-md text-white bg-primary hover:bg-primary-hover transition-colors duration-150"
-          onClick={handleConfirmInvoice}
+          type="button"
+          disabled
+          title="L’envoi des factures sera bientôt disponible"
+          className="cursor-not-allowed rounded-md bg-primary px-3 py-2 text-white opacity-45"
         >
           Envoyer la facture
         </button>
+
+        <button
+          type="button"
+          className="rounded-md border border-primary bg-white px-3 py-2 font-semibold text-primary transition-colors duration-150 hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          onClick={handleSaveDraft}
+        >
+          Enregistrer le brouillon
+        </button>
       </div>
+
+      {showSuccessToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-5 right-5 z-50 flex w-[calc(100%-2.5rem)] max-w-sm items-start gap-3 rounded-xl border border-emerald-400/40 bg-emerald-600 px-4 py-3.5 text-white shadow-[0_18px_45px_-15px_rgba(5,150,105,0.65)] animate-in slide-in-from-bottom-3 fade-in duration-300 sm:bottom-6 sm:right-6"
+        >
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/20">
+            <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <p className="font-title text-sm font-bold">Brouillon enregistré</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-emerald-50">
+              Le brouillon de la facture a bien été enregistré.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowSuccessToast(false)}
+            className="rounded-md p-1 text-emerald-50 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            aria-label="Fermer la notification"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

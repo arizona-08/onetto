@@ -21,7 +21,6 @@ model User {
 
   ownedCompany Company?
   companies CompanyUser[]
-  invoices Invoice[]
   services UserService[]
   clients UserClient[]
 }
@@ -50,6 +49,7 @@ model Company {
   IBAN String
   BIC String
 
+  invoices Invoice[]
   owner User @relation(fields: [ownerId], references: [id])
   companyUsers CompanyUser[]
 }
@@ -72,7 +72,7 @@ enum CompanyUserRole {
 
 model Invoice {
   id String @id @default(uuid())
-  authorId String
+  companyId String
   clientName String
   clientEmail String
   clientAddress String
@@ -82,12 +82,13 @@ model Invoice {
   totalPriceExcludingTax Float
   totalPrice Float
   createdAt DateTime @default(now())
-  invoiceNumber String @unique
+  invoiceNumber String
   urlDocumentPdf String?
   paymentDueAt DateTime
   status InvoiceStatus
 
-  author User @relation(fields: [authorId], references: [id])
+  @@unique([companyId, invoiceNumber])
+  comany Company @relation(fields: [companyId], references: [id])
   services InvoiceService[]
 }
 
