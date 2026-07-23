@@ -1,11 +1,13 @@
 
 import { Client } from '@/app/types';
+import { InvoiceClientError } from '@/shared/invoiceErrorsTypes';
 import { ChevronDown } from 'lucide-react'
 import React from 'react'
 
 
 interface CustomerDetailsProps {
   onClientChange: (client: Client | null) => void;
+  invoiceClientErrors?: InvoiceClientError
 }
 const clients : Client[] = [
   {
@@ -37,7 +39,7 @@ const clients : Client[] = [
   }
 ]
 
-function CustomerDetails({ onClientChange }: CustomerDetailsProps) {
+function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetailsProps) {
   const [selectedClient, setSelectedClient] = React.useState<Client | null>(null);
   const [clientInfos, setClientInfos] = React.useState<Client>({
     id: "",
@@ -143,6 +145,14 @@ function CustomerDetails({ onClientChange }: CustomerDetailsProps) {
                 value={clientInfos.name}
                 onChange={handleChange}
               />
+              {invoiceClientErrors && invoiceClientErrors.name && (
+                <ul>
+                  { invoiceClientErrors.name.map((error, index) => (
+                      <li><span key={index} className="text-red-500">{error}</span></li>
+                    ))
+                  }
+                </ul>
+              )}
             </div>
 
             <div>
@@ -156,6 +166,14 @@ function CustomerDetails({ onClientChange }: CustomerDetailsProps) {
                 value={clientInfos.email}
                 onChange={handleChange}
               />
+              {invoiceClientErrors && invoiceClientErrors.email && (
+                <ul>
+                  { invoiceClientErrors.email.map((error, index) => (
+                      <li><span key={index} className="text-red-500">{error}</span></li>
+                    ))
+                  }
+                </ul>
+              )}
             </div>
           </div>
 
@@ -171,6 +189,14 @@ function CustomerDetails({ onClientChange }: CustomerDetailsProps) {
               value={clientInfos.street}
               onChange={handleChange}
             />
+              {invoiceClientErrors && invoiceClientErrors.address && (
+                <ul>
+                  { invoiceClientErrors.address.map((error, index) => (
+                      <li><span key={index} className="text-red-500">{error}</span></li>
+                    ))
+                  }
+                </ul>
+              )}
           </div>
 
           {/* city and postal code */}
@@ -187,6 +213,14 @@ function CustomerDetails({ onClientChange }: CustomerDetailsProps) {
                 value={clientInfos.city}
                 onChange={handleChange}
               />
+              {invoiceClientErrors && invoiceClientErrors.city && (
+                <ul>
+                  { invoiceClientErrors.city.map((error, index) => (
+                      <li><span key={index} className="text-red-500">{error}</span></li>
+                    ))
+                  }
+                </ul>
+              )}
             </div>
 
             <div className="md:w-1/2">
@@ -200,6 +234,14 @@ function CustomerDetails({ onClientChange }: CustomerDetailsProps) {
                 value={clientInfos.postalCode}
                 onChange={handleChange}
               />
+              {invoiceClientErrors && invoiceClientErrors.name && (
+                <ul>
+                  { invoiceClientErrors.name.map((error, index) => (
+                      <li><span key={index} className="text-red-500">{error}</span></li>
+                    ))
+                  }
+                </ul>
+              )}
             </div>
 
           </div>
@@ -218,6 +260,16 @@ function CustomerDetails({ onClientChange }: CustomerDetailsProps) {
             />
           </div>
 
+          {invoiceClientErrors && invoiceClientErrors.general && (
+            <>
+              <ul>
+                { invoiceClientErrors.general.map((error, index) => (
+                    <span key={index} className="text-red-500">{error}</span>
+                  ))
+                }
+              </ul>
+            </>
+          )}
         </div>
     </div>
   )

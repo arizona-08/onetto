@@ -1,0 +1,40 @@
+services:
+  backend:
+    container_name: backend
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+      target: dev
+    env_file: ./backend/.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - onetto-network
+
+  db:
+    container_name: db
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_HOST: ${DB_HOST}
+      POSTGRES_PORT: ${DB_PORT}
+    ports:
+      - "5432:${DB_PORT}"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - onetto-network
+
+volumes:
+  db_data:
+
+networks:
+  onetto-network:
+    driver: bridge

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Manrope } from "next/font/google";
 import "./globals.css";
+import { AuthUserProvider } from "./components/context/AuthUserContext";
+import { ToastProvider } from "./components/context/ToastContext";
 
 
 const manrope = Manrope({
@@ -28,7 +30,13 @@ export default function RootLayout({
       lang="fr"
       className={`${manrope.variable} ${inter.variable} antialiased`}
     >
-      <body className="font-body relative">{children}</body>
+      <body className="font-body relative">
+        <ToastProvider>
+          <AuthUserProvider>
+            {children}
+          </AuthUserProvider>
+        </ToastProvider>
+      </body>
     </html>
   );
 }

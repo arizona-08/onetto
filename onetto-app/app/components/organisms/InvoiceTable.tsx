@@ -5,143 +5,134 @@ import { CirclePlusIcon } from 'lucide-react';
 import InvoiceSelector from '../molecules/InvoiceSelector';
 import InvoiceSorter from '../molecules/InvoiceSorter';
 import Link from 'next/link';
-
-const invoices = [
-  {
-    id: 'INV-8802',
-    type: 'Software Consulting',
-    customer: 'Acme Labs Inc.',
-    initials: 'AL',
-    date: 'Oct 12, 2023',
-    note: 'DUE 4 DAYS AGO',
-    amount: '$12,450.00',
-    status: 'OVERDUE',
-  },
-  {
-    id: 'INV-8799',
-    type: 'Brand Identity',
-    customer: 'Nexus Partners',
-    initials: 'NP',
-    date: 'Oct 10, 2023',
-    note: 'Paid on Oct 11',
-    amount: '$5,200.00',
-    status: 'PAID',
-  },
-  {
-    id: 'INV-8795',
-    type: 'Website Overhaul',
-    customer: 'Global Tech Corp',
-    initials: 'GT',
-    date: 'Oct 08, 2023',
-    note: 'Due in 14 days',
-    amount: '$24,900.00',
-    status: 'PENDING',
-  },
-  {
-    id: 'INV-8790',
-    type: 'Maintenance Retainer',
-    customer: 'Blue Valley Co.',
-    initials: 'BV',
-    date: 'Oct 05, 2023',
-    note: 'DUE 11 DAYS AGO',
-    amount: '$1,500.00',
-    status: 'OVERDUE',
-  },
-  {
-    id: 'INV-8791',
-    type: 'Maintenance Retainer',
-    customer: 'Blue Valley Co.',
-    initials: 'BV',
-    date: 'Oct 05, 2023',
-    note: 'DUE 11 DAYS AGO',
-    amount: '$1,500.00',
-    status: 'OVERDUE',
-  },
-  {
-    id: 'INV-8792',
-    type: 'Maintenance Retainer',
-    customer: 'Blue Valley Co.',
-    initials: 'BV',
-    date: 'Oct 05, 2023',
-    note: 'DUE 11 DAYS AGO',
-    amount: '$1,500.00',
-    status: 'OVERDUE',
-  },
-  {
-    id: 'INV-8793',
-    type: 'Maintenance Retainer',
-    customer: 'Blue Valley Co.',
-    initials: 'BV',
-    date: 'Oct 05, 2023',
-    note: 'DUE 11 DAYS AGO',
-    amount: '$1,500.00',
-    status: 'OVERDUE',
-  },
-]
+import { Invoice, InvoiceStatus } from '@/app/types';
+import { formatDate } from '@/shared/utils';
 
 const statusStyles: Record<string, string> = {
   OVERDUE: 'bg-rose-100 text-rose-700',
   PAID: 'bg-indigo-100 text-indigo-700',
-  PENDING: 'bg-zinc-200 text-zinc-700',
+  PENDING: 'bg-orange-200 text-orange-700',
+  DRAFT: 'bg-gray-200 text-gray-700 md:bg-gray-100',
 }
 
-function InvoiceTable() {
+interface InvoiceTableProps {
+  invoices: Invoice[]
+  currentDate: string
+}
+
+function InvoiceTable({ invoices, currentDate }: InvoiceTableProps) {
 
   const [selectedStatus, setSelectedStatus] = React.useState('Toutes');
   const [sortMethod, setSortMethod] = React.useState<'date' | 'amount'>('date')
-  const [isSortOpen, setIsSortOpen] = React.useState<boolean>(false)
+  const [isSortOpen, setIsSortOpen] = React.useState<boolean>(false);
+
+  const [masterInvoicesList] = React.useState<Invoice[]>(invoices);
+
+  function createPaymentNote(paymentDueAt: string, invoiceStatus: InvoiceStatus): string | undefined{
+    const dueDate = new Date(paymentDueAt);
+    const renderedDate = new Date(currentDate);
+
+    if (renderedDate > dueDate && invoiceStatus !== "PAID") {
+      const daysOverdue = Math.floor((renderedDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+      return `En retard de ${daysOverdue} jours`;
+    }
+    return
+  }
   return (
-    <>
-      <div className=''>
-        <Link href="/invoices/create" className="shadow-md my-4 flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
-          <CirclePlusIcon />
-          <span className="text-sm font-medium">Créer une facture</span>
-        </Link>
+    <div className="mt-3">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className=''>
+          <Link href="/invoices/create" className="shadow-md my-4 flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
+            <CirclePlusIcon />
+            <span className="text-sm font-medium">Créer une facture</span>
+          </Link>
+        </div>
+        <div className="flex items-center justify-start flex-wrap gap-5">
+          <InvoiceSelector selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
+          <InvoiceSorter sortMethod={sortMethod} setSortMethod={setSortMethod} isOpen={isSortOpen} setIsOpen={setIsSortOpen} />
+        </div>
       </div>
-      <div className="flex items-center justify-start flex-wrap gap-5">
-        <InvoiceSelector selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
-        <InvoiceSorter sortMethod={sortMethod} setSortMethod={setSortMethod} isOpen={isSortOpen} setIsOpen={setIsSortOpen} />
+
+      {/* list de factures pour mobile */}
+      <div className="md:hidden">
+        <ul className="mt-4 space-y-3">
+          {
+            masterInvoicesList.map((invoice) => (
+              <li key={invoice.id}>
+                <div className="bg-white px-3 py-5 rounded-md flex items-start justify-between">
+                  {/* left part */}
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold">{invoice.clientName}</p>
+                    <div className="text-gray-600 text-xs flex items-center gap-1">
+                      <Link href={`/invoices/${invoice.id}`} className="underline hover:text-primary">{invoice.invoiceNumber}</Link>
+                      <span className="inline-block w-1 h-1 rounded-full bg-zinc-600"></span>
+                      <span>{formatDate(invoice.paymentDueAt)}</span>
+                    </div>
+                  </div>
+
+                  {/* right part */}
+                  <div className="flex flex-col items-end gap-1">
+                    <p className="text-sm font-semibold">{invoice.totalPrice.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</p>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[invoice.status]}`}>{invoice.status}</span>
+                  </div>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
       </div>
-      <div className="mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm">
+
+      {/* Tableau de facture pour tablet et desktop */}
+      <div className="hidden md:block mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm">
         <table className="min-w-185 w-full border-collapse text-left">
           <thead className="bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
             <tr>
               <th className="w-12 px-5 py-4">
                 <input type="checkbox" className="h-4 w-4 rounded border-zinc-300" />
               </th>
-              <th className="px-5 py-4">Invoice</th>
-              <th className="px-5 py-4">Customer</th>
-              <th className="px-5 py-4">Date</th>
-              <th className="px-5 py-4">Amount</th>
-              <th className="px-5 py-4">Status</th>
+              <th className="px-5 py-4">Facture</th>
+              <th className="px-5 py-4">Client</th>
+              <th className="px-5 py-4">Date d&apos;émission</th>
+              <th className="px-5 py-4">Date d&apos;échéance</th>
+              <th className="px-5 py-4">Montant</th>
+              <th className="px-5 py-4">Statut</th>
             </tr>
           </thead>
           <tbody className="text-sm text-zinc-700">
-            {invoices.map((invoice) => (
+            {masterInvoicesList.map((invoice) => (
               <tr key={invoice.id} className="border-t border-zinc-100">
                 <td className="px-5 py-5 align-top">
                   <input type="checkbox" className="h-4 w-4 rounded border-zinc-300" />
                 </td>
                 <td className="px-5 py-5 align-top">
-                  <div className="font-semibold text-zinc-900">#{invoice.id}</div>
-                  <div className="text-xs text-zinc-500">{invoice.type}</div>
+                  <Link href={`/invoices/${invoice.id}`} className="underline text-zinc-900 hover:text-primary">
+                    <p className="font-semibold ">{invoice.invoiceNumber}</p>
+                  </Link>
+                  <p className="text-xs text-zinc-500">Type de l&apos;invoice</p>
                 </td>
                 <td className="px-5 py-5 align-top">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
-                      {invoice.initials}
+                      {invoice.clientName.split(' ').map((n) => n[0]).join('')}
                     </div>
-                    <div className="font-medium text-zinc-900">{invoice.customer}</div>
+                    <div className="font-medium text-zinc-900">{invoice.clientName}</div>
                   </div>
                 </td>
                 <td className="px-5 py-5 align-top">
-                  <div className="font-medium text-zinc-900">{invoice.date}</div>
-                  <div className="text-xs text-rose-600">
-                    {invoice.note}
-                  </div>
+                  <div className="font-medium text-zinc-900">{formatDate(invoice.createdAt)}</div>
+                </td>
+                <td className="px-5 py-5 align-top">
+                  <div className="font-medium text-zinc-900">{formatDate(invoice.paymentDueAt)}</div>
+                  {
+                    createPaymentNote(invoice.paymentDueAt, invoice.status) && (
+                      <div className="text-xs text-rose-600">
+                        {createPaymentNote(invoice.paymentDueAt, invoice.status)}
+                      </div>
+                    )
+                  }
                 </td>
                 <td className="px-5 py-5 align-top font-semibold text-zinc-900">
-                  {invoice.amount}
+                  {invoice.totalPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                 </td>
                 <td className="px-5 py-5 align-top">
                   <span
@@ -155,7 +146,7 @@ function InvoiceTable() {
           </tbody>
         </table>
       </div>
-    </>
+    </div>
   )
 }
 

@@ -1,0 +1,144 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id     String @id @default(uuid())
+  firstname String
+  lastname String
+  email String @unique
+  password String
+  role Role @default(BASIC_USER)
+  lastConnectedCompanyId String?
+
+  lastConnectedCompany Company? @relation("LastConnectedCompany", fields: [lastConnectedCompanyId], references: [id])
+  ownedCompanies Company[]
+  companies CompanyUser[]
+  services UserService[]
+  clients UserClient[]
+}
+
+enum Role {
+  BASIC_USER
+  PREMIUM_USER
+  PRO_USER
+  ADMIN_USER
+}
+
+model Company {
+  id String @id @default(uuid())
+  ownerId String
+  name String
+  email String @unique
+  phoneNumber String @unique
+  siren String @unique
+  siret String @unique
+  address String
+  city String
+  postalCode String
+  country String
+  subjectToVat Boolean
+  vatNumber String?
+  IBAN String
+  BIC String
+
+  invoices Invoice[]
+  owner User @relation(fields: [ownerId], references: [id])
+  companyUsers CompanyUser[]
+  lastConnectedUsers User[] @relation("LastConnectedCompany")
+}
+
+model CompanyUser {
+  id String @id @default(uuid())
+  companyId String
+  userId String
+  role CompanyUserRole
+
+  company Company @relation(fields: [companyId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([companyId, userId])
+}
+
+enum CompanyUserRole {
+  ADMIN
+  ACCOUNTANT
+  EMPLOYEE
+}
+
+model Invoice {
+  id String @id @default(uuid())
+  companyId String
+  clientName String
+  clientEmail String
+  clientAddress String
+  clientCity String
+  clientPostalCode String
+  clientCountry String
+  totalPriceExcludingTax Float
+  totalPrice Float
+  createdAt DateTime @default(now())
+  invoiceNumber String
+  urlDocumentPdf String?
+  paymentDueAt DateTime
+  status InvoiceStatus
+
+  @@unique([companyId, invoiceNumber])
+  comany Company @relation(fields: [companyId], references: [id])
+  services InvoiceService[]
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  PAID
+  OVERDUE
+}
+
+model InvoiceService {
+  id String @id @default(uuid())
+  invoiceId String
+  description String
+  quantity Int
+  unitPrice Float
+  unit String
+  taxRate Float?
+  wtPrice Float
+  totalPrice Float
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model UserService {
+  id String @id @default(uuid())
+  userId String
+  description String
+  unitPrice Float
+  taxRate Float?
+  wtPrice Float
+  totalPrice Float
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model UserClient {
+  id String @id @default(uuid())
+  authorId String
+  name String
+  email String
+  address String
+  city String
+  postalCode String
+  country String
+
+  author User @relation(fields: [authorId], references: [id])
+}
