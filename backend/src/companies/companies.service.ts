@@ -69,13 +69,14 @@ export class CompaniesService {
 
   async updateCompany(companyId: string, data: UpdateCompanyDto, userId: string) {
     await this.getOwnedCompany(companyId, userId);
+    const { id: _id, ownerId: _ownerId, ...companyData } = data;
 
     try {
       return await this.prismaService.company.update({
         where: { id: companyId },
         data: {
-          ...data,
-          ...(data.subjectToVat === false ? { vatNumber: null } : {}),
+          ...companyData,
+          ...(companyData.subjectToVat === false ? { vatNumber: null } : {}),
         },
       });
     } catch (error) {

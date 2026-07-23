@@ -1,6 +1,5 @@
 'use client';
 
-import CreateCompanyForm from '@/app/components/molecules/Forms/CreateCompanyForm';
 import { Company } from '@/lib/companies/dtos/create-company.dto';
 import { deleteCompany, getMyCompanies, selectCompany } from '@/lib/companies/companies';
 import { COMPANY_UPDATED_EVENT, notifyCompanyUpdated } from '@/lib/companies/company-events';
@@ -15,7 +14,6 @@ function MyCompanies() {
   const { showToast } = useToast();
   const [companies, setCompanies] = React.useState<Company[]>([]);
   const [activeCompanyId, setActiveCompanyId] = React.useState<string | null>(null);
-  const [formCompany, setFormCompany] = React.useState<Company | undefined>(undefined);
   const [companyToDelete, setCompanyToDelete] = React.useState<Company | null>(null);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -90,21 +88,6 @@ function MyCompanies() {
 
       {error && <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
 
-      {formCompany !== undefined && (
-        <section className="mt-6 max-w-4xl rounded-lg border border-zinc-200 bg-zinc-50">
-          <CreateCompanyForm
-            key={formCompany.id}
-            companyToEdit={formCompany}
-            onCancel={() => setFormCompany(undefined)}
-            onSuccess={async (company) => {
-              setFormCompany(undefined);
-              await loadCompanies();
-              router.refresh();
-            }}
-          />
-        </section>
-      )}
-
       {isLoading ? (
         <p className="mt-8 text-sm text-zinc-500">Chargement des entreprises…</p>
       ) : companies.length === 0 ? (
@@ -135,7 +118,7 @@ function MyCompanies() {
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2 border-t border-zinc-100 pt-4">
                   <button onClick={() => void handleSelect(company.id)} disabled={isActive} className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white disabled:cursor-default disabled:opacity-50">{isActive ? 'Entreprise active' : 'Utiliser cette entreprise'}</button>
-                  <button onClick={() => setFormCompany(company)} className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700"><Pencil className="h-4 w-4" /> Modifier</button>
+                  <Link href={`/my-companies/${company.id}`} className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700"><Pencil className="h-4 w-4" /> Modifier</Link>
                   <button onClick={() => setCompanyToDelete(company)} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600"><Trash2 className="h-4 w-4" /> Supprimer</button>
                 </div>
               </li>
