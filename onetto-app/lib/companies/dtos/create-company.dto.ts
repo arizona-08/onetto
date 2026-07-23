@@ -17,4 +17,8 @@ export type CreateCompanyDto = {
 export type Company = CreateCompanyDto & {
   id: string;
   ownerId: string;
+  status: 'ACTIVE' | 'CLOSED';
+  isHidden: boolean;
+  closingReason?: string | null;
+  closedAt?: string | null;
 }

@@ -18,9 +18,10 @@ const statusStyles: Record<string, string> = {
 interface InvoiceTableProps {
   invoices: Invoice[]
   currentDate: string
+  canCreate: boolean
 }
 
-function InvoiceTable({ invoices, currentDate }: InvoiceTableProps) {
+function InvoiceTable({ invoices, currentDate, canCreate }: InvoiceTableProps) {
 
   const [selectedStatus, setSelectedStatus] = React.useState('Toutes');
   const [sortMethod, setSortMethod] = React.useState<'date' | 'amount'>('date')
@@ -42,10 +43,12 @@ function InvoiceTable({ invoices, currentDate }: InvoiceTableProps) {
     <div className="mt-3">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className=''>
-          <Link href="/invoices/create" className="shadow-md my-4 flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
-            <CirclePlusIcon />
-            <span className="text-sm font-medium">Créer une facture</span>
-          </Link>
+          {canCreate && (
+            <Link href="/invoices/create" className="shadow-md my-4 flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
+              <CirclePlusIcon />
+              <span className="text-sm font-medium">Créer une facture</span>
+            </Link>
+          )}
         </div>
         <div className="flex items-center justify-start flex-wrap gap-5">
           <InvoiceSelector selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />

@@ -1,5 +1,6 @@
 import InvoiceTable from '@/app/components/organisms/InvoiceTable'
 import { getMyInvoicesServer } from '@/lib/invoices/invoice.server';
+import { getMyCompaniesServer } from '@/lib/companies/companies.server';
 import { AlertTriangle, ChartLine, Check, CirclePlusIcon, File } from 'lucide-react';
 import React from 'react'
 export const dynamic = 'force-dynamic'
@@ -12,6 +13,10 @@ async function invoices() {
   }
 
   const invoices = invoicesResponse.ok ? invoicesResponse.data : [];
+  const companiesResponse = await getMyCompaniesServer();
+  const activeCompany = companiesResponse.ok
+    ? companiesResponse.data.companies.find((company) => company.id === companiesResponse.data.activeCompanyId)
+    : undefined;
   const currentDate = new Date().toISOString();
   
   return (
@@ -72,7 +77,12 @@ async function invoices() {
           </div>
         </div>
       </div>
-      <InvoiceTable invoices={invoices} currentDate={currentDate} />
+      {activeCompany?.status === 'CLOSED' && (
+        <div className="mt-4 rounded-lg border border-red-100 bg-red-50/70 p-4 text-sm text-zinc-700">
+          Cette entreprise est fermée : les factures existantes restent consultables, mais aucune nouvelle facture ne peut être créée.
+        </div>
+      )}
+      <InvoiceTable invoices={invoices} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
     </div>
   )
 }

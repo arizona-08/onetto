@@ -1,6 +1,16 @@
 import { IsBIC, IsBoolean, IsEmail, IsIBAN, IsOptional, IsPhoneNumber, IsString } from "class-validator";
 
 export class UpdateCompanyDto {
+  // Ces champs sont renvoyés par l'API et peuvent être présents dans un formulaire prérempli.
+  // Ils sont acceptés, mais ne sont jamais utilisés pour modifier l'identité ou le propriétaire.
+  @IsOptional()
+  @IsString()
+  id?: string;
+
+  @IsOptional()
+  @IsString()
+  ownerId?: string;
+
   @IsOptional()
   @IsString()
   name?: string;

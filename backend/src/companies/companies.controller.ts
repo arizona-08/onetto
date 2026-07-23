@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { CompaniesService } from "./companies.service";
 import { AuthGuard } from "src/auth/auth.guard";
 import { CreateCompanyDto } from "./dtos/create-company.dto";
@@ -31,6 +31,16 @@ export class CompaniesController {
   @Get(":companyId")
   getCompany(@Param("companyId") companyId: string, @Req() req: ExtendedRequest) {
     return this.companiesService.getCompany(companyId, this.getUserId(req));
+  }
+
+  @Patch(":companyId/perform-owned-action")
+  performOwnedCompanyAction(@Param("companyId") companyId: string, @Query("action") action: "reactivate" | "close", @Body("reason") reason: string | undefined, @Req() req: ExtendedRequest) {
+    return this.companiesService.performOwnedCompanyAction(companyId, this.getUserId(req), action, reason);
+  }
+
+  @Patch(":companyId/perform-user-action")
+  performUserCompanyAction(@Param("companyId") companyId: string, @Query("action") action: "hide" | "unhide", @Req() req: ExtendedRequest) {
+    return this.companiesService.performUserCompanyAction(companyId, this.getUserId(req), action);
   }
 
   @Patch(":companyId")

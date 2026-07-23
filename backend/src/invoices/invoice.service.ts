@@ -12,7 +12,7 @@ export class InvoiceService {
   async createInvoice(data: CreateInvoiceDto, user: User) {
     try {
       const {lineItems, ...invoiceData} = data;
-      const companyId = this.getActiveCompanyId(user);
+      const companyId = await this.getActiveCompanyId(user, true);
       const invoiceNumber = await this.createInvoiceNumber(companyId);
 
       const totalPriceExludingTax = lineItems.reduce((acc, item) => {
@@ -101,7 +101,7 @@ export class InvoiceService {
 
   async getInvoicesByUser(user: User, withServices: boolean = true){
     try {
-      const companyId = this.getActiveCompanyId(user);
+      const companyId = await this.getActiveCompanyId(user);
       const invoices = await this.prismaService.invoice.findMany({
         where: {
           companyId
@@ -120,7 +120,7 @@ export class InvoiceService {
 
   async getInvoiceById(invoiceId: string, user: User, withServices: boolean = true){
     try {
-      const companyId = this.getActiveCompanyId(user);
+      const companyId = await this.getActiveCompanyId(user);
       const invoice = await this.prismaService.invoice.findFirst({
         where: {
           id: invoiceId,
@@ -145,9 +145,20 @@ export class InvoiceService {
     }
   }
 
-  private getActiveCompanyId(user: User): string {
+  private async getActiveCompanyId(user: User, requireActive = false): Promise<string> {
     if (!user.lastConnectedCompanyId) {
       throw new BadRequestException("Sélectionnez une entreprise avant de gérer des factures.");
+    }
+
+    if (requireActive) {
+      const company = await this.prismaService.company.findUnique({
+        where: { id: user.lastConnectedCompanyId },
+        select: { status: true },
+      });
+
+      if (!company || company.status === "CLOSED") {
+        throw new BadRequestException("Une entreprise fermée ne peut pas créer de factures.");
+      }
     }
 
     return user.lastConnectedCompanyId;

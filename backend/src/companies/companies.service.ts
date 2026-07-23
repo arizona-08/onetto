@@ -49,16 +49,33 @@ export class CompaniesService {
   }
 
   async getMyCompanies(userId: string) {
-    const [companies, user] = await Promise.all([
+    const [ownedCompanies, companyUsers, user] = await Promise.all([
       this.prismaService.company.findMany({
         where: { ownerId: userId },
         orderBy: { name: "asc" },
+      }),
+      this.prismaService.companyUser.findMany({
+        where: { userId },
+        include: { company: true },
       }),
       this.prismaService.user.findUnique({
         where: { id: userId },
         select: { lastConnectedCompanyId: true },
       }),
     ]);
+
+    const companiesById = new Map(
+      ownedCompanies.map((company) => [company.id, { ...company, isHidden: false }]),
+    );
+
+    for (const companyUser of companyUsers) {
+      companiesById.set(companyUser.companyId, {
+        ...companyUser.company,
+        isHidden: companyUser.isHidden,
+      });
+    }
+
+    const companies = [...companiesById.values()].sort((first, second) => first.name.localeCompare(second.name));
 
     return { companies, activeCompanyId: user?.lastConnectedCompanyId ?? null };
   }
@@ -68,14 +85,18 @@ export class CompaniesService {
   }
 
   async updateCompany(companyId: string, data: UpdateCompanyDto, userId: string) {
-    await this.getOwnedCompany(companyId, userId);
+    const company = await this.getOwnedCompany(companyId, userId);
+    if (company.status === "CLOSED") {
+      throw new BadRequestException("Une entreprise fermée ne peut pas être modifiée.");
+    }
+    const { id: _id, ownerId: _ownerId, ...companyData } = data;
 
     try {
       return await this.prismaService.company.update({
         where: { id: companyId },
         data: {
-          ...data,
-          ...(data.subjectToVat === false ? { vatNumber: null } : {}),
+          ...companyData,
+          ...(companyData.subjectToVat === false ? { vatNumber: null } : {}),
         },
       });
     } catch (error) {
@@ -84,7 +105,12 @@ export class CompaniesService {
   }
 
   async selectCompany(companyId: string, userId: string) {
-    await this.getOwnedCompany(companyId, userId);
+    const company = await this.getOwnedCompany(companyId, userId);
+
+    const companyUser = await this.prismaService.companyUser.findFirst({ where: { companyId, userId } });
+    if (companyUser?.isHidden) {
+      throw new BadRequestException("Démasquez cette entreprise avant de la sélectionner.");
+    }
 
     await this.prismaService.user.update({
       where: { id: userId },
@@ -94,8 +120,77 @@ export class CompaniesService {
     return { success: true, activeCompanyId: companyId };
   }
 
+  async performOwnedCompanyAction(companyId: string, userId: string, action: "reactivate" | "close", reason?: string) {
+    try{
+      await this.getOwnedCompany(companyId, userId);
+
+      let newStatus: "ACTIVE" | "CLOSED";
+      const closingReason = reason?.trim();
+
+      switch(action){
+        case "reactivate":
+          newStatus = "ACTIVE";
+          break;
+        case "close":
+          if (!closingReason) {
+            throw new BadRequestException("Le motif de fermeture est obligatoire.");
+          }
+          newStatus = "CLOSED";
+          break;
+        default:
+          throw new BadRequestException("Action invalide.");
+      }
+
+      await this.prismaService.company.update({
+        where: { id: companyId },
+        data: newStatus === "CLOSED"
+          ? { status: newStatus, closingReason: closingReason ?? null, closedAt: new Date() }
+          : { status: newStatus },
+      });
+
+      return { success: true, status: newStatus };
+    } catch (error) {
+      this.handleDatabaseError(error, `${action} de l'entreprise`);
+    }
+  }
+
+  async performUserCompanyAction(companyId: string, userId: string, action: "hide" | "unhide") {
+    try {
+      const companyUser = await this.prismaService.companyUser.findFirst({
+        where: { companyId, userId }
+      });
+
+      if(!companyUser){
+        throw new NotFoundException("Utilisateur non associé à l'entreprise.");
+      }
+
+      if (action === "hide") {
+        const user = await this.prismaService.user.findUnique({
+          where: { id: userId },
+          select: { lastConnectedCompanyId: true },
+        });
+
+        if (user?.lastConnectedCompanyId === companyId) {
+          throw new BadRequestException("Une entreprise active ne peut pas être masquée.");
+        }
+      }
+
+      await this.prismaService.companyUser.update({
+        where: { id: companyUser.id },
+        data: { isHidden: action === "hide" }
+      });
+
+      return { success: true };
+    } catch (error) {
+      this.handleDatabaseError(error, `${action} de l'entreprise`);
+    }
+  }
+
   async deleteCompany(companyId: string, userId: string) {
-    await this.getOwnedCompany(companyId, userId);
+    const company = await this.getOwnedCompany(companyId, userId);
+    if (company.status === "CLOSED") {
+      throw new BadRequestException("Une entreprise fermée est conservée pour des raisons légales et ne peut pas être supprimée.");
+    }
 
     const invoicesCount = await this.prismaService.invoice.count({ where: { companyId } });
     if (invoicesCount > 0) {

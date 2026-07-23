@@ -50,6 +50,9 @@ model Company {
   vatNumber String?
   IBAN String
   BIC String
+  status CompanyStatus @default(ACTIVE)
+  closingReason String?
+  closedAt DateTime?
 
   invoices Invoice[]
   owner User @relation(fields: [ownerId], references: [id])
@@ -57,11 +60,16 @@ model Company {
   lastConnectedUsers User[] @relation("LastConnectedCompany")
 }
 
+enum CompanyStatus {
+  ACTIVE
+  CLOSED
+}
 model CompanyUser {
   id String @id @default(uuid())
   companyId String
   userId String
   role CompanyUserRole
+  isHidden Boolean @default(false)
 
   company Company @relation(fields: [companyId], references: [id])
   user User @relation(fields: [userId], references: [id])
@@ -90,10 +98,10 @@ model Invoice {
   invoiceNumber String
   urlDocumentPdf String?
   paymentDueAt DateTime
-  status InvoiceStatus
+  status InvoiceStatus @default(DRAFT)
 
   @@unique([companyId, invoiceNumber])
-  comany Company @relation(fields: [companyId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   services InvoiceService[]
 }
 
