@@ -6,19 +6,23 @@ export const dynamic = 'force-dynamic'
 
 async function invoices() {
   const invoicesResponse = await getMyInvoicesServer(false);
-  
-  if(!invoicesResponse.ok) {
+
+  if (!invoicesResponse.ok) {
     console.error('Failed to fetch invoices:', invoicesResponse.error);
-    throw new Error('Failed to fetch invoices');
   }
 
-  const invoices = invoicesResponse.data;
-  console.log('Fetched invoices:', invoices);
+  const invoices = invoicesResponse.ok ? invoicesResponse.data : [];
   const currentDate = new Date().toISOString();
   
   return (
     <div className="w-full p-4">
       <h1 className="text-2xl font-black font-title">Gérer mes factures</h1>
+
+      {!invoicesResponse.ok && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="alert">
+          Les factures ne peuvent pas être chargées pour le moment. Vérifiez que l&apos;API est démarrée, puis réessayez.
+        </div>
+      )}
 
       <div className="mt-8 w-full overflow-x-auto pb-4">
         <div className="flex items-center gap-3 flex-nowrap min-w-max">

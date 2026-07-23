@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation';
 import React from 'react'
 import AuthShell from '../AuthShell'
-import { register } from '@/lib/auth/auth';
+import { login, register } from '@/lib/auth/auth';
 import { ApiError } from '@/lib/api';
 
 function getErrorMessage(error: ApiError): string {
@@ -24,24 +24,31 @@ function RegisterPage() {
     setIsLoading(true);
 
     const formData = new FormData(event.currentTarget);
-    const result = await register({
+    const registrationData = {
       firstname: String(formData.get('firstname') || ''),
       lastname: String(formData.get('lastname') || ''),
       email: String(formData.get('email') || ''),
       password: String(formData.get('password') || ''),
       confirmationPassword: String(formData.get('confirmationPassword') || ''),
-    });
-
-    setIsLoading(false);
+    };
+    const result = await register(registrationData);
 
     if (!result.ok) {
       setError(getErrorMessage(result.error));
+      setIsLoading(false);
       return;
     }
 
+    const loginResult = await login({ email: registrationData.email, password: registrationData.password });
+    setIsLoading(false);
 
-    setSuccess('Votre compte a bien été créé. Vous pouvez maintenant vous connecter.');
-    setTimeout(() => router.push(`/auth/register/create-company/?companyOwnerId=${result.data.user.id}`), 900);
+    if (!loginResult.ok) {
+      setError('Compte créé, mais la connexion automatique a échoué. Connectez-vous pour créer votre entreprise.');
+      return;
+    }
+
+    setSuccess('Votre compte a bien été créé. Créons maintenant votre entreprise.');
+    setTimeout(() => router.push('/auth/register/create-company'), 900);
   }
 
   return (

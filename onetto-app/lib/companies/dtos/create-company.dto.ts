@@ -13,3 +13,8 @@ export type CreateCompanyDto = {
   IBAN: string;
   BIC: string;
 }
+
+export type Company = CreateCompanyDto & {
+  id: string;
+  ownerId: string;
+}

@@ -6,7 +6,8 @@ export type User = {
   id: string,
   firstname: string,
   lastname: string,
-  role: string
+  role: string,
+  lastConnectedCompanyId?: string
 }
 
 export interface ExtendedRequest extends Response {

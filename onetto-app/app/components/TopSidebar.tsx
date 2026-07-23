@@ -4,24 +4,24 @@ import BurgerMenu from './molecules/BurgerMenu'
 import { Building, FileChartColumnIncreasing, LayoutDashboardIcon, LogOut, SettingsIcon, UserIcon, Waypoints } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/auth/auth';
+import { getMyCompanies, selectCompany } from '@/lib/companies/companies';
+import { Company } from '@/lib/companies/dtos/create-company.dto';
+import Link from 'next/link';
+import { useAuthUser } from './context/AuthUserContext';
+import { COMPANY_UPDATED_EVENT, notifyCompanyUpdated } from '@/lib/companies/company-events';
 
 const links = [
   { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboardIcon />  },
-  {name: 'Mon entreprise', href: '/companny', icon: <Building />},
+  {name: 'Mes entreprises', href: '/my-companies', icon: <Building />},
   { name: 'Factures', href: '/invoices', icon: <FileChartColumnIncreasing />  },
   { name: 'Services', href: '/services', icon: <Waypoints /> },
   { name: 'Clients', href: '/customers', icon: <UserIcon />  },
   { name: 'Paramètres', href: '/settings/account', icon: <SettingsIcon />  },
 ]
 
-const fakeCompanies = [
-  { id: '1', name: 'Ma Société', email: "email@entreprise1.com" },
-  { id: '2', name: 'Ma Société 2', email: "email@entreprise2.com" },
-  { id: '3', name: 'Ma Société 3', email: "email@entreprise3.com" }
-]
-
 function TopSidebar() {
   const [isOpen, setIsOpen] = React.useState(false)
+  const { user } = useAuthUser();
 
   const pathname = usePathname();
   const router = useRouter();
@@ -37,7 +37,48 @@ function TopSidebar() {
   }
 
   const [showMobileCompaniesMenu, setShowMobileCompaniesMenu] = React.useState(false);
-  const [showDesktopCompaniesMenu, setShowDesktopCompaniesMenu] = React.useState(false);
+  const [companies, setCompanies] = React.useState<Company[]>([]);
+  const [activeCompanyId, setActiveCompanyId] = React.useState<string | null>(null);
+
+  const loadCompanies = React.useCallback(async () => {
+    const response = await getMyCompanies();
+    if (response.ok) {
+      setCompanies(response.data.companies);
+      setActiveCompanyId(response.data.activeCompanyId);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void loadCompanies();
+    window.addEventListener(COMPANY_UPDATED_EVENT, loadCompanies);
+    return () => window.removeEventListener(COMPANY_UPDATED_EVENT, loadCompanies);
+  }, [loadCompanies, pathname]);
+
+  const activeCompany = companies.find((company) => company.id === activeCompanyId);
+  const otherCompanies = companies.filter((company) => company.id !== activeCompanyId);
+
+  function getInitials(name: string) {
+    return name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase();
+  }
+
+  async function handleCompanySelection(companyId: string) {
+    const response = await selectCompany(companyId);
+    if (!response.ok) {
+      console.error('Failed to select company');
+      return;
+    }
+
+    setActiveCompanyId(companyId);
+    setShowMobileCompaniesMenu(false);
+    notifyCompanyUpdated();
+    router.refresh();
+  }
 
   return (
     <header className="bg-white relative w-full border-b border-zinc-200 shadow-xs lg:w-64 lg:h-screen p-4 lg:flex lg:flex-col">
@@ -49,25 +90,42 @@ function TopSidebar() {
 
         <div className="relative">
           {/* profile pic */}
-          <div className="w-8 h-8 bg-gray-200 rounded-full lg:hidden" onClick={() => setShowMobileCompaniesMenu(!showMobileCompaniesMenu)}></div>
+          <button type="button" aria-label="Ouvrir le menu du compte" className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary lg:hidden" onClick={() => setShowMobileCompaniesMenu(!showMobileCompaniesMenu)}>
+            {activeCompany ? getInitials(activeCompany.name) : 'O'}
+          </button>
 
           {/* mobile companies menu */}
-          <div className="lg:hidden absolute right-0 top-full bg-white shadow-lg rounded-lg mt-2 w-56 z-20">
+          <div className="lg:hidden absolute right-0 top-full z-20 mt-2 w-56 rounded-lg bg-white shadow-lg">
             {showMobileCompaniesMenu && (
               <div>
+                <div className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{activeCompany ? getInitials(activeCompany.name) : 'O'}</div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-zinc-800">{activeCompany?.name ?? 'Aucune entreprise sélectionnée'}</p>
+                      <p className="truncate text-xs text-zinc-500">{activeCompany?.email ?? 'Gérer mes entreprises'}</p>
+                    </div>
+                  </div>
+                  <hr className="my-3 border-zinc-200" />
+                  <p className="truncate text-sm font-medium text-zinc-800">{user ? `${user.firstname} ${user.lastname}` : 'Chargement du compte…'}</p>
+                  <p className="truncate text-xs text-zinc-500">{user?.email ?? ''}</p>
+                </div>
+                <hr className="border-zinc-200" />
                 <ul>
-                  {fakeCompanies.map((company) => (
-                    <li key={company.id} className="px-4 py-2 hover:bg-zinc-50 cursor-pointer overflow-hidden" onClick={() => setShowMobileCompaniesMenu(false)}>
+                  {otherCompanies.map((company) => (
+                    <li key={company.id} className="cursor-pointer overflow-hidden px-4 py-2 hover:bg-zinc-50" onClick={() => void handleCompanySelection(company.id)}>
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-                        <div>
-                          <p>{company.name}</p>
-                          <p className="text-xs text-zinc-500">{company.email}</p>
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{getInitials(company.name)}</div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate">{company.name}</p>
+                          <p className="truncate text-xs text-zinc-500">{company.email}</p>
                         </div>
                       </div>
                     </li>
                   ))}
                 </ul>
+
+                <Link href="/my-companies" className="mx-4 mt-3 block rounded-md border border-zinc-200 px-3 py-2 text-center text-sm font-medium text-zinc-700" onClick={() => setShowMobileCompaniesMenu(false)}>Gérer mes entreprises</Link>
 
                 <hr className="my-3 block text-zinc-200 w-full max-w-35 mx-auto" />
 
@@ -103,17 +161,44 @@ function TopSidebar() {
           </ul>
         </nav>
 
-        <div className="hidden lg:block relative w-full hover:bg-zinc-200 p-2 rounded-lg transition-colors cursor-pointer group duration-300">
-          <div
-            className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-full flex justify-center items-center gap-3 rounded-md bg-white px-4 py-2 text-red-500 border border-gray-200 shadow-xs cursor-pointer opacity-0 invisible group-hover:visible group-hover:opacity-100 transition-all duration-150"
-            onClick={handleLogout}
-          >
-            <p>Me déconnecter</p>
-            <LogOut className="w-5 h-5"/>
+        <div className="hidden lg:block relative w-full rounded-lg p-2 transition-colors hover:bg-zinc-100 group duration-300">
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-full opacity-0 invisible group-hover:visible group-hover:opacity-100 transition-all duration-150 space-y-2">
+            <ul className="bg-white border border-zinc-200 rounded-lg shadow-sm">
+              {otherCompanies.map((company) => (
+                <li key={company.id} className="cursor-pointer overflow-hidden px-2 py-2 hover:bg-zinc-50" onClick={() => void handleCompanySelection(company.id)}>
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{getInitials(company.name)}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{company.name}</p>
+                      <p className="truncate text-xs text-zinc-500">{company.email}</p>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
-          <div>
-            <p className="text-zinc-700">Jonathan ASSI</p>
-            <span className="text-sm text-zinc-500">assijoanthan2@gmail.com</span>
+          <div className="space-y-3 cursor-pointer">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                {activeCompany ? getInitials(activeCompany.name) : 'O'}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-zinc-800">{activeCompany?.name ?? 'Aucune entreprise sélectionnée'}</p>
+                <p className="truncate text-xs text-zinc-500">{activeCompany?.email ?? 'Gérer mes entreprises'}</p>
+              </div>
+            </div>
+
+            <hr className="border-zinc-200" />
+
+            <div className="flex items-center justify-between gap-3 px-1">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-zinc-800">{user ? `${user.firstname} ${user.lastname}` : 'Chargement du compte…'}</p>
+                <p className="truncate text-xs text-zinc-500">{user?.email ?? ''}</p>
+              </div>
+              <button type="button" aria-label="Se déconnecter" title="Se déconnecter" onClick={() => void handleLogout()} className="shrink-0 rounded-md p-2 text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600">
+                <LogOut className="h-4 w-4 text-red-500" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -1,9 +1,7 @@
-import React from 'react'
+import { redirect } from 'next/navigation';
 
 function MyCompanyPage() {
-  return (
-    <div>MyCompanyPage</div>
-  )
+  redirect('/my-companies');
 }
 
-export default MyCompanyPage
+export default MyCompanyPage;

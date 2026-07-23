@@ -2,9 +2,7 @@ import CreateCompanyForm from '@/app/components/molecules/Forms/CreateCompanyFor
 import Link from 'next/link'
 import React from 'react'
 
-async function CreateCompanyPage({ searchParams }: {searchParams : Promise<{ companyOwnerId?: string }>} ) {
-  const params = await searchParams;
-
+function CreateCompanyPage() {
   return (
     <div className="p-4 flex flex-col gap-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-zinc-800 text-center">Créer mon entreprise</h1>
@@ -14,7 +12,7 @@ async function CreateCompanyPage({ searchParams }: {searchParams : Promise<{ com
           <Link href="/auth/login" className="inline-block px-3 py-2 bg-primary rounded-full text-sm text-white font-medium">Passer cette étape et me connecter</Link>
         </div>
 
-        <CreateCompanyForm companyOwnerId={params.companyOwnerId || ''} />
+        <CreateCompanyForm />
       </div>
     </div>
   )

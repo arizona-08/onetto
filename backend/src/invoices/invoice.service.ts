@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, HttpException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateInvoiceDto } from "./dtos/create-invoice.dto";
 import { User } from "src/types/extended-request.types";
@@ -12,7 +12,8 @@ export class InvoiceService {
   async createInvoice(data: CreateInvoiceDto, user: User) {
     try {
       const {lineItems, ...invoiceData} = data;
-      const invoiceNumber = await this.createInvoiceNumber();
+      const companyId = this.getActiveCompanyId(user);
+      const invoiceNumber = await this.createInvoiceNumber(companyId);
 
       const totalPriceExludingTax = lineItems.reduce((acc, item) => {
         const basePrice = item.unitPrice * item.quantity;
@@ -39,7 +40,7 @@ export class InvoiceService {
           totalPrice: totalInvoicePrice,
           invoiceNumber,
           status: "DRAFT",
-          authorId: user.id,
+          companyId,
           createdAt: new Date(data.invoiceDates.creationDate),
           paymentDueAt: new Date(data.invoiceDates.dueDate),
         }
@@ -69,17 +70,21 @@ export class InvoiceService {
         message: "Facture créée avec succès.",
         invoice
       };
-    } catch (error: any) {
-      throw new InternalServerErrorException("Une erreur est survenur lors de la création de la facture." + error.message);
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException("Une erreur est survenue lors de la création de la facture.");
     }
     
   }
 
   // chercher en fonction l'utilisateur connecté
-  async createInvoiceNumber(): Promise<string>{
+  async createInvoiceNumber(companyId: string): Promise<string>{
     const currentYear = new Date().getFullYear();
     const lastInvoice = await this.prismaService.invoice.findFirst({
-      orderBy: { createdAt: 'desc' }
+      where: { companyId },
+      orderBy: { createdAt: 'desc' },
     });
 
     let lastInvoiceNumber = 0;
@@ -94,11 +99,12 @@ export class InvoiceService {
     return `#FACT-${currentYear}-${newInvoiceNumber.toString().padStart(4, '0')}`;
   }
 
-  async getInvoicesByUser(userId: string, withServices: boolean = true){
+  async getInvoicesByUser(user: User, withServices: boolean = true){
     try {
+      const companyId = this.getActiveCompanyId(user);
       const invoices = await this.prismaService.invoice.findMany({
         where: {
-          authorId: userId
+          companyId
         }, 
         include: {
           services: withServices
@@ -112,12 +118,13 @@ export class InvoiceService {
     }
   }
 
-  async getInvoiceById(invoiceId: string, userId: string, withServices: boolean = true){
+  async getInvoiceById(invoiceId: string, user: User, withServices: boolean = true){
     try {
+      const companyId = this.getActiveCompanyId(user);
       const invoice = await this.prismaService.invoice.findFirst({
         where: {
           id: invoiceId,
-          authorId: userId
+          companyId
         },
         include: {
           services: withServices
@@ -129,9 +136,20 @@ export class InvoiceService {
       }
 
       return invoice;
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
       console.error("Error fetching invoice by ID:", error);
       throw new InternalServerErrorException("Une erreur est survenue lors de la récupération de la facture.");
     }
+  }
+
+  private getActiveCompanyId(user: User): string {
+    if (!user.lastConnectedCompanyId) {
+      throw new BadRequestException("Sélectionnez une entreprise avant de gérer des factures.");
+    }
+
+    return user.lastConnectedCompanyId;
   }
 }

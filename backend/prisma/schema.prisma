@@ -18,8 +18,10 @@ model User {
   email String @unique
   password String
   role Role @default(BASIC_USER)
+  lastConnectedCompanyId String?
 
-  ownedCompany Company?
+  lastConnectedCompany Company? @relation("LastConnectedCompany", fields: [lastConnectedCompanyId], references: [id])
+  ownedCompanies Company[]
   companies CompanyUser[]
   services UserService[]
   clients UserClient[]
@@ -34,7 +36,7 @@ enum Role {
 
 model Company {
   id String @id @default(uuid())
-  ownerId String @unique
+  ownerId String
   name String
   email String @unique
   phoneNumber String @unique
@@ -52,6 +54,7 @@ model Company {
   invoices Invoice[]
   owner User @relation(fields: [ownerId], references: [id])
   companyUsers CompanyUser[]
+  lastConnectedUsers User[] @relation("LastConnectedCompany")
 }
 
 model CompanyUser {
@@ -62,6 +65,8 @@ model CompanyUser {
 
   company Company @relation(fields: [companyId], references: [id])
   user User @relation(fields: [userId], references: [id])
+
+  @@unique([companyId, userId])
 }
 
 enum CompanyUserRole {

@@ -18,7 +18,7 @@ export class InvoiceController {
       throw new UnauthorizedException("Non authentifié");
     }
 
-    return await this.invoiceService.getInvoicesByUser(user.id, withServices);
+    return await this.invoiceService.getInvoicesByUser(user, withServices);
   }
 
   @Get(":invoiceId")
@@ -28,7 +28,7 @@ export class InvoiceController {
       throw new UnauthorizedException("Non authentifié");
     }
 
-    return await this.invoiceService.getInvoiceById(invoiceId, user.id, withServices);
+    return await this.invoiceService.getInvoiceById(invoiceId, user, withServices);
 
   }
 

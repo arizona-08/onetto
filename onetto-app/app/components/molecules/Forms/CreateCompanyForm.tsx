@@ -1,14 +1,20 @@
 'use client';
 
 import { CreateCompanyDto } from '@/lib/companies/dtos/create-company.dto';
+import { Company } from '@/lib/companies/dtos/create-company.dto';
+import { createCompany, updateCompany } from '@/lib/companies/companies';
+import { useRouter } from 'next/navigation';
+import { notifyCompanyUpdated } from '@/lib/companies/company-events';
+import { useToast } from '../../context/ToastContext';
 import React, { useState } from 'react'
 
 interface CreateCompanyFormProps {
-  companyOwnerId?: string;
+  companyToEdit?: Company;
+  onSuccess?: (company: Company) => void;
+  onCancel?: () => void;
 }
 
-function CreateCompanyForm({ companyOwnerId }: CreateCompanyFormProps) {
-  const [companyInfos, setCompanyInfos] = useState<CreateCompanyDto>({
+const emptyCompany: CreateCompanyDto = {
     name: "",
     email: "",
     phoneNumber: "",
@@ -21,8 +27,15 @@ function CreateCompanyForm({ companyOwnerId }: CreateCompanyFormProps) {
     subjectToVat: false,
     vatNumber: "",
     IBAN: "",
-    BIC: ""
-  });
+  BIC: ""
+};
+
+function CreateCompanyForm({ companyToEdit, onSuccess, onCancel }: CreateCompanyFormProps) {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [companyInfos, setCompanyInfos] = useState<CreateCompanyDto>(companyToEdit ?? emptyCompany);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const inputClassName = "rounded-md border border-zinc-200 bg-custom-gray-light px-4 py-3 text-sm text-zinc-800 outline-none transition-colors focus:border-primary focus:bg-white";
   const labelClassName = "font-title text-xs font-semibold uppercase tracking-wide text-zinc-600";
@@ -47,17 +60,48 @@ function CreateCompanyForm({ companyOwnerId }: CreateCompanyFormProps) {
     });
   }
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+
+    if (companyToEdit) {
+      const response = await updateCompany(companyToEdit.id, companyInfos);
+      setIsSubmitting(false);
+      if (!response.ok) {
+        const message = typeof response.error.message === 'string' ? response.error.message : 'Impossible d’enregistrer l’entreprise.';
+        setError(message);
+        showToast(message, 'error');
+        return;
+      }
+      notifyCompanyUpdated();
+      showToast('Les informations de l’entreprise ont été enregistrées.', 'success');
+      onSuccess?.(response.data);
+      return;
+    }
+
+    const response = await createCompany(companyInfos);
+    setIsSubmitting(false);
+    if (!response.ok) {
+      const message = typeof response.error.message === 'string' ? response.error.message : 'Impossible d’enregistrer l’entreprise.';
+      setError(message);
+      showToast(message, 'error');
+      return;
+    }
+    notifyCompanyUpdated();
+    showToast('L’entreprise a été créée et sélectionnée.', 'success');
+    if (onSuccess) {
+      onSuccess(response.data.company);
+      return;
+    }
+    router.push('/dashboard');
   }
 
   return (
     <form className="space-y-5 p-6 bg-white rounded-md" onSubmit={handleSubmit}>
-      {companyOwnerId && (
-        <input type="hidden" name="companyOwnerId" value={companyOwnerId} />
-      )}
-
       <h2 className="text-lg font-bold text-zinc-800">Renseignez les informations de votre entreprise</h2>
+
+      {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
       <div className="flex flex-col gap-2">
         <label htmlFor="name" className={labelClassName}>
@@ -273,12 +317,16 @@ function CreateCompanyForm({ companyOwnerId }: CreateCompanyFormProps) {
         </div>
       </div>
 
-      <button
-        type="submit"
-        className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
-      >
-        Créer mon entreprise
-      </button>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        {onCancel && <button type="button" onClick={onCancel} className="rounded-md border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700">Annuler</button>}
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="rounded-md bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isSubmitting ? 'Enregistrement…' : companyToEdit ? 'Enregistrer les modifications' : 'Créer mon entreprise'}
+        </button>
+      </div>
     </form>
   )
 }
