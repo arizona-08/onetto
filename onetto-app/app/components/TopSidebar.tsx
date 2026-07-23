@@ -55,7 +55,7 @@ function TopSidebar() {
   }, [loadCompanies, pathname]);
 
   const activeCompany = companies.find((company) => company.id === activeCompanyId);
-  const otherCompanies = companies.filter((company) => company.id !== activeCompanyId);
+  const otherCompanies = companies.filter((company) => company.id !== activeCompanyId && !company.isHidden);
 
   function getInitials(name: string) {
     return name

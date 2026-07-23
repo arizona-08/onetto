@@ -8,9 +8,10 @@ import DeleteClientModal from '../molecules/Client/DeleteClientModal';
 
 interface ClientSectionProps {
   clients: Client[]
+  canCreate: boolean
 }
 
-function ClientSection({ clients }: ClientSectionProps) {
+function ClientSection({ clients, canCreate }: ClientSectionProps) {
 
   const [isAddFormActive, setIsAddFormActive] = React.useState(false);
   const [masterClientList, setMasterClientList] = React.useState<Client[]>(clients);
@@ -71,8 +72,11 @@ function ClientSection({ clients }: ClientSectionProps) {
       )}
       <div>
         <button 
-          className="bg-primary hover:bg-primary-hover text-white font-medium py-2 px-4 rounded flex items-center gap-2 mt-6"
           onClick={() => setIsAddFormActive(true)}
+          disabled={!canCreate}
+          title={canCreate ? undefined : 'L’entreprise active est fermée'}
+          aria-disabled={!canCreate}
+          className={`font-medium py-2 px-4 rounded flex items-center gap-2 mt-6 ${canCreate ? 'bg-primary hover:bg-primary-hover text-white' : 'cursor-not-allowed bg-zinc-200 text-zinc-500'}`}
         >
           <Plus className='w-4 h-4'/>
           Ajouter un client

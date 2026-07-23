@@ -8,8 +8,9 @@ import DeleteServiceModal from '../molecules/Service/DeleteServiceModal'
 
 interface ServiceSectionProps {
   services: Service[]
+  canCreate: boolean
 }
-function ServiceSection({ services }: ServiceSectionProps) {
+function ServiceSection({ services, canCreate }: ServiceSectionProps) {
 
   const [isAddFormActive, setIsAddFormActive] = React.useState(false);
   const [masterServiceList, setMasterServiceList] = React.useState<Service[]>(services);
@@ -72,8 +73,11 @@ function ServiceSection({ services }: ServiceSectionProps) {
       )}
       <div>
         <button 
-          className="bg-primary hover:bg-primary-hover text-white font-medium py-2 px-4 rounded flex items-center gap-2 mt-6"
           onClick={() => setIsAddFormActive(true)}
+          disabled={!canCreate}
+          title={canCreate ? undefined : 'L’entreprise active est fermée'}
+          aria-disabled={!canCreate}
+          className={`font-medium py-2 px-4 rounded flex items-center gap-2 mt-6 ${canCreate ? 'bg-primary hover:bg-primary-hover text-white' : 'cursor-not-allowed bg-zinc-200 text-zinc-500'}`}
         >
           <Plus className='w-4 h-4'/>
           Ajouter un service

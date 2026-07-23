@@ -37,7 +37,14 @@ function MyCompanyPage() {
         <p className="mt-1 text-sm text-zinc-500">Mettez à jour les informations de votre entreprise.</p>
         {error && <p role="alert" className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
         {!error && !company && <p className="mt-6 text-sm text-zinc-500">Chargement de l’entreprise…</p>}
-        {company && (
+        {company?.status === 'CLOSED' && (
+          <div className="mt-6 rounded-lg border border-red-100 bg-red-50/70 p-5">
+            <h2 className="font-title text-lg font-bold text-zinc-900">Entreprise fermée</h2>
+            <p className="mt-2 text-sm text-zinc-600">Cette entreprise est conservée en consultation. Ses informations ne peuvent plus être modifiées.</p>
+            {company.closingReason && <p className="mt-3 text-sm text-zinc-700"><span className="font-semibold">Motif de fermeture :</span> {company.closingReason}</p>}
+          </div>
+        )}
+        {company && company.status !== 'CLOSED' && (
           <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50">
             <CreateCompanyForm
               companyToEdit={company}

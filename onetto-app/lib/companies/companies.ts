@@ -34,6 +34,19 @@ export function selectCompany(companyId: string) {
   });
 }
 
+export function performOwnedCompanyAction(companyId: string, action: "reactivate" | "close", reason?: string) {
+  return apiClient<{ success: true; activeCompanyId?: string }>(`api/companies/${companyId}/perform-owned-action?action=${action}`, {
+    method: "PATCH",
+    ...(reason ? { body: JSON.stringify({ reason }) } : {}),
+  });
+}
+
+export function performUserCompanyAction(companyId: string, action: "hide" | "unhide") {
+  return apiClient<{ success: true }>(`api/companies/${companyId}/perform-user-action?action=${action}`, {
+    method: "PATCH",
+  });
+}
+
 export function deleteCompany(companyId: string) {
   return apiClient<{ success: true }>(`api/companies/${companyId}`, {
     method: "DELETE",
