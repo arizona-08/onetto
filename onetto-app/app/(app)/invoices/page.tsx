@@ -1,12 +1,12 @@
-import InvoiceTable from '@/app/components/organisms/InvoiceTable'
-import { getMyInvoicesServer } from '@/lib/invoices/invoice.server';
+import { getMyInvoicesAndEstimatesServer } from '@/lib/invoices/invoice.server';
 import { getMyCompaniesServer } from '@/lib/companies/companies.server';
 import { AlertTriangle, ChartLine, Check, CirclePlusIcon, File } from 'lucide-react';
 import React from 'react'
+import EstimatesInvoicesTable from '@/app/components/organisms/EstimatesInvoicesTable';
 export const dynamic = 'force-dynamic'
 
 async function invoices() {
-  const invoicesResponse = await getMyInvoicesServer(false);
+  const invoicesResponse = await getMyInvoicesAndEstimatesServer(false);
 
   if (!invoicesResponse.ok) {
     console.error('Failed to fetch invoices:', invoicesResponse.error);
@@ -82,7 +82,8 @@ async function invoices() {
           Cette entreprise est fermée : les factures existantes restent consultables, mais aucune nouvelle facture ne peut être créée.
         </div>
       )}
-      <InvoiceTable invoices={invoices} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
+
+      <EstimatesInvoicesTable type="invoices" invoices={invoices} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
     </div>
   )
 }

@@ -31,6 +31,12 @@ export type InvoiceDates = {
   dueDate: string
 }
 
+export type Estimate = Omit<Invoice, 'invoiceStatus'> & {
+  estimateStatus: EstimateStatus
+}
+
+export type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED";
+
 export type Invoice = {
   id: string;
   invoiceNumber: string;
@@ -44,7 +50,7 @@ export type Invoice = {
   authorId: string;
   createdAt: string;
   paymentDueAt: string;
-  status: InvoiceStatus;
+  invoiceStatus: InvoiceStatus;
   services?: InvoiceService[]
   urlDocumentPdf?: string;
   author: {

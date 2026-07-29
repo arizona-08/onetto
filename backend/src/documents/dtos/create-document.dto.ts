@@ -2,7 +2,7 @@ import { Type } from "class-transformer";
 import { IsArray, IsDate, IsDateString, IsDefined, IsNotEmpty, IsNumber, IsNumberString, IsString, Min, ValidateNested } from "class-validator";
 
 
-export class InvoiceClientDto {
+export class DocumentClientDto {
   @IsDefined()
   @IsString()
   name: string;
@@ -55,7 +55,7 @@ export class LineItemsDto {
 
 }
 
-export class InvoiceDateDto {
+export class DocumentDateDto {
   @IsDefined()
   @IsDateString()
   creationDate: string;
@@ -65,11 +65,11 @@ export class InvoiceDateDto {
   dueDate: string;
 }
 
-export class CreateInvoiceDto {
+export class CreateDocumentDto {
   @IsDefined()
   @ValidateNested()
-  @Type(() => InvoiceClientDto)
-  client: InvoiceClientDto;
+  @Type(() => DocumentClientDto)
+  client: DocumentClientDto;
 
   @IsArray()
   @ValidateNested({each: true})
@@ -78,7 +78,7 @@ export class CreateInvoiceDto {
 
   @IsDefined()
   @ValidateNested()
-  @Type(() => InvoiceDateDto)
-  invoiceDates: InvoiceDateDto;
+  @Type(() => DocumentDateDto)
+  documentDates: DocumentDateDto;
 }
 

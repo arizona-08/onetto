@@ -2,32 +2,51 @@
 import React from 'react'
 
 import { CirclePlusIcon } from 'lucide-react';
-import InvoiceSelector from '../molecules/InvoiceSelector';
-import InvoiceSorter from '../molecules/InvoiceSorter';
+import EstimatesInvoicesSelector from '../molecules/EstimatesInvoicesSelector';
 import Link from 'next/link';
-import { Invoice, InvoiceStatus } from '@/app/types';
+import { Estimate, Invoice, InvoiceStatus } from '@/app/types';
 import { formatDate } from '@/shared/utils';
+import EstimatesInvoicesSorter from '../molecules/EstimatesInvoicesSorter';
 
-const statusStyles: Record<string, string> = {
+const invoiceStatusStyles: Record<string, string> = {
   OVERDUE: 'bg-rose-100 text-rose-700',
   PAID: 'bg-indigo-100 text-indigo-700',
   PENDING: 'bg-orange-200 text-orange-700',
   DRAFT: 'bg-gray-200 text-gray-700 md:bg-gray-100',
 }
 
-interface InvoiceTableProps {
-  invoices: Invoice[]
+const estimateStatusStyles: Record<string, string> = {
+  DRAFT: 'bg-gray-200 text-gray-700 md:bg-gray-100',
+  SENT: 'bg-rose-100 text-rose-700',
+  ACCEPTED: 'bg-indigo-100 text-indigo-700',
+  REJECTED: 'bg-gray-200 text-gray-700 md:bg-gray-100',
+}
+
+  export type InvoiceSelectStatus = 'Toutes' | 'En attente' | 'Payées' | 'Échues';
+  export type EstimateSelectStatus = 'Tout' | 'Brouillons' | 'Envoyés' | 'Acceptés' | 'Refusés';
+
+interface EstimatesInvoicesTableProps {
+  type: 'invoices' | 'estimates'
+  estimates?: Estimate[]
+  invoices?: Invoice[]
   currentDate: string
   canCreate: boolean
 }
 
-function InvoiceTable({ invoices, currentDate, canCreate }: InvoiceTableProps) {
+function EstimatesInvoicesTable({ type, estimates, invoices, currentDate, canCreate }: EstimatesInvoicesTableProps) {
 
-  const [selectedStatus, setSelectedStatus] = React.useState('Toutes');
+  const isInvoiceType = type === 'invoices';
+
+
+
+  const [selectedStatus, setSelectedStatus] = React.useState<InvoiceSelectStatus | EstimateSelectStatus>(isInvoiceType ? 'Toutes' : 'Tout');
   const [sortMethod, setSortMethod] = React.useState<'date' | 'amount'>('date')
   const [isSortOpen, setIsSortOpen] = React.useState<boolean>(false);
 
-  const [masterInvoicesList] = React.useState<Invoice[]>(invoices);
+  type DocumentType = Estimate[] | Invoice[];
+  
+
+  const [masterDocumentsList] = React.useState<DocumentType>(isInvoiceType ? invoices ?? [] : estimates ?? []);
 
   function createPaymentNote(paymentDueAt: string, invoiceStatus: InvoiceStatus): string | undefined{
     const dueDate = new Date(paymentDueAt);
@@ -51,8 +70,8 @@ function InvoiceTable({ invoices, currentDate, canCreate }: InvoiceTableProps) {
           )}
         </div>
         <div className="flex items-center justify-start flex-wrap gap-5">
-          <InvoiceSelector selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
-          <InvoiceSorter sortMethod={sortMethod} setSortMethod={setSortMethod} isOpen={isSortOpen} setIsOpen={setIsSortOpen} />
+          <EstimatesInvoicesSelector type="invoices" selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
+          <EstimatesInvoicesSorter type="invoices" sortMethod={sortMethod} setSortMethod={setSortMethod} isOpen={isSortOpen} setIsOpen={setIsSortOpen} />
         </div>
       </div>
 
@@ -60,23 +79,25 @@ function InvoiceTable({ invoices, currentDate, canCreate }: InvoiceTableProps) {
       <div className="md:hidden">
         <ul className="mt-4 space-y-3">
           {
-            masterInvoicesList.map((invoice) => (
-              <li key={invoice.id}>
+            masterDocumentsList.map((document) => (
+              <li key={document.id}>
                 <div className="bg-white px-3 py-5 rounded-md flex items-start justify-between">
                   {/* left part */}
                   <div className="space-y-1">
-                    <p className="text-sm font-semibold">{invoice.clientName}</p>
+                    <p className="text-sm font-semibold">{document.clientName}</p>
                     <div className="text-gray-600 text-xs flex items-center gap-1">
-                      <Link href={`/invoices/${invoice.id}`} className="underline hover:text-primary">{invoice.invoiceNumber}</Link>
+                      <Link href={`/invoices/${document.id}`} className="underline hover:text-primary">{document.invoiceNumber}</Link>
                       <span className="inline-block w-1 h-1 rounded-full bg-zinc-600"></span>
-                      <span>{formatDate(invoice.paymentDueAt)}</span>
+                      <span>{formatDate(document.paymentDueAt)}</span>
                     </div>
                   </div>
 
                   {/* right part */}
                   <div className="flex flex-col items-end gap-1">
-                    <p className="text-sm font-semibold">{invoice.totalPrice.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</p>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[invoice.status]}`}>{invoice.status}</span>
+                    <p className="text-sm font-semibold">{document.totalPrice.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</p>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isInvoiceType ? invoiceStatusStyles[(document as Invoice).invoiceStatus] : estimateStatusStyles[(document as Estimate).estimateStatus]}`}>
+                      {isInvoiceType ? (document as Invoice).invoiceStatus : (document as Estimate).estimateStatus}
+                    </span>
                   </div>
                 </div>
               </li>
@@ -102,46 +123,46 @@ function InvoiceTable({ invoices, currentDate, canCreate }: InvoiceTableProps) {
             </tr>
           </thead>
           <tbody className="text-sm text-zinc-700">
-            {masterInvoicesList.map((invoice) => (
-              <tr key={invoice.id} className="border-t border-zinc-100">
+            {masterDocumentsList.map((document) => (
+              <tr key={document.id} className="border-t border-zinc-100">
                 <td className="px-5 py-5 align-top">
                   <input type="checkbox" className="h-4 w-4 rounded border-zinc-300" />
                 </td>
                 <td className="px-5 py-5 align-top">
-                  <Link href={`/invoices/${invoice.id}`} className="underline text-zinc-900 hover:text-primary">
-                    <p className="font-semibold ">{invoice.invoiceNumber}</p>
+                  <Link href={`/invoices/${document.id}`} className="underline text-zinc-900 hover:text-primary">
+                    <p className="font-semibold ">{document.invoiceNumber}</p>
                   </Link>
                   <p className="text-xs text-zinc-500">Type de l&apos;invoice</p>
                 </td>
                 <td className="px-5 py-5 align-top">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
-                      {invoice.clientName.split(' ').map((n) => n[0]).join('')}
+                      {document.clientName.split(' ').map((n) => n[0]).join('')}
                     </div>
-                    <div className="font-medium text-zinc-900">{invoice.clientName}</div>
+                    <div className="font-medium text-zinc-900">{document.clientName}</div>
                   </div>
                 </td>
                 <td className="px-5 py-5 align-top">
-                  <div className="font-medium text-zinc-900">{formatDate(invoice.createdAt)}</div>
+                  <div className="font-medium text-zinc-900">{formatDate(document.createdAt)}</div>
                 </td>
                 <td className="px-5 py-5 align-top">
-                  <div className="font-medium text-zinc-900">{formatDate(invoice.paymentDueAt)}</div>
+                  <div className="font-medium text-zinc-900">{formatDate(document.paymentDueAt)}</div>
                   {
-                    createPaymentNote(invoice.paymentDueAt, invoice.status) && (
+                    createPaymentNote(document.paymentDueAt, (document as Invoice).invoiceStatus) && (
                       <div className="text-xs text-rose-600">
-                        {createPaymentNote(invoice.paymentDueAt, invoice.status)}
+                        {createPaymentNote(document.paymentDueAt, (document as Invoice).invoiceStatus)}
                       </div>
                     )
                   }
                 </td>
                 <td className="px-5 py-5 align-top font-semibold text-zinc-900">
-                  {invoice.totalPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
+                  {document.totalPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                 </td>
                 <td className="px-5 py-5 align-top">
                   <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${statusStyles[invoice.status]}`}
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${isInvoiceType ? invoiceStatusStyles[(document as Invoice).invoiceStatus] : estimateStatusStyles[(document as Estimate).estimateStatus]}`}
                   >
-                    {invoice.status}
+                    {isInvoiceType ? (document as Invoice).invoiceStatus : (document as Estimate).estimateStatus}
                   </span>
                 </td>
               </tr>
@@ -153,4 +174,4 @@ function InvoiceTable({ invoices, currentDate, canCreate }: InvoiceTableProps) {
   )
 }
 
-export default InvoiceTable
+export default EstimatesInvoicesTable

@@ -1,14 +1,15 @@
 import { SortDesc } from 'lucide-react'
 import React from 'react'
 
-interface InvoiceSorterProps {
+interface EstimatesInvoicesSorterProps {
+  type: 'invoices' | 'estimates'
   sortMethod: 'date' |  'amount'
   setSortMethod: (sort: 'date' | 'amount') => void
   isOpen: boolean
   setIsOpen: (isOpen: boolean) => void
 }
 
-function InvoiceSorter({sortMethod, setSortMethod, isOpen, setIsOpen}: InvoiceSorterProps) {
+function EstimatesInvoicesSorter({sortMethod, setSortMethod, isOpen, setIsOpen}: EstimatesInvoicesSorterProps) {
 
   function closeSort(){
     setIsOpen(false);
@@ -35,4 +36,4 @@ function InvoiceSorter({sortMethod, setSortMethod, isOpen, setIsOpen}: InvoiceSo
   )
 }
 
-export default InvoiceSorter
+export default EstimatesInvoicesSorter

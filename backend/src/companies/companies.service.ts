@@ -192,7 +192,7 @@ export class CompaniesService {
       throw new BadRequestException("Une entreprise fermée est conservée pour des raisons légales et ne peut pas être supprimée.");
     }
 
-    const invoicesCount = await this.prismaService.invoice.count({ where: { companyId } });
+    const invoicesCount = await this.prismaService.document.count({ where: { companyId, type: "INVOICE" } });
     if (invoicesCount > 0) {
       throw new BadRequestException("Cette entreprise possède des factures et ne peut pas être supprimée.");
     }
