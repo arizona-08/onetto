@@ -2,11 +2,11 @@
 import React from 'react'
 
 import { CirclePlusIcon } from 'lucide-react';
-import EstimatesInvoicesSelector from '../molecules/EstimatesInvoicesSelector';
 import Link from 'next/link';
-import { Estimate, Invoice, InvoiceStatus } from '@/app/types';
+import { Document, InvoiceStatus, EstimateStatus } from '@/app/types';
 import { formatDate } from '@/shared/utils';
-import EstimatesInvoicesSorter from '../molecules/EstimatesInvoicesSorter';
+import DocumentSelector from '../molecules/DcumentSelector';
+import DocumentSorter from '../molecules/DocumentSorter';
 
 const invoiceStatusStyles: Record<string, string> = {
   OVERDUE: 'bg-rose-100 text-rose-700',
@@ -25,28 +25,23 @@ const estimateStatusStyles: Record<string, string> = {
   export type InvoiceSelectStatus = 'Toutes' | 'En attente' | 'Payées' | 'Échues';
   export type EstimateSelectStatus = 'Tout' | 'Brouillons' | 'Envoyés' | 'Acceptés' | 'Refusés';
 
-interface EstimatesInvoicesTableProps {
+interface DocumentsTableProps {
   type: 'invoices' | 'estimates'
-  estimates?: Estimate[]
-  invoices?: Invoice[]
+  documents: Document[]
   currentDate: string
   canCreate: boolean
 }
 
-function EstimatesInvoicesTable({ type, estimates, invoices, currentDate, canCreate }: EstimatesInvoicesTableProps) {
+function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTableProps) {
 
   const isInvoiceType = type === 'invoices';
-
-
 
   const [selectedStatus, setSelectedStatus] = React.useState<InvoiceSelectStatus | EstimateSelectStatus>(isInvoiceType ? 'Toutes' : 'Tout');
   const [sortMethod, setSortMethod] = React.useState<'date' | 'amount'>('date')
   const [isSortOpen, setIsSortOpen] = React.useState<boolean>(false);
-
-  type DocumentType = Estimate[] | Invoice[];
   
 
-  const [masterDocumentsList] = React.useState<DocumentType>(isInvoiceType ? invoices ?? [] : estimates ?? []);
+  const [masterDocumentsList] = React.useState<Document[]>(documents);
 
   function createPaymentNote(paymentDueAt: string, invoiceStatus: InvoiceStatus): string | undefined{
     const dueDate = new Date(paymentDueAt);
@@ -63,15 +58,15 @@ function EstimatesInvoicesTable({ type, estimates, invoices, currentDate, canCre
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className=''>
           {canCreate && (
-            <Link href="/invoices/create" className="shadow-md my-4 flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
+            <Link href="/documents/create" className="shadow-md my-4 flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
               <CirclePlusIcon />
-              <span className="text-sm font-medium">Créer une facture</span>
+              <span className="text-sm font-medium">{isInvoiceType ? 'Créer une facture' : 'Créer un devis'}</span>
             </Link>
           )}
         </div>
         <div className="flex items-center justify-start flex-wrap gap-5">
-          <EstimatesInvoicesSelector type="invoices" selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
-          <EstimatesInvoicesSorter type="invoices" sortMethod={sortMethod} setSortMethod={setSortMethod} isOpen={isSortOpen} setIsOpen={setIsSortOpen} />
+          <DocumentSelector type={isInvoiceType ? "invoices" : "estimates"} selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
+          <DocumentSorter type={isInvoiceType ? "invoices" : "estimates"} sortMethod={sortMethod} setSortMethod={setSortMethod} isOpen={isSortOpen} setIsOpen={setIsSortOpen} />
         </div>
       </div>
 
@@ -86,7 +81,7 @@ function EstimatesInvoicesTable({ type, estimates, invoices, currentDate, canCre
                   <div className="space-y-1">
                     <p className="text-sm font-semibold">{document.clientName}</p>
                     <div className="text-gray-600 text-xs flex items-center gap-1">
-                      <Link href={`/invoices/${document.id}`} className="underline hover:text-primary">{document.invoiceNumber}</Link>
+                      <Link href={`/documents/${document.id}`} className="underline hover:text-primary">{document.documentNumber}</Link>
                       <span className="inline-block w-1 h-1 rounded-full bg-zinc-600"></span>
                       <span>{formatDate(document.paymentDueAt)}</span>
                     </div>
@@ -95,8 +90,8 @@ function EstimatesInvoicesTable({ type, estimates, invoices, currentDate, canCre
                   {/* right part */}
                   <div className="flex flex-col items-end gap-1">
                     <p className="text-sm font-semibold">{document.totalPrice.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</p>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isInvoiceType ? invoiceStatusStyles[(document as Invoice).invoiceStatus] : estimateStatusStyles[(document as Estimate).estimateStatus]}`}>
-                      {isInvoiceType ? (document as Invoice).invoiceStatus : (document as Estimate).estimateStatus}
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isInvoiceType ? invoiceStatusStyles[document.invoiceStatus] : estimateStatusStyles[document.estimateStatus]}`}>
+                      {isInvoiceType ? document.invoiceStatus : document.estimateStatus}
                     </span>
                   </div>
                 </div>
@@ -129,10 +124,10 @@ function EstimatesInvoicesTable({ type, estimates, invoices, currentDate, canCre
                   <input type="checkbox" className="h-4 w-4 rounded border-zinc-300" />
                 </td>
                 <td className="px-5 py-5 align-top">
-                  <Link href={`/invoices/${document.id}`} className="underline text-zinc-900 hover:text-primary">
-                    <p className="font-semibold ">{document.invoiceNumber}</p>
+                  <Link href={`/documents/${document.id}`} className="underline text-zinc-900 hover:text-primary">
+                    <p className="font-semibold ">{document.documentNumber}</p>
                   </Link>
-                  <p className="text-xs text-zinc-500">Type de l&apos;invoice</p>
+                  <p className="text-xs text-zinc-500">Type {isInvoiceType ? "de la facture" : "du devis"}</p>
                 </td>
                 <td className="px-5 py-5 align-top">
                   <div className="flex items-center gap-3">
@@ -148,9 +143,9 @@ function EstimatesInvoicesTable({ type, estimates, invoices, currentDate, canCre
                 <td className="px-5 py-5 align-top">
                   <div className="font-medium text-zinc-900">{formatDate(document.paymentDueAt)}</div>
                   {
-                    createPaymentNote(document.paymentDueAt, (document as Invoice).invoiceStatus) && (
+                    createPaymentNote(document.paymentDueAt, document.invoiceStatus) && (
                       <div className="text-xs text-rose-600">
-                        {createPaymentNote(document.paymentDueAt, (document as Invoice).invoiceStatus)}
+                        {createPaymentNote(document.paymentDueAt, document.invoiceStatus)}
                       </div>
                     )
                   }
@@ -160,9 +155,9 @@ function EstimatesInvoicesTable({ type, estimates, invoices, currentDate, canCre
                 </td>
                 <td className="px-5 py-5 align-top">
                   <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${isInvoiceType ? invoiceStatusStyles[(document as Invoice).invoiceStatus] : estimateStatusStyles[(document as Estimate).estimateStatus]}`}
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${isInvoiceType ? invoiceStatusStyles[document.invoiceStatus] : estimateStatusStyles[document.estimateStatus]}`}
                   >
-                    {isInvoiceType ? (document as Invoice).invoiceStatus : (document as Estimate).estimateStatus}
+                    {isInvoiceType ? document.invoiceStatus : document.estimateStatus}
                   </span>
                 </td>
               </tr>
@@ -174,4 +169,4 @@ function EstimatesInvoicesTable({ type, estimates, invoices, currentDate, canCre
   )
 }
 
-export default EstimatesInvoicesTable
+export default DocumentsTable

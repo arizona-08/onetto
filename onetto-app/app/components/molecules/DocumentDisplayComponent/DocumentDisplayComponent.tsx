@@ -1,20 +1,27 @@
 "use client";
 
-import { Invoice, InvoiceService, InvoiceStatus } from '@/app/types'
+import { Document, DocumentService, InvoiceStatus, EstimateStatus } from '@/app/types'
 import React from 'react'
 import { useAuthUser } from '../../context/AuthUserContext';
 import { CreditCard, Landmark } from 'lucide-react';
 import { formatDate } from '@/shared/utils';
 
-interface InvoiceDisplayComponentProps {
-  invoice: Invoice;
+interface DocumentDisplayComponentProps {
+  document: Document;
 }
 
-const statusLabels: Record<InvoiceStatus, string> = {
+const invoiceStatusLabels: Record<InvoiceStatus, string> = {
   DRAFT: 'Brouillon',
   PENDING: 'En attente',
   PAID: 'Payée',
   OVERDUE: 'En retard',
+}
+
+const estimateStatusLabels: Record<EstimateStatus, string> = {
+  DRAFT: 'Brouillon',
+  SENT: 'Envoyée',
+  ACCEPTED: 'Acceptée',
+  REJECTED: 'Rejetée',
 }
 
 const fallbackIssuer = {
@@ -62,7 +69,7 @@ function displayOrFallback(value: string | undefined | null, fallback: string) {
   return cleanValue && cleanValue.length > 0 ? cleanValue : fallback;
 }
 
-function getServiceValues(serviceLine: InvoiceService) {
+function getServiceValues(serviceLine: DocumentService) {
   return {
     description: displayOrFallback(serviceLine.description, fallbackService.description),
     quantity: serviceLine.quantity > 0 ? serviceLine.quantity : fallbackService.quantity,
@@ -72,19 +79,20 @@ function getServiceValues(serviceLine: InvoiceService) {
   }
 }
 
-function InvoiceDisplayComponent({ invoice }: InvoiceDisplayComponentProps) {
+function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
   const {user} = useAuthUser();
-  const issuerFirstname = invoice.author?.firstname ?? user?.firstname ?? '';
-  const issuerLastname = invoice.author?.lastname ?? user?.lastname ?? '';
+  const isInvoice = document.type === "INVOICE";
+  const issuerFirstname = document.author?.firstname ?? user?.firstname ?? '';
+  const issuerLastname = document.author?.lastname ?? user?.lastname ?? '';
   const issuerContactName = `${issuerFirstname} ${issuerLastname}`.trim() || 'Nina Martin';
-  const issuerEmail = invoice.author?.email ?? user?.email ?? 'facturation@onetto-studio.fr';
-  const clientName = displayOrFallback(invoice.clientName, fallbackClient.name);
-  const clientEmail = displayOrFallback(invoice.clientEmail, fallbackClient.email);
-  const clientAddress = displayOrFallback(invoice.clientAddress, fallbackClient.address);
-  const clientPostalCode = displayOrFallback(invoice.clientPostalCode, fallbackClient.postalCode);
-  const clientCity = displayOrFallback(invoice.clientCity, fallbackClient.city);
-  const clientCountry = displayOrFallback(invoice.clientCountry, fallbackClient.country);
-  const services = invoice.services ?? [];
+  const issuerEmail = document.author?.email ?? user?.email ?? 'facturation@onetto-studio.fr';
+  const clientName = displayOrFallback(document.clientName, fallbackClient.name);
+  const clientEmail = displayOrFallback(document.clientEmail, fallbackClient.email);
+  const clientAddress = displayOrFallback(document.clientAddress, fallbackClient.address);
+  const clientPostalCode = displayOrFallback(document.clientPostalCode, fallbackClient.postalCode);
+  const clientCity = displayOrFallback(document.clientCity, fallbackClient.city);
+  const clientCountry = displayOrFallback(document.clientCountry, fallbackClient.country);
+  const services = document.services ?? [];
   const fallbackTotalHT = fallbackService.quantity * fallbackService.unitPrice;
   const fallbackTotalTVA = fallbackTotalHT * (fallbackService.taxRate / 100);
 
@@ -102,7 +110,7 @@ function InvoiceDisplayComponent({ invoice }: InvoiceDisplayComponentProps) {
   }, services.length > 0 ? 0 : fallbackTotalTVA);
 
   const computedTotalTTC = totalHT + totalTVA;
-  const totalTTC = services.length > 0 ? computedTotalTTC : invoice.totalPrice || 1548;
+  const totalTTC = services.length > 0 ? computedTotalTTC : document.totalPrice || 1548;
 
   return (
     <article className="mx-auto mt-6 w-full max-w-[210mm] overflow-hidden rounded-md bg-white text-[11px] leading-relaxed text-zinc-950 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] print:mt-0 print:w-[210mm] print:max-w-none print:rounded-none print:shadow-none">
@@ -137,19 +145,19 @@ function InvoiceDisplayComponent({ invoice }: InvoiceDisplayComponentProps) {
             <div className="mt-5 space-y-2">
               <div>
                 <p className="font-semibold text-zinc-500">Numéro de facture</p>
-                <p className="font-title text-xl font-black">{invoice.invoiceNumber}</p>
+                <p className="font-title text-xl font-black">{document.documentNumber}</p>
               </div>
               <div>
                 <p className="font-semibold text-zinc-500">Date d&apos;émission</p>
-                <p>{formatDate(invoice.createdAt)}</p>
+                <p>{formatDate(document.createdAt)}</p>
               </div>
               <div>
                 <p className="font-semibold text-zinc-500">Date d&apos;échéance</p>
-                <p>{formatDate(invoice.paymentDueAt)}</p>
+                <p>{formatDate(document.paymentDueAt)}</p>
               </div>
               <div>
                 <p className="font-semibold text-zinc-500">Statut</p>
-                <p className="font-semibold text-primary">{statusLabels[invoice.status]}</p>
+                <p className="font-semibold text-primary">{isInvoice ? invoiceStatusLabels[document.invoiceStatus] : estimateStatusLabels[document.estimateStatus]}</p>
               </div>
               <p>Réf. devis : {fallbackIssuer.quoteReference}</p>
               <p>Réf. commande : {fallbackIssuer.orderReference}</p>
@@ -236,7 +244,7 @@ function InvoiceDisplayComponent({ invoice }: InvoiceDisplayComponentProps) {
                 <h2>Conditions de paiement</h2>
               </div>
               <div className="space-y-0.5 text-zinc-700">
-                <p><span className="font-semibold text-zinc-950">Date d&apos;échéance :</span> {formatDate(invoice.paymentDueAt)}</p>
+                <p><span className="font-semibold text-zinc-950">Date d&apos;échéance :</span> {formatDate(document.paymentDueAt)}</p>
                 <p><span className="font-semibold text-zinc-950">Moyen de paiement accepté :</span> virement bancaire</p>
                 <p><span className="font-semibold text-zinc-950">Escompte pour paiement anticipé :</span> néant</p>
               </div>
@@ -327,4 +335,4 @@ function InvoiceDisplayComponent({ invoice }: InvoiceDisplayComponentProps) {
   )
 }
 
-export default InvoiceDisplayComponent
+export default DocumentDisplayComponent

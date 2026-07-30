@@ -22,7 +22,7 @@ function AddClientForm({ isActive, setIsActive, handleAddClient, clientToEdit, h
     id: 'PREVIEW',
     name: "",
     email: "",
-    street: "",
+    address: "",
     city: "",
     postalCode: "",
     country: "",
@@ -46,7 +46,7 @@ function AddClientForm({ isActive, setIsActive, handleAddClient, clientToEdit, h
       id: 'PREVIEW',
       name: "",
       email: "",
-      street: "",
+      address: "",
       city: "",
       postalCode: "",
       country: "",
@@ -101,15 +101,15 @@ function AddClientForm({ isActive, setIsActive, handleAddClient, clientToEdit, h
               </div>
 
               <div className="flex flex-col gap-2">
-                <label htmlFor="client-street" className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Rue</label>
+                <label htmlFor="client-address" className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Rue</label>
                 <input
                   type="text"
-                  id="client-street"
-                  name="street"
+                  id="client-address"
+                  name="address"
                   className="border-b border-gray-300 py-2 px-3 focus:outline-none"
                   placeholder='ex: 123 Rue de la Paix'
-                  onChange={(e) => handleClientChange('street', e.target.value)}
-                  value={previewClient.street}
+                  onChange={(e) => handleClientChange('address', e.target.value)}
+                  value={previewClient.address}
                 />
               </div>
 

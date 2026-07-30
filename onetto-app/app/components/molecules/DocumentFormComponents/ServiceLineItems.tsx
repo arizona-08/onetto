@@ -2,21 +2,21 @@ import { ServiceLineItem } from '@/app/types'
 import { Edit, Plus, Trash2 } from 'lucide-react'
 import React from 'react'
 import AddLineItemModal from './AddLineItemModal'
-import { InvoiceDateError, InvoiceLineItemsError } from '@/shared/invoiceErrorsTypes';
+import { DocumentDateError, DocumentLineItemsError } from '@/shared/DocumentErrorsTypes';
 
 
 interface ServiceLineItemsProps {
   onLineItemsChange: (lineItems: ServiceLineItem[]) => void;
-  onInvoiceDatesChange: (dates: { creationDate: string, dueDate: string }) => void;
-  invoiceDateErrors?: InvoiceDateError,
-  invoiceLineItemsErrors?: InvoiceLineItemsError
+  onDocumentDatesChange: (dates: { creationDate: string, dueDate: string }) => void;
+  documentDateErrors?: DocumentDateError,
+  documentLineItemsErrors?: DocumentLineItemsError
 }
-function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange, invoiceDateErrors, invoiceLineItemsErrors }: ServiceLineItemsProps) {
+function ServiceLineItems({ onLineItemsChange, onDocumentDatesChange, documentDateErrors, documentLineItemsErrors }: ServiceLineItemsProps) {
 
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
   const [isModalVisible, setIsModalVisible] = React.useState(false)
 
-  const [invoiceDates, setInvoiceDates] = React.useState(() => {
+  const [documentDates, setDocumentDates] = React.useState(() => {
     const d = new Date()
     // set to one month ahead, handling month overflow
     const month = d.getMonth()
@@ -31,10 +31,10 @@ function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange, invoiceDate
     }
   })
 
-  function handleInvoiceDatesChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleDocumentDatesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target
-    setInvoiceDates({ ...invoiceDates, [name]: value })
-    onInvoiceDatesChange({ ...invoiceDates, [name]: value })
+    setDocumentDates({ ...documentDates, [name]: value })
+    onDocumentDatesChange({ ...documentDates, [name]: value })
   }
 
   const [lineItemToModify, setLineItemToModify] = React.useState<{
@@ -142,15 +142,15 @@ function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange, invoiceDate
                   type="date"
                   name="creationDate"
                   id=""
-                  value={invoiceDates.creationDate}
-                  onChange={handleInvoiceDatesChange}
+                  value={documentDates.creationDate}
+                  onChange={handleDocumentDatesChange}
                   className="bg-primary/20 rounded-md p-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50"
                   placeholder='11/07/2026'
                   />
-                  {invoiceDateErrors && invoiceDateErrors.creationDate && (
+                  {documentDateErrors && documentDateErrors.creationDate && (
                     <ul>
                       {
-                        invoiceDateErrors.creationDate.map((error, index) => (
+                        documentDateErrors.creationDate.map((error, index) => (
                           <li><span key={index} className='text-red-500'>{error}</span></li> 
                         ))
                       }
@@ -164,14 +164,14 @@ function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange, invoiceDate
                   type="date"
                   name="dueDate"
                   id=""
-                  value={invoiceDates.dueDate}
-                  onChange={handleInvoiceDatesChange}
+                  value={documentDates.dueDate}
+                  onChange={handleDocumentDatesChange}
                   className="bg-primary/20 rounded-md p-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50"
                 />
-                {invoiceDateErrors && invoiceDateErrors.dueDate && (
+                {documentDateErrors && documentDateErrors.dueDate && (
                     <ul>
                       {
-                        invoiceDateErrors.dueDate.map((error, index) => (
+                        documentDateErrors.dueDate.map((error, index) => (
                           <li><span key={index} className='text-red-500'>{error}</span></li> 
                         ))
                       }
@@ -180,10 +180,10 @@ function ServiceLineItems({ onLineItemsChange, onInvoiceDatesChange, invoiceDate
               </div>
           </div>
         </div>
-        {invoiceLineItemsErrors && invoiceLineItemsErrors.general && (
+        {documentLineItemsErrors && documentLineItemsErrors.general && (
           <ul>
             {
-              invoiceLineItemsErrors.general.map((error, index) => (
+              documentLineItemsErrors.general.map((error, index) => (
                 <li><span key={index} className='text-red-500'>{error}</span></li> 
               ))
             }

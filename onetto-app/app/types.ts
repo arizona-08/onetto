@@ -2,7 +2,7 @@ export type Client = {
   id: string;
   name: string;
   email: string;
-  street: string;
+  address: string;
   city: string;
   postalCode: string;
   country: string;
@@ -26,20 +26,18 @@ export type ServiceLineItem = {
   unit: string
 }
 
-export type InvoiceDates = {
+export type DocumentDates = {
   creationDate: string,
   dueDate: string
 }
 
-export type Estimate = Omit<Invoice, 'invoiceStatus'> & {
-  estimateStatus: EstimateStatus
-}
 
-export type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED";
 
-export type Invoice = {
+export type Document = {
   id: string;
-  invoiceNumber: string;
+  documentNumber: string;
+  type: "INVOICE" | "ESTIMATE";
+  sourceDocumentId?: string;
   clientName: string;
   clientEmail: string;
   clientAddress: string;
@@ -51,7 +49,8 @@ export type Invoice = {
   createdAt: string;
   paymentDueAt: string;
   invoiceStatus: InvoiceStatus;
-  services?: InvoiceService[]
+  estimateStatus: EstimateStatus;
+  services?: DocumentService[]
   urlDocumentPdf?: string;
   author: {
     id: string;
@@ -62,11 +61,12 @@ export type Invoice = {
 }
 
 export type InvoiceStatus = "DRAFT" | "PENDING" | "PAID" | "OVERDUE";
+export type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED";
 
 
-export type InvoiceService = {
+export type DocumentService = {
   id: string;
-  invoiceId: string;
+  documentId: string;
   description: string;
   quantity: number;
   taxRate: number;

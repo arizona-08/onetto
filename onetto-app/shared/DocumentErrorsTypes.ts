@@ -1,9 +1,9 @@
-export type InvoiceDateError = {
+export type DocumentDateError = {
   creationDate?: string[],
   dueDate?: string[]
 }
 
-export type InvoiceClientError = {
+export type DocumentClientError = {
   name?: string[];
   email?: string[];
   address?: string[];
@@ -13,6 +13,6 @@ export type InvoiceClientError = {
   general?: string[];
 }
 
-export type InvoiceLineItemsError = {
+export type DocumentLineItemsError = {
   general?: string[];
 }

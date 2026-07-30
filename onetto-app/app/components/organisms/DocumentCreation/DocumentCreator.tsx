@@ -1,17 +1,17 @@
 'use client'
 import React, { useState } from 'react'
-import InvoiceForm from './InvoiceForm'
-import InvoicePreview from './InvoicePreview'
 import { Client, ServiceLineItem } from '@/app/types';
-import { InvoiceClientError, InvoiceDateError, InvoiceLineItemsError } from '@/shared/invoiceErrorsTypes';
+import { DocumentClientError, DocumentDateError, DocumentLineItemsError } from '@/shared/DocumentErrorsTypes';
 import { verifyClient, verifyDates, verifyLineItems } from '@/shared/InvoiceValidation';
-import { createInvoice } from '@/lib/invoices/invoices';
+import { createDocument } from '@/lib/documents/invoices';
 import { CheckCircle2, X } from 'lucide-react';
+import DocumentForm from './DocumentForm';
+import DocumentPreview from './DocumentPreview';
 
-function InvoiceCreator() {
+function DocumentCreator() {
   const [client, setClient] = React.useState<Client | null>(null);
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
-  const [invoiceDates, setInvoiceDates] = React.useState(() =>{
+  const [documentDates, setDocumentDates] = React.useState(() =>{
     const d = new Date()
     // set to one month ahead, handling month overflow
     const month = d.getMonth()
@@ -26,9 +26,9 @@ function InvoiceCreator() {
     }
   })
 
-  const [invoiceClientErrors, setInvoiceClientErrors] = useState<InvoiceClientError | null>(null);
-  const [invoiceLineItemsErrors, setInvoiceLineItemsErrors] = useState<InvoiceLineItemsError | null>(null);
-  const [invoiceDatesErrors, setInvoiceDatesErrors] = useState<InvoiceDateError | null>(null);
+  const [documentClientErrors, setDocumentClientErrors] = useState<DocumentClientError | null>(null);
+  const [documentLineItemsErrors, setDocumentLineItemsErrors] = useState<DocumentLineItemsError | null>(null);
+  const [documentDatesErrors, setDocumentDatesErrors] = useState<DocumentDateError | null>(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   React.useEffect(() => {
@@ -39,42 +39,42 @@ function InvoiceCreator() {
   }, [showSuccessToast]);
 
   function resetErrors() {
-    setInvoiceClientErrors(null);
-    setInvoiceLineItemsErrors(null);
-    setInvoiceDatesErrors(null);
+    setDocumentClientErrors(null);
+    setDocumentLineItemsErrors(null);
+    setDocumentDatesErrors(null);
   }
   async function handleSaveDraft(e: React.MouseEvent<HTMLButtonElement>){
     e.preventDefault();
 
     resetErrors();
-    const checkDates = verifyDates(invoiceDates)
+    const checkDates = verifyDates(documentDates)
     const checkClient = verifyClient(client);
     const checkLineItems = verifyLineItems(lineItems);
 
     if(!checkClient.ok){
-      setInvoiceClientErrors(checkClient.error)
+      setDocumentClientErrors(checkClient.error)
       console.log(checkClient.error);
       return;
     }
 
     if(!checkDates.ok){
-      setInvoiceDatesErrors(checkDates.error)
+      setDocumentDatesErrors(checkDates.error)
       console.log(checkDates.error);
       return;
     }
 
     if(!checkLineItems.ok){
-      setInvoiceLineItemsErrors(checkLineItems.error)
+      setDocumentLineItemsErrors(checkLineItems.error)
       return;
     }
 
-    const { name, email, street, city, postalCode, country } = client as Client;
-    const clientData = { name, email, street, city, postalCode, country };
+    const { name, email, address, city, postalCode, country } = client as Client;
+    const clientData = { name, email, address, city, postalCode, country };
 
-    const response = await createInvoice({
+    const response = await createDocument({
       client: clientData,
       lineItems,
-      invoiceDates
+      documentDates
     });
 
     if(!response.ok) {
@@ -93,21 +93,21 @@ function InvoiceCreator() {
     <div className="relative bg-white p-4 rounded-md w-full max-w-6xl mx-auto overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-1 bg-primary opacity-75"></div>
 
-      <InvoiceForm
+      <DocumentForm
         onClientChange={setClient}
         onLineItemsChange={setLineItems}
-        onInvoiceDatesChange={setInvoiceDates}
+        onDocumentDatesChange={setDocumentDates}
         errors={{
-          invoiceDateErrors: invoiceDatesErrors as InvoiceDateError | undefined,
-          invoiceClientErrors: invoiceClientErrors as InvoiceClientError | undefined,
-          invoiceLineItemsErrors: invoiceLineItemsErrors as InvoiceLineItemsError | undefined
+          documentDateErrors: documentDatesErrors as DocumentDateError | undefined,
+          documentClientErrors: documentClientErrors as DocumentClientError | undefined,
+          documentLineItemsErrors: documentLineItemsErrors as DocumentLineItemsError | undefined
         }}
       />
 
-      <InvoicePreview
+      <DocumentPreview
         client={client}
         lineItems={lineItems}
-        invoiceDates={invoiceDates}
+        documentDates={documentDates}
       />
 
       <div className="mt-4 flex flex-col-reverse items-stretch justify-end gap-3 sm:flex-row sm:items-center">
@@ -160,4 +160,4 @@ function InvoiceCreator() {
   )
 }
 
-export default InvoiceCreator
+export default DocumentCreator

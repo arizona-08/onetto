@@ -1,5 +1,5 @@
 import { Client, ServiceLineItem } from "@/app/types";
-import { InvoiceClientError, InvoiceDateError, InvoiceLineItemsError } from "./invoiceErrorsTypes";
+import { DocumentClientError, DocumentDateError, DocumentLineItemsError } from "./DocumentErrorsTypes";
 import { err, ok, Result } from "./result";
 
 export function verifyDates({
@@ -8,9 +8,9 @@ export function verifyDates({
   } : {
     creationDate: string,
     dueDate: string
-  }) : Result<boolean, InvoiceDateError> {
+  }) : Result<boolean, DocumentDateError> {
 
-    const errors: InvoiceDateError = {};
+    const errors: DocumentDateError = {};
     if(!creationDate || creationDate === ""){
       errors.creationDate = ["La date de création est manquante"]
     }
@@ -52,8 +52,8 @@ export function verifyDates({
     return ok(true);
   }
 
-export function verifyClient(client: Client | null): Result<boolean, InvoiceClientError>{
-  const errors: InvoiceClientError = {};
+export function verifyClient(client: Client | null): Result<boolean, DocumentClientError>{
+  const errors: DocumentClientError = {};
 
   if(!client) {
     errors.general = ["Les informations du client sont manquantes"];
@@ -64,7 +64,7 @@ export function verifyClient(client: Client | null): Result<boolean, InvoiceClie
     const clientKey = key as keyof Client;
 
     if(client[clientKey].length === 0 || client[clientKey] === ""){
-      const errorKey = clientKey as keyof InvoiceClientError;
+      const errorKey = clientKey as keyof DocumentClientError;
       errors[errorKey] = [(`${clientKey} ne peut pas être vide.`)]
     }
   }
@@ -78,8 +78,8 @@ export function verifyClient(client: Client | null): Result<boolean, InvoiceClie
   return ok(true)
 }
 
-export function verifyLineItems(lineItems: ServiceLineItem[]): Result<boolean, InvoiceLineItemsError> {
-  const errors: InvoiceLineItemsError = {};
+export function verifyLineItems(lineItems: ServiceLineItem[]): Result<boolean, DocumentLineItemsError> {
+  const errors: DocumentLineItemsError = {};
 
   if(lineItems.length === 0){
     errors.general = ["La facture doit contenir au moins un service."];

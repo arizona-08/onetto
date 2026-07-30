@@ -1,20 +1,20 @@
 
 import { Client } from '@/app/types';
-import { InvoiceClientError } from '@/shared/invoiceErrorsTypes';
+import { DocumentClientError } from '@/shared/DocumentErrorsTypes';
 import { ChevronDown } from 'lucide-react'
 import React from 'react'
 
 
 interface CustomerDetailsProps {
   onClientChange: (client: Client | null) => void;
-  invoiceClientErrors?: InvoiceClientError
+  documentClientErrors?: DocumentClientError
 }
 const clients : Client[] = [
   {
     id: "CUST-001",
     name: 'Société ABC',
     email: 'contact@societe-abc.com',
-    street: '10 rue de la Paix',
+    address: '10 rue de la Paix',
     city: 'Paris',
     postalCode: '75002',
     country: 'France'
@@ -23,7 +23,7 @@ const clients : Client[] = [
     id: "CUST-002",
     name: 'Entreprise XYZ',
     email: 'contact@entreprise-xyz.com',
-    street: '14 rue de la Joie',
+    address: '14 rue de la Joie',
     city: 'Paris',
     postalCode: '75012',
     country: 'France'
@@ -32,20 +32,20 @@ const clients : Client[] = [
     id: "CUST-003",
     name: 'Client 123',
     email: 'contact@client-123.com',
-    street: '23 Boulevard de la Richesse',
+    address: '23 Boulevard de la Richesse',
     city: 'Paris',
     postalCode: '75014',
     country: 'France'
   }
 ]
 
-function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetailsProps) {
+function CustomerDetails({ onClientChange, documentClientErrors }: CustomerDetailsProps) {
   const [selectedClient, setSelectedClient] = React.useState<Client | null>(null);
   const [clientInfos, setClientInfos] = React.useState<Client>({
     id: "",
     name: "",
     email: "",
-    street: "",
+    address: "",
     city: "",
     postalCode: "",
     country: ""
@@ -63,7 +63,7 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
       id: clientInfos.id,
       email: name === "email" ? value : clientInfos.email,
       name: name === "name" ? value : clientInfos.name,
-      street: name === "street" ? value : clientInfos.street,
+      address: name === "address" ? value : clientInfos.address,
       city: name === "city" ? value : clientInfos.city,
       postalCode: name === "postalCode" ? value : clientInfos.postalCode,
       country: name === "country" ? value : clientInfos.country
@@ -93,7 +93,7 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
                     id: "",
                     name: "",
                     email: "",
-                    street: "",
+                    address: "",
                     city: "",
                     postalCode: "",
                     country: ""
@@ -113,7 +113,7 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
                         id: client.id,
                         name: client.name,
                         email: client.email,
-                        street: client.street,
+                        address: client.address,
                         city: client.city,
                         postalCode: client.postalCode,
                         country: client.country
@@ -145,9 +145,9 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
                 value={clientInfos.name}
                 onChange={handleChange}
               />
-              {invoiceClientErrors && invoiceClientErrors.name && (
+              {documentClientErrors && documentClientErrors.name && (
                 <ul>
-                  { invoiceClientErrors.name.map((error, index) => (
+                  { documentClientErrors.name.map((error, index) => (
                       <li><span key={index} className="text-red-500">{error}</span></li>
                     ))
                   }
@@ -166,9 +166,9 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
                 value={clientInfos.email}
                 onChange={handleChange}
               />
-              {invoiceClientErrors && invoiceClientErrors.email && (
+              {documentClientErrors && documentClientErrors.email && (
                 <ul>
-                  { invoiceClientErrors.email.map((error, index) => (
+                  {documentClientErrors.email.map((error, index) => (
                       <li><span key={index} className="text-red-500">{error}</span></li>
                     ))
                   }
@@ -177,21 +177,21 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
             </div>
           </div>
 
-          {/* Street */}
+          {/* address */}
           <div>
-            <label htmlFor="customer-street" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Adresse du client <span className="text-red-500">*</span></label>
+            <label htmlFor="customer-address" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Adresse du client <span className="text-red-500">*</span></label>
             <input
               type="text"
-              id="customer-street"
-              name="street"
+              id="customer-address"
+              name="address"
               className="inline-block w-full border-b border-gray-300 p-2 outline-none focus:outline-none placeholder:text-gray-300 mb-4"
               placeholder="e.g. 10 rue de la Paix"
-              value={clientInfos.street}
+              value={clientInfos.address}
               onChange={handleChange}
             />
-              {invoiceClientErrors && invoiceClientErrors.address && (
+              {documentClientErrors && documentClientErrors.address && (
                 <ul>
-                  { invoiceClientErrors.address.map((error, index) => (
+                  { documentClientErrors.address.map((error, index) => (
                       <li><span key={index} className="text-red-500">{error}</span></li>
                     ))
                   }
@@ -213,9 +213,9 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
                 value={clientInfos.city}
                 onChange={handleChange}
               />
-              {invoiceClientErrors && invoiceClientErrors.city && (
+              {documentClientErrors && documentClientErrors.city && (
                 <ul>
-                  { invoiceClientErrors.city.map((error, index) => (
+                  { documentClientErrors.city.map((error, index) => (
                       <li><span key={index} className="text-red-500">{error}</span></li>
                     ))
                   }
@@ -234,9 +234,9 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
                 value={clientInfos.postalCode}
                 onChange={handleChange}
               />
-              {invoiceClientErrors && invoiceClientErrors.name && (
+              {documentClientErrors && documentClientErrors.postalCode && (
                 <ul>
-                  { invoiceClientErrors.name.map((error, index) => (
+                  { documentClientErrors.postalCode.map((error, index) => (
                       <li><span key={index} className="text-red-500">{error}</span></li>
                     ))
                   }
@@ -260,10 +260,10 @@ function CustomerDetails({ onClientChange, invoiceClientErrors }: CustomerDetail
             />
           </div>
 
-          {invoiceClientErrors && invoiceClientErrors.general && (
+          {documentClientErrors && documentClientErrors.general && (
             <>
               <ul>
-                { invoiceClientErrors.general.map((error, index) => (
+                { documentClientErrors.general.map((error, index) => (
                     <span key={index} className="text-red-500">{error}</span>
                   ))
                 }

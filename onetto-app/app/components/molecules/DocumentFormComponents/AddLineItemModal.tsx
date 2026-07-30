@@ -1,6 +1,6 @@
 
 import { Service, ServiceLineItem } from '@/app/types';
-import { ChevronDown, ChevronDownIcon } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import React from 'react'
 
 interface AddLineItemModalProps {

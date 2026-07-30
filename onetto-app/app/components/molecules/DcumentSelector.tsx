@@ -1,16 +1,16 @@
 'use client';
 import React from 'react'
-import { EstimateSelectStatus, InvoiceSelectStatus } from '../organisms/EstimatesInvoicesTable';
+import { EstimateSelectStatus, InvoiceSelectStatus } from '../organisms/DocumentsTable';
 
 const INVOICES_STATUS = ['Toutes', 'En attente', 'Payées', 'Échues']
 const ESTIMATES_STATUS = ['Tout', 'Brouillons', 'Envoyés', 'Acceptés', 'Refusés']
 
-interface EstimatesInvoicesSelectorProps {
+interface DocumentSelectorProps {
   type: 'invoices' | 'estimates';
   selectedStatus: InvoiceSelectStatus | EstimateSelectStatus;
   onSelectStatus: (status: InvoiceSelectStatus | EstimateSelectStatus) => void;
 }
-function EstimatesInvoicesSelector({ type, selectedStatus, onSelectStatus }: EstimatesInvoicesSelectorProps) {
+function DocumentSelector({ type, selectedStatus, onSelectStatus }: DocumentSelectorProps) {
   const statusOptions = type === 'invoices' ? INVOICES_STATUS : ESTIMATES_STATUS;
 
   return (
@@ -32,4 +32,4 @@ function EstimatesInvoicesSelector({ type, selectedStatus, onSelectStatus }: Est
   )
 }
 
-export default EstimatesInvoicesSelector
+export default DocumentSelector

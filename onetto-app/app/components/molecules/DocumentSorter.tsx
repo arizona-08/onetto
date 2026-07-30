@@ -1,7 +1,7 @@
 import { SortDesc } from 'lucide-react'
 import React from 'react'
 
-interface EstimatesInvoicesSorterProps {
+interface DocumentSorterProps {
   type: 'invoices' | 'estimates'
   sortMethod: 'date' |  'amount'
   setSortMethod: (sort: 'date' | 'amount') => void
@@ -9,7 +9,7 @@ interface EstimatesInvoicesSorterProps {
   setIsOpen: (isOpen: boolean) => void
 }
 
-function EstimatesInvoicesSorter({sortMethod, setSortMethod, isOpen, setIsOpen}: EstimatesInvoicesSorterProps) {
+function DocumentSorter({sortMethod, setSortMethod, isOpen, setIsOpen}: DocumentSorterProps) {
 
   function closeSort(){
     setIsOpen(false);
@@ -36,4 +36,4 @@ function EstimatesInvoicesSorter({sortMethod, setSortMethod, isOpen, setIsOpen}:
   )
 }
 
-export default EstimatesInvoicesSorter
+export default DocumentSorter

@@ -1,4 +1,4 @@
-import InvoiceCreator from '@/app/components/organisms/InvoiceCreation/InvoiceCreator'
+import InvoiceCreator from '@/app/components/organisms/DocumentCreation/DocumentCreator'
 import React from 'react'
 
 function CreateInvoicePage() {

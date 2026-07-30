@@ -1,18 +1,22 @@
-import { getMyInvoicesAndEstimatesServer } from '@/lib/invoices/invoice.server';
+import { getMyDocumentsServer } from '@/lib/documents/invoice.server';
 import { getMyCompaniesServer } from '@/lib/companies/companies.server';
 import { AlertTriangle, ChartLine, Check, CirclePlusIcon, File } from 'lucide-react';
 import React from 'react'
-import EstimatesInvoicesTable from '@/app/components/organisms/EstimatesInvoicesTable';
+import DocumentsTable from '@/app/components/organisms/DocumentsTable';
+
 export const dynamic = 'force-dynamic'
 
-async function invoices() {
-  const invoicesResponse = await getMyInvoicesAndEstimatesServer(false);
+async function DocumentsPage() {
+  const documentsResponse = await getMyDocumentsServer(false);
 
-  if (!invoicesResponse.ok) {
-    console.error('Failed to fetch invoices:', invoicesResponse.error);
+  if (!documentsResponse.ok) {
+    console.error('Failed to fetch documents:', documentsResponse.error);
   }
+  // console.log('Documents response:', documentsResponse);
 
-  const invoices = invoicesResponse.ok ? invoicesResponse.data : [];
+  const estimates = documentsResponse.ok ? documentsResponse.data.estimates : [];
+  const invoices = documentsResponse.ok ? documentsResponse.data.invoices : [];
+
   const companiesResponse = await getMyCompaniesServer();
   const activeCompany = companiesResponse.ok
     ? companiesResponse.data.companies.find((company) => company.id === companiesResponse.data.activeCompanyId)
@@ -21,11 +25,12 @@ async function invoices() {
   
   return (
     <div className="w-full p-4">
-      <h1 className="text-2xl font-black font-title">Gérer mes factures</h1>
+      <h1 className="text-2xl font-black font-title">Gérer mes factures et devis</h1>
 
-      {!invoicesResponse.ok && (
+      {!documentsResponse.ok && (
+        // À modifier en production pour afficher un message d'erreur plus convivial
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="alert">
-          Les factures ne peuvent pas être chargées pour le moment. Vérifiez que l&apos;API est démarrée, puis réessayez.
+          Les factures et devis ne peuvent pas être chargés pour le moment. Vérifiez que l&apos;API est démarrée, puis réessayez.
         </div>
       )}
 
@@ -83,9 +88,12 @@ async function invoices() {
         </div>
       )}
 
-      <EstimatesInvoicesTable type="invoices" invoices={invoices} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
+      <div className="space-y-12">
+        <DocumentsTable type="estimates" documents={estimates} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
+        <DocumentsTable type="invoices" documents={invoices} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
+      </div>
     </div>
   )
 }
 
-export default invoices
+export default DocumentsPage
