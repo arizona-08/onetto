@@ -56,9 +56,9 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
   return (
     <div className="mt-3">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className=''>
-          {canCreate && (
-            <Link href="/documents/create" className="shadow-md my-4 flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
+        <div>
+          {!isInvoiceType && canCreate && (
+            <Link href="/documents/create" className="shadow-md flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
               <CirclePlusIcon />
               <span className="text-sm font-medium">{isInvoiceType ? 'Créer une facture' : 'Créer un devis'}</span>
             </Link>
@@ -109,7 +109,7 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
               <th className="w-12 px-5 py-4">
                 <input type="checkbox" className="h-4 w-4 rounded border-zinc-300" />
               </th>
-              <th className="px-5 py-4">Facture</th>
+              <th className="px-5 py-4">{isInvoiceType ? 'Facture' : 'Devis'}</th>
               <th className="px-5 py-4">Client</th>
               <th className="px-5 py-4">Date d&apos;émission</th>
               <th className="px-5 py-4">Date d&apos;échéance</th>
@@ -118,7 +118,16 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
             </tr>
           </thead>
           <tbody className="text-sm text-zinc-700">
-            {masterDocumentsList.map((document) => (
+            { masterDocumentsList.length === 0 && (
+              <tr className="border-t border-zinc-100">
+                <td colSpan={7} className="px-5 py-5 text-center text-zinc-500">
+                  {isInvoiceType ? 'Aucune facture trouvée' : 'Aucun devis trouvé'}
+                </td>
+              </tr>
+            )}
+
+
+            {masterDocumentsList.length > 0 && masterDocumentsList.map((document) => (
               <tr key={document.id} className="border-t border-zinc-100">
                 <td className="px-5 py-5 align-top">
                   <input type="checkbox" className="h-4 w-4 rounded border-zinc-300" />

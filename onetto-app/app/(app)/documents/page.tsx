@@ -89,8 +89,15 @@ async function DocumentsPage() {
       )}
 
       <div className="space-y-12">
-        <DocumentsTable type="estimates" documents={estimates} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
-        <DocumentsTable type="invoices" documents={invoices} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
+        <div className="mt-6">
+          <h2 className="font-semibold text-xl">Devis</h2>
+          <DocumentsTable type="estimates" documents={estimates} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
+        </div>
+
+        <div>
+          <h2 className="font-semibold text-xl">Factures</h2>
+          <DocumentsTable type="invoices" documents={invoices} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
+        </div>
       </div>
     </div>
   )
