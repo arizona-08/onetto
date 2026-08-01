@@ -84,6 +84,25 @@ export class CompaniesService {
     return this.getOwnedCompany(companyId, userId);
   }
 
+  async getMyActiveCompany(userId: string) {
+    try{
+      const user = await this.prismaService.user.findUnique({
+        where: { id: userId },
+        select: { lastConnectedCompany: true },
+      });
+
+      if (!user?.lastConnectedCompany) {
+        return null;
+      }
+
+      return {
+        ...(user.lastConnectedCompany)
+      }
+    } catch (error) {
+      this.handleDatabaseError(error, "récupération de l'entreprise active.");
+    }
+  }
+
   async updateCompany(companyId: string, data: UpdateCompanyDto, userId: string) {
     const company = await this.getOwnedCompany(companyId, userId);
     if (company.status === "CLOSED") {

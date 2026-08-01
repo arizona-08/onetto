@@ -3,6 +3,7 @@ import { Inter, Manrope } from "next/font/google";
 import "./globals.css";
 import { AuthUserProvider } from "./components/context/AuthUserContext";
 import { ToastProvider } from "./components/context/ToastContext";
+import ActiveCompanyProvider from "./components/context/ActiveCompanyContext";
 
 
 const manrope = Manrope({
@@ -33,7 +34,9 @@ export default function RootLayout({
       <body className="font-body relative">
         <ToastProvider>
           <AuthUserProvider>
-            {children}
+            <ActiveCompanyProvider>
+              {children}
+            </ActiveCompanyProvider>
           </AuthUserProvider>
         </ToastProvider>
       </body>

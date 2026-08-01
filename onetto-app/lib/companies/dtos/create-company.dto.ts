@@ -12,6 +12,7 @@ export type CreateCompanyDto = {
   vatNumber?: string;
   IBAN: string;
   BIC: string;
+  rcs: string;
 }
 
 export type Company = CreateCompanyDto & {
