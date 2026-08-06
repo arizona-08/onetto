@@ -1,7 +1,7 @@
 
 import Greetings from '@/app/components/atoms/Greetings'
 import InvoiceTable from '@/app/components/organisms/DocumentsTable'
-import { getMyInvoicesServer } from '@/lib/documents/invoice.server'
+import { getMyInvoicesServer } from '@/lib/documents/document.server'
 import { AlertTriangle } from 'lucide-react'
 import { ChartLine } from 'lucide-react'
 import { Check } from 'lucide-react'

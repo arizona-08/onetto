@@ -1,4 +1,4 @@
-import { getMyDocumentsServer } from '@/lib/documents/invoice.server';
+import { getMyDocumentsServer } from '@/lib/documents/document.server';
 import { getMyCompaniesServer } from '@/lib/companies/companies.server';
 import { AlertTriangle, ChartLine, Check, CirclePlusIcon, File } from 'lucide-react';
 import React from 'react'

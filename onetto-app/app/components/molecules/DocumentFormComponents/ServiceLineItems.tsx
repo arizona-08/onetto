@@ -1,19 +1,32 @@
 import { ServiceLineItem } from '@/app/types'
 import { Edit, Plus, Trash2 } from 'lucide-react'
-import React from 'react'
+import React, { useEffect } from 'react'
 import AddLineItemModal from './AddLineItemModal'
 import { DocumentDateError, DocumentLineItemsError } from '@/shared/DocumentErrorsTypes';
 
 
 interface ServiceLineItemsProps {
+  hydratedLineItems?: ServiceLineItem[]
   onLineItemsChange: (lineItems: ServiceLineItem[]) => void;
   onDocumentDatesChange: (dates: { creationDate: string, dueDate: string }) => void;
   documentDateErrors?: DocumentDateError,
   documentLineItemsErrors?: DocumentLineItemsError
 }
-function ServiceLineItems({ onLineItemsChange, onDocumentDatesChange, documentDateErrors, documentLineItemsErrors }: ServiceLineItemsProps) {
+function ServiceLineItems({ hydratedLineItems, onLineItemsChange, onDocumentDatesChange, documentDateErrors, documentLineItemsErrors }: ServiceLineItemsProps) {
 
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
+
+  useEffect(() => {
+    if(hydratedLineItems) {
+      setLineItems(hydratedLineItems ? 
+        hydratedLineItems.map(lineItem => ({
+          ...lineItem
+        }))
+        : [])
+    }
+  }, [hydratedLineItems])
+
+
   const [isModalVisible, setIsModalVisible] = React.useState(false)
 
   const [documentDates, setDocumentDates] = React.useState(() => {
@@ -30,6 +43,8 @@ function ServiceLineItems({ onLineItemsChange, onDocumentDatesChange, documentDa
       dueDate: dueDate.toISOString().split('T')[0]
     }
   })
+
+
 
   function handleDocumentDatesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target

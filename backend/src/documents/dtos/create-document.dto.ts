@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsArray, IsDate, IsDateString, IsDefined, IsNotEmpty, IsNumber, IsNumberString, IsString, Min, ValidateNested } from "class-validator";
+import { IsArray, IsDate, IsDateString, IsDefined, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, IsUUID, Min, ValidateNested } from "class-validator";
 
 
 export class DocumentClientDto {
@@ -13,7 +13,7 @@ export class DocumentClientDto {
 
   @IsDefined()
   @IsString()
-  street: string;
+  address: string;
 
   @IsDefined()
   @IsString()
@@ -30,6 +30,10 @@ export class DocumentClientDto {
 }
 
 export class LineItemsDto {
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsDefined()
   @IsString()
   description: string;
@@ -81,4 +85,3 @@ export class CreateDocumentDto {
   @Type(() => DocumentDateDto)
   documentDates: DocumentDateDto;
 }
-

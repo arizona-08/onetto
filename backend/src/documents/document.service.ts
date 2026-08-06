@@ -32,7 +32,7 @@ export class DocumentService {
         data: {
           clientName: documentData.client.name,
           clientEmail: documentData.client.email,
-          clientAddress: documentData.client.street,
+          clientAddress: documentData.client.address,
           clientCity: documentData.client.city,
           clientCountry: documentData.client.country,
           clientPostalCode: documentData.client.postalCode,
@@ -78,6 +78,122 @@ export class DocumentService {
       throw new InternalServerErrorException("Une erreur est survenue lors de la création de la facture.");
     }
     
+  }
+
+  async updateDraftDocument(documentId: string, data: CreateDocumentDto, user: User) {
+    try {
+      const { lineItems, ...documentData } = data;
+      const companyId = await this.getActiveCompanyId(user, true);
+      const document = await this.prismaService.document.findFirst({
+        where: {
+          id: documentId,
+          companyId,
+        },
+        include: {
+          services: true,
+        },
+      });
+
+      if (!document) {
+        throw new BadRequestException("Document introuvable ou vous n'avez pas la permission d'y accéder.");
+      }
+
+      const totalPriceExludingTax = lineItems.reduce((acc, item) => {
+        const basePrice = item.unitPrice * item.quantity;
+        return acc + basePrice;
+      }, 0);
+
+      const totalVatAmount = lineItems.reduce((acc, item) => {
+        const basePrice = item.unitPrice * item.quantity;
+        const taxAmount = basePrice * ((item.taxRate ? item.taxRate : 0) / 100);
+        return acc + taxAmount;
+      }, 0);
+
+      const totalDocumentPrice = totalPriceExludingTax + totalVatAmount;
+      const existingServiceIds = new Set(document.services.map((service) => service.id));
+      const submittedServiceIds = lineItems
+        .map((lineItem) => lineItem.id)
+        .filter((serviceId): serviceId is string => Boolean(serviceId));
+
+      if (new Set(submittedServiceIds).size !== submittedServiceIds.length) {
+        throw new BadRequestException("Une ligne de service ne peut être envoyée qu'une seule fois.");
+      }
+
+      if (submittedServiceIds.some((serviceId) => !existingServiceIds.has(serviceId))) {
+        throw new BadRequestException("Une ou plusieurs lignes de service sont introuvables.");
+      }
+
+      const serviceIdsToDelete = document.services
+        .filter((service) => !submittedServiceIds.includes(service.id))
+        .map((service) => service.id);
+
+      const updatedDocument = await this.prismaService.$transaction(async (prisma) => {
+        if (serviceIdsToDelete.length > 0) {
+          await prisma.documentService.deleteMany({
+            where: {
+              documentId: document.id,
+              id: { in: serviceIdsToDelete },
+            },
+          });
+        }
+
+        const updatedDocument = await prisma.document.update({
+          where: { id: document.id },
+          data: {
+            clientName: documentData.client.name,
+            clientEmail: documentData.client.email,
+            clientAddress: documentData.client.address,
+            clientCity: documentData.client.city,
+            clientCountry: documentData.client.country,
+            clientPostalCode: documentData.client.postalCode,
+            totalPriceExcludingTax: totalPriceExludingTax,
+            totalPrice: totalDocumentPrice,
+            createdAt: new Date(data.documentDates.creationDate),
+            paymentDueAt: new Date(data.documentDates.dueDate),
+          },
+        });
+
+        for (const lineItem of lineItems) {
+          const wtPrice = lineItem.unitPrice * lineItem.quantity;
+          const totalPrice = wtPrice + (lineItem.taxRate ? (wtPrice * lineItem.taxRate / 100) : 0);
+          const serviceData = {
+            description: lineItem.description,
+            quantity: lineItem.quantity,
+            taxRate: lineItem.taxRate,
+            unitPrice: lineItem.unitPrice,
+            unit: lineItem.unit,
+            wtPrice,
+            totalPrice,
+          };
+
+          if (lineItem.id) {
+            await prisma.documentService.update({
+              where: { id: lineItem.id },
+              data: serviceData,
+            });
+          } else {
+            await prisma.documentService.create({
+              data: {
+                ...serviceData,
+                documentId: document.id,
+              },
+            });
+          }
+        }
+
+        return updatedDocument;
+      });
+
+      return {
+        message: "Document mis à jour avec succès.",
+        document: updatedDocument,
+      };
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException("Une erreur est survenue lors de la mise à jour du document.");
+    }
   }
 
   async convertEstimateToInvoice(documentId: string, user: User) {

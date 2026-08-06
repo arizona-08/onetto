@@ -7,7 +7,7 @@ function CreateEstimatePage() {
       <h1 className="text-2xl font-title font-black mb-1">Création d'un devis</h1>
       <p className="text-gray-500 mb-6">Créez facilement vos devis à partir des services sélectionnés.</p>
 
-      <DocumentCreator />
+      <DocumentCreator mode="create" />
     </div>
   )
 }

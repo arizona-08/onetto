@@ -2,10 +2,11 @@
 import { Client } from '@/app/types';
 import { DocumentClientError } from '@/shared/DocumentErrorsTypes';
 import { ChevronDown } from 'lucide-react'
-import React from 'react'
+import React, { useEffect } from 'react'
 
 
 interface CustomerDetailsProps {
+  client?: Client | null;
   onClientChange: (client: Client | null) => void;
   documentClientErrors?: DocumentClientError
 }
@@ -39,7 +40,7 @@ const clients : Client[] = [
   }
 ]
 
-function CustomerDetails({ onClientChange, documentClientErrors }: CustomerDetailsProps) {
+function CustomerDetails({ client, onClientChange, documentClientErrors }: CustomerDetailsProps) {
   const [selectedClient, setSelectedClient] = React.useState<Client | null>(null);
   const [clientInfos, setClientInfos] = React.useState<Client>({
     id: "",
@@ -50,6 +51,22 @@ function CustomerDetails({ onClientChange, documentClientErrors }: CustomerDetai
     postalCode: "",
     country: ""
   });
+
+
+  useEffect(() => {
+    if(client) {
+      setClientInfos({
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        address: client.address,
+        city: client.city,
+        postalCode: client.postalCode,
+        country: client.country
+      });
+    }
+  }, [client])
+
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {

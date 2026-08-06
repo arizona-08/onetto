@@ -1,14 +1,19 @@
 'use client'
-import React, { useState } from 'react'
-import { Client, ServiceLineItem } from '@/app/types';
+import React, { useEffect, useState } from 'react'
+import { Client, Document, ServiceLineItem } from '@/app/types';
 import { DocumentClientError, DocumentDateError, DocumentLineItemsError } from '@/shared/DocumentErrorsTypes';
 import { verifyClient, verifyDates, verifyLineItems } from '@/shared/InvoiceValidation';
-import { createDocument } from '@/lib/documents/invoices';
+import { createDocument, updateDraftDocument } from '@/lib/documents/document';
 import { CheckCircle2, X } from 'lucide-react';
 import DocumentForm from './DocumentForm';
 import DocumentPreview from './DocumentPreview';
 
-function DocumentCreator() {
+interface DocumentCreateProps {
+  document?: Document,
+  mode: 'create' | 'update'
+}
+
+function DocumentCreator({ document, mode }: DocumentCreateProps) {
   const [client, setClient] = React.useState<Client | null>(null);
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
   const [documentDates, setDocumentDates] = React.useState(() =>{
@@ -25,6 +30,34 @@ function DocumentCreator() {
       dueDate: dueDate.toISOString().split('T')[0]
     }
   })
+
+  useEffect(() => {
+    if(document) {
+      setClient({
+        id: 'TEMP-ID',
+        name: document.clientName,
+        email: document.clientEmail,
+        address: document.clientAddress,
+        city: document.clientCity,
+        postalCode: document.clientPostalCode,
+        country: document.clientCountry
+      });
+
+      setLineItems(document.services ? document.services?.map(service => ({
+        id: service.id,
+        description: service.description,
+        taxRate: service.taxRate,
+        unit: service.unit,
+        quantity: service.quantity,
+        unitPrice: service.unitPrice
+      })) : []);
+
+      setDocumentDates({
+        creationDate: document.createdAt,
+        dueDate: document.paymentDueAt // à adapter pour les devis avec document.toValidateAt
+      })
+    }
+  }, [document])
 
   const [documentClientErrors, setDocumentClientErrors] = useState<DocumentClientError | null>(null);
   const [documentLineItemsErrors, setDocumentLineItemsErrors] = useState<DocumentLineItemsError | null>(null);
@@ -43,6 +76,8 @@ function DocumentCreator() {
     setDocumentLineItemsErrors(null);
     setDocumentDatesErrors(null);
   }
+
+
   async function handleSaveDraft(e: React.MouseEvent<HTMLButtonElement>){
     e.preventDefault();
 
@@ -53,13 +88,13 @@ function DocumentCreator() {
 
     if(!checkClient.ok){
       setDocumentClientErrors(checkClient.error)
-      console.log(checkClient.error);
+      console.error(checkClient.error);
       return;
     }
 
     if(!checkDates.ok){
       setDocumentDatesErrors(checkDates.error)
-      console.log(checkDates.error);
+      console.error(checkDates.error);
       return;
     }
 
@@ -71,11 +106,21 @@ function DocumentCreator() {
     const { name, email, address, city, postalCode, country } = client as Client;
     const clientData = { name, email, address, city, postalCode, country };
 
-    const response = await createDocument({
-      client: clientData,
-      lineItems,
-      documentDates
-    });
+    let response;
+
+    if(mode === 'create') {
+      response = await createDocument({
+        client: clientData,
+        lineItems,
+        documentDates
+      });
+    } else {
+      response = await updateDraftDocument(document?.id as string, {
+        client: clientData,
+        lineItems,
+        documentDates,
+      });
+    }
 
     if(!response.ok) {
       console.error("Erreur lors de la création de la facture", response.error);
@@ -102,9 +147,12 @@ function DocumentCreator() {
           documentClientErrors: documentClientErrors as DocumentClientError | undefined,
           documentLineItemsErrors: documentLineItemsErrors as DocumentLineItemsError | undefined
         }}
+        client={client}
+        lineItems={lineItems}
       />
 
       <DocumentPreview
+        type="estimate"
         client={client}
         lineItems={lineItems}
         documentDates={documentDates}

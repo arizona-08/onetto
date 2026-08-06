@@ -18,3 +18,10 @@ export async function getMyDocuments(withServices: boolean = true) {
     },
   })
 }
+
+export async function updateDraftDocument(documentId: string, data: CreateDocumentDto) {
+  return apiClient<CreateDocumentResponse>(`api/documents/${documentId}/update-draft`, {
+    method: "PUT",
+    body: JSON.stringify(data)
+  })
+}
