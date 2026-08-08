@@ -17,7 +17,7 @@ async function ShowDocumentPage({ params }: { params: Promise<{ id: string }> })
   const document = documentResponse.data;
   
   const isDraftEstimate = document.type === "ESTIMATE" && document.estimateStatus === "DRAFT";
-  const isSentEstimate = document.type === "ESTIMATE" && document.estimateStatus === "SENT";
+  const isRejectedEstimate = document.type === "ESTIMATE" && document.estimateStatus === "REJECTED";
 
   const isDraftInvoice = document.type === "INVOICE" && document.invoiceStatus === "DRAFT";
 
@@ -25,22 +25,42 @@ async function ShowDocumentPage({ params }: { params: Promise<{ id: string }> })
 
   if(isDraftEstimate){
     editLink = `/documents/${document.id}/update-draft`;
-  } else if(isSentEstimate){
+  } else if(isRejectedEstimate){
     editLink = `/documents/${document.id}/update-sent`;
   }
 
   return (
     <div className="p-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black font-title">Détails de la facture {document.documentNumber}</h1>
+        <h1 className="text-2xl font-black font-title">Détails {(isDraftEstimate || isRejectedEstimate) ? "du devis" : "de la facture"} {document.documentNumber}</h1>
         
         {/* actions */}
         <div className="flex items-center justify-between gap-12 text-sm">
-          <button className="px-4 py-2 text-red-500 border border-red-500 hover:bg-red-500 hover:text-white rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150">Supprimer <Trash className="w-4 h-4" /></button>
+          {(isDraftEstimate || isDraftInvoice) && (
+            <button
+              className="px-4 py-2 text-red-500 border border-red-500 hover:bg-red-500 hover:text-white rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
+            >
+              Supprimer <Trash className="w-4 h-4" />
+            </button>
+          )}
 
           <div className="modify-and-confirm flex items-center justify-between gap-4">
-            <Link href={ editLink || '#' } className="px-4 py-2 text-primary border border-primary hover:bg-primary hover:text-white  rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150">Modifier <Edit className="w-4 h-4" /> </Link>
-            <button className="px-4 py-2 text-white bg-primary border border-primary hover:bg-primary/90 rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150">Confirmer et envoyer <Send /></button>
+            {isDraftEstimate && (
+              <Link
+                href={ editLink || '#' } className="px-4 py-2 text-primary border border-primary hover:bg-primary hover:text-white  rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
+              >
+                Modifier
+                <Edit className="w-4 h-4" />
+              </Link>
+            )}
+
+            {(isDraftEstimate || isDraftInvoice) && (
+              <button
+                className="px-4 py-2 text-white bg-primary border border-primary hover:bg-primary/90 rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
+              >
+                Confirmer et envoyer <Send />
+              </button>
+            )}
           </div>
         </div>
       </div>

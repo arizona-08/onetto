@@ -4,7 +4,7 @@ import { Client, Document, DocumentDates, ServiceLineItem } from '@/app/types';
 import { DocumentClientError, DocumentDateError, DocumentLineItemsError } from '@/shared/DocumentErrorsTypes';
 import { verifyClient, verifyDates, verifyLineItems } from '@/shared/InvoiceValidation';
 import { createDocument, updateDraftDocument } from '@/lib/documents/document';
-import { CheckCircle2, X } from 'lucide-react';
+import { CheckCircle2, Send, X } from 'lucide-react';
 import DocumentForm from './DocumentForm';
 import DocumentPreview from './DocumentPreview';
 
@@ -60,6 +60,12 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
   const [documentLineItemsErrors, setDocumentLineItemsErrors] = useState<DocumentLineItemsError | null>(null);
   const [documentDatesErrors, setDocumentDatesErrors] = useState<DocumentDateError | null>(null);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+
+  const isLineItemsEmpty = lineItems.length === 0;
+  const isInCreationEstimate = document && document?.type === "ESTIMATE" || mode === 'create';
+  const isDraftEstimate = document && document?.type === "ESTIMATE" && document?.estimateStatus === "DRAFT";
+  const isDraftInvoice = document && document?.type === "INVOICE" && document?.invoiceStatus === "DRAFT";
+  
 
   React.useEffect(() => {
     if (!showSuccessToast) return;
@@ -157,22 +163,26 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
         creationDate={document?.createdAt ?? new Date().toISOString()}
       />
 
-      <div className="mt-4 flex flex-col-reverse items-stretch justify-end gap-3 sm:flex-row sm:items-center">
+      <div className="w-full max-w-2xl mx-auto mt-12 flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row-reverse sm:items-center">
         <button
           type="button"
-          disabled
+          disabled={isLineItemsEmpty}
           title="L’envoi des factures sera bientôt disponible"
-          className="cursor-not-allowed rounded-md bg-primary px-3 py-2 text-white opacity-45"
+          className="disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-white disabled:opacity-45"
         >
-          Envoyer la facture
+         {(isInCreationEstimate || isDraftEstimate) && 'Confirmer et envoyer le devis'}
+         {isDraftInvoice && 'Confirmer et envoyer la facture'}
+         
+          <Send className="h-4 w-4" aria-hidden="true" />
         </button>
 
         <button
           type="button"
-          className="rounded-md border border-primary bg-white px-3 py-2 font-semibold text-primary transition-colors duration-150 hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          disabled={isLineItemsEmpty}
+          className="disabled:cursor-not-allowed disabled:opacity-45 rounded-md border border-primary bg-white px-3 py-2 font-semibold text-primary transition-colors duration-150 hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           onClick={handleSaveDraft}
         >
-          Enregistrer le brouillon
+          Enregistrer en tant que brouillon
         </button>
       </div>
 

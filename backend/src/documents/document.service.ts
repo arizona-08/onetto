@@ -281,7 +281,7 @@ export class DocumentService {
     }
 
     const newDocumentNumber = lastDocumentNumber + 1;
-    const prefix = type === "ESTIMATE" ? "EST" : "FACT";
+    const prefix = type === "ESTIMATE" ? "DEV" : "FACT";
     return `#${prefix}-${currentYear}-${newDocumentNumber.toString().padStart(4, '0')}`;
   }
 
