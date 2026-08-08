@@ -2,29 +2,16 @@ import { Client, ServiceLineItem } from "@/app/types";
 import { DocumentClientError, DocumentDateError, DocumentLineItemsError } from "./DocumentErrorsTypes";
 import { err, ok, Result } from "./result";
 
-export function verifyDates({
-    creationDate,
-    dueDate
-  } : {
-    creationDate: string,
-    dueDate: string
-  }) : Result<boolean, DocumentDateError> {
+export function verifyDates({ dueDate }: { dueDate: string }): Result<boolean, DocumentDateError> {
 
     const errors: DocumentDateError = {};
-    if(!creationDate || creationDate === ""){
-      errors.creationDate = ["La date de création est manquante"]
-    }
-
     if(!dueDate || dueDate === ""){
       errors.dueDate = ["La date d'échéance est manquante"]
     }
 
-    if (errors.creationDate || errors.dueDate) {
+    if (errors.dueDate) {
       return err(errors);
     }
-
-    const creationDateObj : Date = new Date(creationDate);
-    creationDateObj.setHours(0, 0, 0, 0);
 
     const dueDateObj : Date = new Date(dueDate);
     dueDateObj.setHours(0, 0, 0, 0);
@@ -33,19 +20,11 @@ export function verifyDates({
     now.setHours(0, 0, 0, 0);
     
 
-    if(creationDateObj < now){
-      errors.creationDate = ["La date de création ne peut pas être antérieur à aujourd'hui."]
-    }
-
     if(dueDateObj < now){
       errors.dueDate = ["La date d'échéance ne peut pas être antérieur à aujourd'hui."]
     }
 
-    if(creationDateObj > dueDateObj){
-      errors.creationDate = ["La date de création ne peut pas être postérieur à la date d'échéance."]
-    }
-
-    if(errors.creationDate || errors.dueDate) {
+    if(errors.dueDate) {
       return err(errors)
     }
 

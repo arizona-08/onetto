@@ -1,6 +1,6 @@
 'use client'
 
-import { Client, ServiceLineItem } from '@/app/types'
+import { Client, DocumentDates, ServiceLineItem } from '@/app/types'
 import { formatDate } from '@/shared/utils'
 import { CreditCard, Landmark } from 'lucide-react'
 import React from 'react'
@@ -11,12 +11,13 @@ interface DocumentPreviewProps {
   type: 'estimate' | 'invoice'
   client: Client | null
   lineItems: ServiceLineItem[]
-  documentDates: { creationDate: string; dueDate: string }
+  documentDates: DocumentDates
+  creationDate: string
 }
 
 const currency = (amount: number) => amount.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })
 
-function DocumentPreview({ type, client, lineItems, documentDates }: DocumentPreviewProps) {
+function DocumentPreview({ type, client, lineItems, documentDates, creationDate }: DocumentPreviewProps) {
   const { user } = useAuthUser()
   const { activeCompany } = useActiveCompany()
   const contactName = `${user?.firstname ?? ''} ${user?.lastname ?? ''}`.trim()
@@ -45,7 +46,7 @@ function DocumentPreview({ type, client, lineItems, documentDates }: DocumentPre
               <div className="mt-5 flex flex-col gap-2">
                 <div>
                   <p className="font-semibold text-zinc-500">{type === 'invoice' ? "Date d'emission" : "Date du devis"}</p>
-                  <p>{formatDate(documentDates.creationDate)}</p>
+                  <p>{formatDate(creationDate)}</p>
                 </div>
 
                 <div>

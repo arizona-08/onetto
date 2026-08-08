@@ -62,10 +62,6 @@ export class LineItemsDto {
 export class DocumentDateDto {
   @IsDefined()
   @IsDateString()
-  creationDate: string;
-
-  @IsDefined()
-  @IsDateString()
   dueDate: string;
 }
 

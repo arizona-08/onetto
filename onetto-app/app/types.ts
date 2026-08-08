@@ -27,7 +27,6 @@ export type ServiceLineItem = {
 }
 
 export type DocumentDates = {
-  creationDate: string,
   dueDate: string
 }
 
@@ -58,6 +57,7 @@ export type Document = {
     lastname: string;
     email: string;
   }
+  isChecked?: boolean;
 }
 
 export type InvoiceStatus = "DRAFT" | "PENDING" | "PAID" | "OVERDUE";

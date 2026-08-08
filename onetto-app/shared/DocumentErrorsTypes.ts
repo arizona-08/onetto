@@ -1,5 +1,4 @@
 export type DocumentDateError = {
-  creationDate?: string[],
   dueDate?: string[]
 }
 

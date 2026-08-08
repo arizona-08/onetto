@@ -42,7 +42,6 @@ export class DocumentService {
           estimateStatus: "DRAFT",
           invoiceStatus: "DRAFT",
           companyId,
-          createdAt: new Date(data.documentDates.creationDate),
           paymentDueAt: new Date(data.documentDates.dueDate),
         }
       });
@@ -72,6 +71,7 @@ export class DocumentService {
         document
       };
     } catch (error: unknown) {
+
       if (error instanceof HttpException) {
         throw error;
       }
@@ -148,7 +148,6 @@ export class DocumentService {
             clientPostalCode: documentData.client.postalCode,
             totalPriceExcludingTax: totalPriceExludingTax,
             totalPrice: totalDocumentPrice,
-            createdAt: new Date(data.documentDates.creationDate),
             paymentDueAt: new Date(data.documentDates.dueDate),
           },
         });
@@ -227,6 +226,7 @@ export class DocumentService {
           totalPriceExcludingTax: document.totalPriceExcludingTax,
           totalPrice: document.totalPrice,
           documentNumber: invoiceNumber,
+          type: "INVOICE",
           estimateStatus: "ACCEPTED",
           invoiceStatus: "DRAFT",
           companyId,
@@ -351,5 +351,32 @@ export class DocumentService {
     }
 
     return user.lastConnectedCompanyId;
+  }
+
+  async massDeleteDocuments(documentIds: string[], user: User) {
+    try {
+      const companyId = await this.getActiveCompanyId(user);
+      const deleteResult = await this.prismaService.document.deleteMany({
+        where: {
+          id: { in: documentIds },
+          companyId
+        }
+      });
+
+      if (deleteResult.count === 0) {
+        throw new BadRequestException("Aucun document supprimé. Vérifiez les IDs fournis.");
+      }
+
+      return {
+        success: true,
+        message: `${deleteResult.count} document(s) supprimé(s) avec succès.` // dire que la suppssion inclu aussi les différentes versions des documents
+      };
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      console.error("Error deleting documents:", error);
+      throw new InternalServerErrorException("Une erreur est survenue lors de la suppression des documents.");
+    }
   }
 }

@@ -15,7 +15,6 @@ async function ShowDocumentPage({ params }: { params: Promise<{ id: string }> })
   }
 
   const document = documentResponse.data;
-  console.log(document.services);
   
   const isDraftEstimate = document.type === "ESTIMATE" && document.estimateStatus === "DRAFT";
   const isSentEstimate = document.type === "ESTIMATE" && document.estimateStatus === "SENT";

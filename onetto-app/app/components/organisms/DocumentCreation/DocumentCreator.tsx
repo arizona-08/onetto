@@ -1,6 +1,6 @@
 'use client'
 import React, { useEffect, useState } from 'react'
-import { Client, Document, ServiceLineItem } from '@/app/types';
+import { Client, Document, DocumentDates, ServiceLineItem } from '@/app/types';
 import { DocumentClientError, DocumentDateError, DocumentLineItemsError } from '@/shared/DocumentErrorsTypes';
 import { verifyClient, verifyDates, verifyLineItems } from '@/shared/InvoiceValidation';
 import { createDocument, updateDraftDocument } from '@/lib/documents/document';
@@ -16,17 +16,15 @@ interface DocumentCreateProps {
 function DocumentCreator({ document, mode }: DocumentCreateProps) {
   const [client, setClient] = React.useState<Client | null>(null);
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
-  const [documentDates, setDocumentDates] = React.useState(() =>{
+  const [documentDates, setDocumentDates] = React.useState<DocumentDates>(() =>{
     const d = new Date()
     // set to one month ahead, handling month overflow
     const month = d.getMonth()
     const year = d.getFullYear()
     const day = d.getDate()
     const nextMonth = month + 1
-    const creationDate = d.toISOString().split('T')[0]
     const dueDate = new Date(year, nextMonth, day)
     return {
-      creationDate,
       dueDate: dueDate.toISOString().split('T')[0]
     }
   })
@@ -53,7 +51,6 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
       })) : []);
 
       setDocumentDates({
-        creationDate: document.createdAt,
         dueDate: document.paymentDueAt // à adapter pour les devis avec document.toValidateAt
       })
     }
@@ -149,6 +146,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
         }}
         client={client}
         lineItems={lineItems}
+        documentDates={documentDates}
       />
 
       <DocumentPreview
@@ -156,6 +154,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
         client={client}
         lineItems={lineItems}
         documentDates={documentDates}
+        creationDate={document?.createdAt ?? new Date().toISOString()}
       />
 
       <div className="mt-4 flex flex-col-reverse items-stretch justify-end gap-3 sm:flex-row sm:items-center">

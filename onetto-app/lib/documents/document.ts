@@ -2,6 +2,7 @@ import { Document } from "@/app/types";
 import { apiClient } from "../api";
 import { CreateDocumentDto } from "./dtos/create-document.dto";
 import { CreateDocumentResponse } from "./responses/create-document.response";
+import { DeleteDocumentsResponse } from "./responses/DeleteDocumentsResponse";
 
 export async function createDocument(data: CreateDocumentDto) {
   return apiClient<CreateDocumentResponse>("api/documents/create", {
@@ -23,5 +24,12 @@ export async function updateDraftDocument(documentId: string, data: CreateDocume
   return apiClient<CreateDocumentResponse>(`api/documents/${documentId}/update-draft`, {
     method: "PUT",
     body: JSON.stringify(data)
+  })
+}
+
+export async function massDeleteDocuments(documentIds: string[]) {
+  return apiClient<DeleteDocumentsResponse>(`api/documents/mass-delete`, {
+    method: "DELETE",
+    body: JSON.stringify({ documentIds })
   })
 }

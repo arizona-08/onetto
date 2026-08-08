@@ -1,4 +1,4 @@
-import { ServiceLineItem } from '@/app/types'
+import { DocumentDates, ServiceLineItem } from '@/app/types'
 import { Edit, Plus, Trash2 } from 'lucide-react'
 import React, { useEffect } from 'react'
 import AddLineItemModal from './AddLineItemModal'
@@ -7,12 +7,13 @@ import { DocumentDateError, DocumentLineItemsError } from '@/shared/DocumentErro
 
 interface ServiceLineItemsProps {
   hydratedLineItems?: ServiceLineItem[]
+  hydratedDocumentDates?: DocumentDates
   onLineItemsChange: (lineItems: ServiceLineItem[]) => void;
-  onDocumentDatesChange: (dates: { creationDate: string, dueDate: string }) => void;
+  onDocumentDatesChange: (dates: DocumentDates) => void;
   documentDateErrors?: DocumentDateError,
   documentLineItemsErrors?: DocumentLineItemsError
 }
-function ServiceLineItems({ hydratedLineItems, onLineItemsChange, onDocumentDatesChange, documentDateErrors, documentLineItemsErrors }: ServiceLineItemsProps) {
+function ServiceLineItems({ hydratedLineItems, hydratedDocumentDates, onLineItemsChange, onDocumentDatesChange, documentDateErrors, documentLineItemsErrors }: ServiceLineItemsProps) {
 
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
 
@@ -26,21 +27,27 @@ function ServiceLineItems({ hydratedLineItems, onLineItemsChange, onDocumentDate
     }
   }, [hydratedLineItems])
 
+  useEffect(() => {
+    if(hydratedDocumentDates) {
+      setDocumentDates({
+        dueDate: hydratedDocumentDates.dueDate.slice(0, 10) // slice retire l'heure et le fuseau horaire pour laisser que la date
+      })
+    }
+  }, [hydratedDocumentDates])
+
 
   const [isModalVisible, setIsModalVisible] = React.useState(false)
 
-  const [documentDates, setDocumentDates] = React.useState(() => {
+  const [documentDates, setDocumentDates] = React.useState<DocumentDates>(() => {
     const d = new Date()
     // set to one month ahead, handling month overflow
     const month = d.getMonth()
     const year = d.getFullYear()
     const day = d.getDate()
     const nextMonth = month + 1
-    const creationDate = d.toISOString().split('T')[0]
     const dueDate = new Date(year, nextMonth, day)
     return {
-      creationDate,
-      dueDate: dueDate.toISOString().split('T')[0]
+      dueDate: dueDate.toISOString().split('T')[0] // split sépare la date et l'heure et prend que la date quise trouve avant le T -> 2026-08-06T00:00:00.000Z
     }
   })
 
@@ -150,29 +157,7 @@ function ServiceLineItems({ hydratedLineItems, onLineItemsChange, onDocumentDate
         </div>
 
         <div className="mt-10 flex justify-end gap-4">
-          <div className="bg-primary/10 p-5 rounded-md flex flex-col items-center gap-5 w-full max-w-100 mx-auto md:flex-row md:mx-0">
-              <div className="flex flex-col gap-2 w-full">
-                <span className="uppercase text-xs font-semibold tracking-wide text-primary/80">Date de création</span>
-                <input
-                  type="date"
-                  name="creationDate"
-                  id=""
-                  value={documentDates.creationDate}
-                  onChange={handleDocumentDatesChange}
-                  className="bg-primary/20 rounded-md p-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50"
-                  placeholder='11/07/2026'
-                  />
-                  {documentDateErrors && documentDateErrors.creationDate && (
-                    <ul>
-                      {
-                        documentDateErrors.creationDate.map((error, index) => (
-                          <li><span key={index} className='text-red-500'>{error}</span></li> 
-                        ))
-                      }
-                    </ul>
-                  )}
-              </div>
-
+          <div className="bg-primary/10 p-5 rounded-md flex flex-col items-center gap-5 w-full max-w-100 mx-auto md:mx-0">
               <div className="flex flex-col gap-2 w-full">
                 <span className="uppercase text-xs font-semibold tracking-wide text-primary/80">Date d'échéance</span>
                 <input
