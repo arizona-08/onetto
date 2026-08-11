@@ -97,6 +97,8 @@ model Document {
   totalPrice Float
   createdAt DateTime @default(now())
   documentNumber String?
+  versionNumber Int @default(1)
+  isLastVersion Boolean @default(true)
   sourceDocumentId String?
   sourceDocument Document? @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
 
@@ -107,7 +109,7 @@ model Document {
   invoiceStatus InvoiceStatus @default(DRAFT)
   estimateStatus EstimateStatus @default(DRAFT)
 
-  @@unique([companyId, documentNumber])
+  @@unique([companyId, documentNumber, versionNumber])
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   services DocumentService[]
   negociations EstimateNegociation[]

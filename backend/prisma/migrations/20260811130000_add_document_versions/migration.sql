@@ -1,0 +1,1 @@
+ALTER TABLE "Document" ADD COLUMN "versionNumber" INTEGER NOT NULL DEFAULT 1;

@@ -35,6 +35,8 @@ export type DocumentDates = {
 export type Document = {
   id: string;
   documentNumber: string;
+  versionNumber: number;
+  isLastVersion: boolean;
   type: "INVOICE" | "ESTIMATE";
   sourceDocumentId?: string;
   clientName: string;
@@ -58,6 +60,7 @@ export type Document = {
     email: string;
   }
   isChecked?: boolean;
+  isEditable?: boolean;
 }
 
 export type InvoiceStatus = "DRAFT" | "PENDING" | "PAID" | "OVERDUE";
@@ -105,4 +108,11 @@ export type DocumentNegociation = {
   message: string;
   status: "PENDING" | "ACCEPTED" | "RENEGOCIATED" | "REJECTED";
   createdAt: string;
+};
+
+export type DocumentVersion = {
+  id: string;
+  versionNumber: number;
+  estimateStatus: EstimateStatus;
+  isEditable: boolean;
 };

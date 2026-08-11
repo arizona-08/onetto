@@ -293,7 +293,11 @@ export class DocumentService {
       const companyId = await this.getActiveCompanyId(user);
       const documents = await this.prismaService.document.findMany({
         where: {
-          companyId
+          companyId,
+          OR: [
+            { type: 'INVOICE' },
+            { type: 'ESTIMATE', isLastVersion: true },
+          ],
         }, 
         include: {
           services: withServices
@@ -327,7 +331,23 @@ export class DocumentService {
         throw new BadRequestException("Document introuvable ou vous n'avez pas la permission d'y accéder.");
       }
 
-      return document;
+      const latestVersion = await this.prismaService.document.findFirst({
+        where: {
+          companyId,
+          documentNumber: document.documentNumber,
+          type: document.type,
+        },
+        orderBy: { versionNumber: 'desc' },
+        select: { versionNumber: true },
+      });
+
+      return {
+        ...document,
+        isEditable:
+          document.type === 'ESTIMATE' &&
+          document.estimateStatus === 'DRAFT' &&
+          document.versionNumber === latestVersion?.versionNumber,
+      };
     } catch (error: unknown) {
       if (error instanceof HttpException) {
         throw error;
@@ -460,6 +480,112 @@ export class DocumentService {
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getDocumentVersions(documentId: string, user: User) {
+    const companyId = await this.getActiveCompanyId(user);
+    const document = await this.prismaService.document.findFirst({
+      where: { id: documentId, companyId },
+      select: { documentNumber: true, type: true },
+    });
+
+    if (!document) {
+      throw new BadRequestException("Document introuvable ou vous n'avez pas la permission d'y accéder.");
+    }
+
+    const versions = await this.prismaService.document.findMany({
+      where: {
+        companyId,
+        documentNumber: document.documentNumber,
+        type: document.type,
+      },
+      select: {
+        id: true,
+        versionNumber: true,
+        estimateStatus: true,
+      },
+      orderBy: { versionNumber: 'desc' },
+    });
+    const latestVersion = versions[0]?.versionNumber;
+
+    return versions.map((version) => ({
+      ...version,
+      isEditable:
+        document.type === 'ESTIMATE' &&
+        version.estimateStatus === 'DRAFT' &&
+        version.versionNumber === latestVersion,
+    }));
+  }
+
+  async createNewDocumentVersion(documentId: string, user: User) {
+    const companyId = await this.getActiveCompanyId(user, true);
+    const sourceDocument = await this.prismaService.document.findFirst({
+      where: {
+        id: documentId,
+        companyId,
+        type: 'ESTIMATE',
+        estimateStatus: 'SUPERSEDED',
+        isLastVersion: true,
+      },
+      include: { services: true },
+    });
+
+    if (!sourceDocument || !sourceDocument.documentNumber) {
+      throw new BadRequestException("Seul un devis remplacé peut donner lieu à une nouvelle version.");
+    }
+
+    return this.prismaService.$transaction(async (prisma) => {
+      const latestVersion = await prisma.document.findFirst({
+        where: {
+          companyId,
+          documentNumber: sourceDocument.documentNumber,
+          type: 'ESTIMATE',
+        },
+        orderBy: { versionNumber: 'desc' },
+        select: { versionNumber: true },
+      });
+
+      const document = await prisma.document.create({
+        data: {
+          companyId,
+          type: 'ESTIMATE',
+          documentNumber: sourceDocument.documentNumber,
+          versionNumber: (latestVersion?.versionNumber ?? 0) + 1,
+          isLastVersion: true,
+          clientName: sourceDocument.clientName,
+          clientEmail: sourceDocument.clientEmail,
+          clientAddress: sourceDocument.clientAddress,
+          clientCity: sourceDocument.clientCity,
+          clientPostalCode: sourceDocument.clientPostalCode,
+          clientCountry: sourceDocument.clientCountry,
+          totalPriceExcludingTax: sourceDocument.totalPriceExcludingTax,
+          totalPrice: sourceDocument.totalPrice,
+          paymentDueAt: sourceDocument.paymentDueAt,
+          estimateStatus: 'DRAFT',
+          invoiceStatus: 'DRAFT',
+        },
+      });
+
+      await prisma.document.update({
+        where: { id: sourceDocument.id },
+        data: { isLastVersion: false },
+      });
+
+      await prisma.documentService.createMany({
+        data: sourceDocument.services.map((service) => ({
+          documentId: document.id,
+          description: service.description,
+          quantity: service.quantity,
+          unitPrice: service.unitPrice,
+          unit: service.unit,
+          taxRate: service.taxRate,
+          wtPrice: service.wtPrice,
+          totalPrice: service.totalPrice,
+        })),
+      });
+
+      return { document };
     });
   }
 

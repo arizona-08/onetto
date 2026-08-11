@@ -1,11 +1,12 @@
 'use client'
 import { Document, DocumentNegociation } from '@/app/types'
-import { getDocumentNegociations, sendDocumentToClient } from '@/lib/documents/document';
+import { createNewDocumentVersion, getDocumentNegociations, sendDocumentToClient } from '@/lib/documents/document';
 import { Edit, ExternalLink, MessageSquareText, Send, Trash } from 'lucide-react';
 import DocumentDisplayComponent from '../molecules/DocumentDisplayComponent/DocumentDisplayComponent';
 import Link from 'next/link';
 import { useToast } from '../context/ToastContext';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface ShowDocumentProps {
   document: Document;
@@ -14,13 +15,13 @@ interface ShowDocumentProps {
 function ShowDocument({ document }: ShowDocumentProps) {
 
   const [negociations, setNegociations] = useState<DocumentNegociation[]>([]);
+  const [isCreatingVersion, setIsCreatingVersion] = useState(false);
+  const router = useRouter();
 
   const isEstimate = document.type === "ESTIMATE";
   
   const isDraftEstimate = document.type === "ESTIMATE" && document.estimateStatus === "DRAFT";
 
-  const isSentEstimate = document.type === "ESTIMATE" && document.estimateStatus === "SENT";
-  
   const isSupersededEstimate = document.type === "ESTIMATE" && document.estimateStatus === "SUPERSEDED";
 
   const isDraftInvoice = document.type === "INVOICE" && document.invoiceStatus === "DRAFT";
@@ -60,6 +61,19 @@ function ShowDocument({ document }: ShowDocumentProps) {
     showToast("Document envoyé avec succès", "success");
   }
 
+  async function handleCreateNewVersion() {
+    setIsCreatingVersion(true);
+    const response = await createNewDocumentVersion(document.id);
+    setIsCreatingVersion(false);
+
+    if (!response.ok) {
+      showToast("Impossible de créer une nouvelle version du devis.", "error");
+      return;
+    }
+
+    router.push(`/documents/${response.data.document.id}/update-draft`);
+  }
+
   return (
     <div className="p-5">
       <div className="flex items-center justify-between">
@@ -76,6 +90,15 @@ function ShowDocument({ document }: ShowDocumentProps) {
           )}
 
           <div className="modify-and-confirm flex items-center justify-between gap-4">
+            {isSupersededEstimate && (
+              <button
+                className="px-4 py-2 text-white bg-primary border border-primary hover:bg-primary/90 rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150 disabled:opacity-50"
+                onClick={handleCreateNewVersion}
+                disabled={isCreatingVersion}
+              >
+                {isCreatingVersion ? 'Création…' : 'Créer une nouvelle version'}
+              </button>
+            )}
             {isDraftEstimate && (
               <Link
                 href={ editLink || '#' } className="px-4 py-2 text-primary border border-primary hover:bg-primary hover:text-white  rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"

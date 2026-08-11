@@ -42,6 +42,16 @@ export class DocumentController {
     return await this.documentService.getNegociationsByDocument(documentId, user);
   }
 
+  @Get(":documentId/versions")
+  async getDocumentVersions(@Param("documentId") documentId: string, @Req() req: ExtendedRequest) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.getDocumentVersions(documentId, user);
+  }
+
   @Post("create")
   async createDocument(@Body() body: CreateDocumentDto, @Req() req: ExtendedRequest){
     const user = req.user;
@@ -72,5 +82,15 @@ export class DocumentController {
     }
 
     return await this.documentService.sendDocumentToClient(documentId, user);
+  }
+
+  @Post(":documentId/create-version")
+  async createDocumentVersion(@Param("documentId") documentId: string, @Req() req: ExtendedRequest) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.createNewDocumentVersion(documentId, user);
   }
 }

@@ -8,6 +8,7 @@ import { CheckCircle2, Send, X } from 'lucide-react';
 import DocumentForm from './DocumentForm';
 import DocumentPreview from './DocumentPreview';
 import { useToast } from '../../context/ToastContext';
+import DocumentVersionSelector from '../../molecules/DocumentVersionSelector';
 
 interface DocumentCreateProps {
   document?: Document,
@@ -70,6 +71,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
   const isInCreationEstimate = document && document?.type === "ESTIMATE" || mode === 'create';
   const isDraftEstimate = document && document?.type === "ESTIMATE" && document?.estimateStatus === "DRAFT";
   const isDraftInvoice = document && document?.type === "INVOICE" && document?.invoiceStatus === "DRAFT";
+  const isEditable = document?.isEditable ?? true;
   
 
   React.useEffect(() => {
@@ -180,19 +182,23 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
     <div className="relative bg-white p-4 rounded-md w-full max-w-6xl mx-auto overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-1 bg-primary opacity-75"></div>
 
-      <DocumentForm
-        onClientChange={setClient}
-        onLineItemsChange={setLineItems}
-        onDocumentDatesChange={setDocumentDates}
-        errors={{
-          documentDateErrors: documentDatesErrors as DocumentDateError | undefined,
-          documentClientErrors: documentClientErrors as DocumentClientError | undefined,
-          documentLineItemsErrors: documentLineItemsErrors as DocumentLineItemsError | undefined
-        }}
-        client={client}
-        lineItems={lineItems}
-        documentDates={documentDates}
-      />
+      {document && <div className="mb-5 flex items-center justify-between gap-4"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="edit" />{!isEditable && <p className="text-sm font-medium text-zinc-500">Cette version est en lecture seule.</p>}</div>}
+
+      <fieldset disabled={!isEditable} className={!isEditable ? 'opacity-50' : undefined}>
+        <DocumentForm
+          onClientChange={setClient}
+          onLineItemsChange={setLineItems}
+          onDocumentDatesChange={setDocumentDates}
+          errors={{
+            documentDateErrors: documentDatesErrors as DocumentDateError | undefined,
+            documentClientErrors: documentClientErrors as DocumentClientError | undefined,
+            documentLineItemsErrors: documentLineItemsErrors as DocumentLineItemsError | undefined
+          }}
+          client={client}
+          lineItems={lineItems}
+          documentDates={documentDates}
+        />
+      </fieldset>
 
       <DocumentPreview
         type="estimate"
@@ -205,7 +211,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
       <div className="w-full max-w-2xl mx-auto mt-12 flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row-reverse sm:items-center">
         <button
           type="button"
-          disabled={isLineItemsEmpty || isSending || isSent}
+          disabled={isLineItemsEmpty || isSending || isSent || !isEditable}
           onClick={handleConfirmAndSend}
           className="disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-white disabled:opacity-45"
         >
@@ -217,7 +223,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
 
         <button
           type="button"
-          disabled={isLineItemsEmpty || isSending || isSent}
+          disabled={isLineItemsEmpty || isSending || isSent || !isEditable}
           className="disabled:cursor-not-allowed disabled:opacity-45 rounded-md border border-primary bg-white px-3 py-2 font-semibold text-primary transition-colors duration-150 hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           onClick={handleSaveDraft}
         >

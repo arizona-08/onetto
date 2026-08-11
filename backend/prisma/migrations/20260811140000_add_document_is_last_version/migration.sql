@@ -1,0 +1,1 @@
+ALTER TABLE "Document" ADD COLUMN "isLastVersion" BOOLEAN NOT NULL DEFAULT true;

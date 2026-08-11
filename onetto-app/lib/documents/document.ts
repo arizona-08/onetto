@@ -1,4 +1,4 @@
-import { Document, DocumentNegociation } from "@/app/types";
+import { Document, DocumentNegociation, DocumentVersion } from "@/app/types";
 import { apiClient } from "../api";
 import { CreateDocumentDto } from "./dtos/create-document.dto";
 import { CreateDocumentResponse } from "./responses/create-document.response";
@@ -44,5 +44,17 @@ export async function sendDocumentToClient(documentId: string){
 export async function getDocumentNegociations(documentId: string) {
   return apiClient<DocumentNegociation[]>(`api/documents/${documentId}/negociations`, {
     method: "GET",
+  })
+}
+
+export async function getDocumentVersions(documentId: string) {
+  return apiClient<DocumentVersion[]>(`api/documents/${documentId}/versions`, {
+    method: "GET",
+  })
+}
+
+export async function createNewDocumentVersion(documentId: string) {
+  return apiClient<{ document: Document }>(`api/documents/${documentId}/create-version`, {
+    method: "POST",
   })
 }
