@@ -2,11 +2,14 @@ import { BadRequestException, HttpException, Injectable, InternalServerErrorExce
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateDocumentDto } from "./dtos/create-document.dto";
 import { User } from "src/types/extended-request.types";
+import { randomBytes } from "crypto";
+import { MailService } from "src/mail/mail.service";
 
 @Injectable()
 export class DocumentService {
   constructor(
-    private readonly prismaService: PrismaService
+    private readonly prismaService: PrismaService,
+    private readonly mailService: MailService
   ) {}
 
   async createDocument(data: CreateDocumentDto, user: User) {
@@ -334,6 +337,132 @@ export class DocumentService {
     }
   }
 
+  async getNegociationByToken(negociationToken: string) {
+    return this.prismaService.estimateNegociation.findUnique({
+      where: { negociationToken },
+      select: {
+        id: true,
+        message: true,
+        proposedTotalPrice: true,
+        status: true,
+        document: {
+          select: {
+            id: true,
+            documentNumber: true,
+            type: true,
+            clientName: true,
+            clientEmail: true,
+            clientAddress: true,
+            clientCity: true,
+            clientPostalCode: true,
+            clientCountry: true,
+            totalPrice: true,
+            totalPriceExcludingTax: true,
+            createdAt: true,
+            paymentDueAt: true,
+            services: {
+              select: {
+                id: true,
+                description: true,
+                quantity: true,
+                unitPrice: true,
+                unit: true,
+                taxRate: true,
+                wtPrice: true,
+                totalPrice: true,
+              },
+            },
+            company: {
+              select: {
+                name: true,
+                email: true,
+                phoneNumber: true,
+                siren: true,
+                address: true,
+                postalCode: true,
+                city: true,
+                country: true,
+                subjectToVat: true,
+                vatNumber: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async renegociateByToken(negociationToken: string, message: string) {
+    const result = await this.prismaService.$transaction(async (prisma) => {
+      const negociation = await prisma.estimateNegociation.findFirst({
+        where: { negociationToken, status: 'PENDING' },
+        select: { id: true, documentId: true },
+      });
+
+      if (!negociation) {
+        return null;
+      }
+
+      await prisma.estimateNegociation.update({
+        where: { id: negociation.id },
+        data: { message, status: 'RENEGOCIATED' },
+      });
+      await prisma.document.update({
+        where: { id: negociation.documentId },
+        data: { estimateStatus: 'SUPERSEDED' },
+      });
+
+      return { success: true };
+    });
+
+    return result;
+  }
+
+  async setNegociationStatus(negociationToken: string, status: 'ACCEPTED' | 'REJECTED') {
+    const result = await this.prismaService.$transaction(async (prisma) => {
+      const negociation = await prisma.estimateNegociation.findFirst({
+        where: { negociationToken, status: 'PENDING' },
+        select: { id: true, documentId: true },
+      });
+
+      if (!negociation) {
+        return null;
+      }
+
+      await prisma.estimateNegociation.update({
+        where: { id: negociation.id },
+        data: { status },
+      });
+
+      if (status === 'ACCEPTED' || status === 'REJECTED') {
+        await prisma.document.update({
+          where: { id: negociation.documentId },
+          data: { estimateStatus: status },
+        });
+      }
+
+      return { success: true };
+    });
+
+    return result;
+  }
+
+  async getNegociationsByDocument(documentId: string, user: User) {
+    const companyId = await this.getActiveCompanyId(user);
+
+    return this.prismaService.estimateNegociation.findMany({
+      where: { documentId, document: { companyId } },
+      select: {
+        id: true,
+        negociationToken: true,
+        message: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   private async getActiveCompanyId(user: User, requireActive = false): Promise<string> {
     if (!user.lastConnectedCompanyId) {
       throw new BadRequestException("Sélectionnez une entreprise avant de gérer des factures.");
@@ -378,5 +507,70 @@ export class DocumentService {
       console.error("Error deleting documents:", error);
       throw new InternalServerErrorException("Une erreur est survenue lors de la suppression des documents.");
     }
+  }
+
+  async sendDocumentToClient(documentId: string, user: User) {
+    try {
+      
+      const document = await this.getDocumentById(documentId, user, true);
+
+      if (!document) {
+        throw new BadRequestException("Document introuvable ou vous n'avez pas la permission d'y accéder.");
+      }
+
+      const canSend = await this.isCompanyUser(user.id, document.companyId);
+      if (!canSend) {
+        throw new BadRequestException("Vous n'avez pas la permission d'envoyer ce document.");
+      }
+
+      const negociationToken = randomBytes(16).toString('hex');
+
+      const negociation = await this.prismaService.estimateNegociation.create({
+        data: {
+          documentId: document.id,
+          message: "",
+          proposedTotalPrice: document.totalPrice,
+          negociationToken
+        }
+      });
+
+      const documentType = document.type === "INVOICE" ? "facture" : "devis";
+
+      // different de mailerService.sendMail
+      await this.mailService.sendMail({
+        to: document.clientEmail,
+        subject: `Votre ${documentType} ${document.documentNumber}`,
+        text: `Bonjour ${document.clientName},\n\nVous avez reçu un nouveau ${documentType} de la part de ${user.firstname} ${user.lastname}.\n\nVous pouvez consulter le ${documentType} en cliquant sur le lien suivant :\n\n${process.env.FRONTEND_URL}/negociations?token=${negociation.negociationToken}\n\nMerci.`
+      })
+
+      if (document.type === 'ESTIMATE') {
+        await this.prismaService.document.update({
+          where: { id: document.id },
+          data: { estimateStatus: 'SENT' },
+        });
+      }
+
+      return {
+        success: true,
+        message: "Document envoyé au client avec succès."
+      };
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      console.error("Error sending document to client:", error);
+      throw new InternalServerErrorException("Une erreur est survenue lors de l'envoi du document au client.");
+    }
+  }
+
+  async isCompanyUser(userId: string, companyId: string): Promise<boolean> {
+    const companyUser = await this.prismaService.companyUser.findFirst({
+      where: {
+        userId,
+        companyId
+      }
+    });
+
+    return !!companyUser;
   }
 }

@@ -32,6 +32,16 @@ export class DocumentController {
 
   }
 
+  @Get(":documentId/negociations")
+  async getDocumentNegociations(@Param("documentId") documentId: string, @Req() req: ExtendedRequest) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.getNegociationsByDocument(documentId, user);
+  }
+
   @Post("create")
   async createDocument(@Body() body: CreateDocumentDto, @Req() req: ExtendedRequest){
     const user = req.user;
@@ -52,5 +62,15 @@ export class DocumentController {
     }
   
     return await this.documentService.massDeleteDocuments(documentIds, user);
+  }
+
+  @Post(":documentId/send-to-client")
+  async sendDocumentToClient(@Param("documentId") documentId: string, @Req() req: ExtendedRequest) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.sendDocumentToClient(documentId, user);
   }
 }

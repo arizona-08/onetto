@@ -61,7 +61,7 @@ export type Document = {
 }
 
 export type InvoiceStatus = "DRAFT" | "PENDING" | "PAID" | "OVERDUE";
-export type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED";
+export type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "SUPERSEDED" | "REJECTED";
 
 
 export type DocumentService = {
@@ -75,3 +75,34 @@ export type DocumentService = {
   wtPrice: number;
   totalPrice: number;
 }
+
+export type PublicNegociation = {
+  id: string;
+  message: string;
+  proposedTotalPrice: number;
+  status: "PENDING" | "ACCEPTED" | "RENEGOCIATED" | "REJECTED";
+  document: Pick<Document, "id" | "documentNumber" | "type" | "clientName" | "clientEmail" | "clientAddress" | "clientCity" | "clientPostalCode" | "clientCountry" | "totalPrice" | "createdAt" | "paymentDueAt"> & {
+    totalPriceExcludingTax: number;
+    services: DocumentService[];
+    company: {
+      name: string;
+      email: string;
+      phoneNumber: string;
+      siren: string;
+      address: string;
+      postalCode: string;
+      city: string;
+      country: string;
+      subjectToVat: boolean;
+      vatNumber: string | null;
+    };
+  };
+};
+
+export type DocumentNegociation = {
+  id: string;
+  negociationToken: string;
+  message: string;
+  status: "PENDING" | "ACCEPTED" | "RENEGOCIATED" | "REJECTED";
+  createdAt: string;
+};

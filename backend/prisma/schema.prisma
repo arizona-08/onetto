@@ -110,6 +110,7 @@ model Document {
   @@unique([companyId, documentNumber])
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   services DocumentService[]
+  negociations EstimateNegociation[]
 }
 
 enum DocumentType {
@@ -128,6 +129,26 @@ enum EstimateStatus {
   DRAFT
   SENT
   ACCEPTED
+  SUPERSEDED
+  REJECTED
+}
+
+model EstimateNegociation {
+  id String @id @default(uuid())
+  documentId String
+  message String
+  proposedTotalPrice Float
+  createdAt DateTime @default(now())
+  negociationToken String @unique
+  status EstimateNegociationStatus @default(PENDING)
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+enum EstimateNegociationStatus {
+  PENDING
+  ACCEPTED
+  RENEGOCIATED
   REJECTED
 }
 
