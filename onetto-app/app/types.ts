@@ -2,7 +2,7 @@ export type Client = {
   id: string;
   name: string;
   email: string;
-  street: string;
+  address: string;
   city: string;
   postalCode: string;
   country: string;
@@ -26,14 +26,19 @@ export type ServiceLineItem = {
   unit: string
 }
 
-export type InvoiceDates = {
-  creationDate: string,
+export type DocumentDates = {
   dueDate: string
 }
 
-export type Invoice = {
+
+
+export type Document = {
   id: string;
-  invoiceNumber: string;
+  documentNumber: string;
+  versionNumber: number;
+  isLastVersion: boolean;
+  type: "INVOICE" | "ESTIMATE";
+  sourceDocumentId?: string;
   clientName: string;
   clientEmail: string;
   clientAddress: string;
@@ -44,8 +49,9 @@ export type Invoice = {
   authorId: string;
   createdAt: string;
   paymentDueAt: string;
-  status: InvoiceStatus;
-  services?: InvoiceService[]
+  invoiceStatus: InvoiceStatus;
+  estimateStatus: EstimateStatus;
+  services?: DocumentService[]
   urlDocumentPdf?: string;
   author: {
     id: string;
@@ -53,14 +59,17 @@ export type Invoice = {
     lastname: string;
     email: string;
   }
+  isChecked?: boolean;
+  isEditable?: boolean;
 }
 
 export type InvoiceStatus = "DRAFT" | "PENDING" | "PAID" | "OVERDUE";
+export type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "SUPERSEDED" | "REJECTED";
 
 
-export type InvoiceService = {
+export type DocumentService = {
   id: string;
-  invoiceId: string;
+  documentId: string;
   description: string;
   quantity: number;
   taxRate: number;
@@ -69,3 +78,41 @@ export type InvoiceService = {
   wtPrice: number;
   totalPrice: number;
 }
+
+export type PublicNegociation = {
+  id: string;
+  message: string;
+  proposedTotalPrice: number;
+  status: "PENDING" | "ACCEPTED" | "RENEGOCIATED" | "REJECTED";
+  document: Pick<Document, "id" | "documentNumber" | "type" | "clientName" | "clientEmail" | "clientAddress" | "clientCity" | "clientPostalCode" | "clientCountry" | "totalPrice" | "createdAt" | "paymentDueAt"> & {
+    totalPriceExcludingTax: number;
+    services: DocumentService[];
+    company: {
+      name: string;
+      email: string;
+      phoneNumber: string;
+      siren: string;
+      address: string;
+      postalCode: string;
+      city: string;
+      country: string;
+      subjectToVat: boolean;
+      vatNumber: string | null;
+    };
+  };
+};
+
+export type DocumentNegociation = {
+  id: string;
+  negociationToken: string;
+  message: string;
+  status: "PENDING" | "ACCEPTED" | "RENEGOCIATED" | "REJECTED";
+  createdAt: string;
+};
+
+export type DocumentVersion = {
+  id: string;
+  versionNumber: number;
+  estimateStatus: EstimateStatus;
+  isEditable: boolean;
+};

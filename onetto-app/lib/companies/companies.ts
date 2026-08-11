@@ -14,6 +14,10 @@ export function getCompany(companyId: string) {
   return apiClient<Company>(`api/companies/${companyId}`);
 }
 
+export function getMyActiveCompany() {
+  return apiClient<Company | null>("api/companies/active");
+}
+
 export function createCompany(data: CreateCompanyDto) {
   return apiClient<{ success: true; company: Company }>("api/companies", {
     method: "POST",

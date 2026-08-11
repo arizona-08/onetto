@@ -54,7 +54,7 @@ model Company {
   closingReason String?
   closedAt DateTime?
 
-  invoices Invoice[]
+  documents Document[]
   owner User @relation(fields: [ownerId], references: [id])
   companyUsers CompanyUser[]
   lastConnectedUsers User[] @relation("LastConnectedCompany")
@@ -83,8 +83,9 @@ enum CompanyUserRole {
   EMPLOYEE
 }
 
-model Invoice {
+model Document {
   id String @id @default(uuid())
+  type DocumentType @default(ESTIMATE)
   companyId String
   clientName String
   clientEmail String
@@ -95,14 +96,28 @@ model Invoice {
   totalPriceExcludingTax Float
   totalPrice Float
   createdAt DateTime @default(now())
-  invoiceNumber String
+  documentNumber String?
+  versionNumber Int @default(1)
+  isLastVersion Boolean @default(true)
+  sourceDocumentId String?
+  sourceDocument Document? @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+
+  convertedDocuments Document[] @relation("DocumentConversion")
+
   urlDocumentPdf String?
   paymentDueAt DateTime
-  status InvoiceStatus @default(DRAFT)
+  invoiceStatus InvoiceStatus @default(DRAFT)
+  estimateStatus EstimateStatus @default(DRAFT)
 
-  @@unique([companyId, invoiceNumber])
+  @@unique([companyId, documentNumber, versionNumber])
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  services InvoiceService[]
+  services DocumentService[]
+  negociations EstimateNegociation[]
+}
+
+enum DocumentType {
+  ESTIMATE
+  INVOICE
 }
 
 enum InvoiceStatus {
@@ -112,9 +127,36 @@ enum InvoiceStatus {
   OVERDUE
 }
 
-model InvoiceService {
+enum EstimateStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  SUPERSEDED
+  REJECTED
+}
+
+model EstimateNegociation {
   id String @id @default(uuid())
-  invoiceId String
+  documentId String
+  message String
+  proposedTotalPrice Float
+  createdAt DateTime @default(now())
+  negociationToken String @unique
+  status EstimateNegociationStatus @default(PENDING)
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+enum EstimateNegociationStatus {
+  PENDING
+  ACCEPTED
+  RENEGOCIATED
+  REJECTED
+}
+
+model DocumentService {
+  id String @id @default(uuid())
+  documentId String
   description String
   quantity Int
   unitPrice Float
@@ -123,7 +165,7 @@ model InvoiceService {
   wtPrice Float
   totalPrice Float
 
-  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
 model UserService {

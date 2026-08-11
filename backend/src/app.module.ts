@@ -5,8 +5,9 @@ import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
-import { InvoiceModule } from './invoices/invoice.module';
+import { DocumentModule } from './documents/document.module';
 import { CompaniesModule } from './companies/companies.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
@@ -15,8 +16,10 @@ import { CompaniesModule } from './companies/companies.module';
     PrismaModule,
     AuthModule,
     UserModule,
-    InvoiceModule,
-    CompaniesModule
+    DocumentModule,
+    CompaniesModule,
+    MailModule, // custom mail module for sending emails
+    
   ],
   controllers: [AppController],
   providers: [AppService],

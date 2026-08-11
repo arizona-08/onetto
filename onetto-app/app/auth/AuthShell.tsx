@@ -11,7 +11,7 @@ function AuthShell({ title, subtitle, children }: AuthShellProps) {
   return (
     <main className="min-h-screen bg-background px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center justify-center">
-        <section className="w-full max-w-md">
+        <section className="w-full max-w-2xl">
           <Link href="/" className="mb-5 block font-title text-center text-3xl font-black text-primary">
             ONETTO
           </Link>

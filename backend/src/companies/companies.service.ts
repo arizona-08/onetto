@@ -84,6 +84,25 @@ export class CompaniesService {
     return this.getOwnedCompany(companyId, userId);
   }
 
+  async getMyActiveCompany(userId: string) {
+    try{
+      const user = await this.prismaService.user.findUnique({
+        where: { id: userId },
+        select: { lastConnectedCompany: true },
+      });
+
+      if (!user?.lastConnectedCompany) {
+        return null;
+      }
+
+      return {
+        ...(user.lastConnectedCompany)
+      }
+    } catch (error) {
+      this.handleDatabaseError(error, "récupération de l'entreprise active.");
+    }
+  }
+
   async updateCompany(companyId: string, data: UpdateCompanyDto, userId: string) {
     const company = await this.getOwnedCompany(companyId, userId);
     if (company.status === "CLOSED") {
@@ -192,7 +211,7 @@ export class CompaniesService {
       throw new BadRequestException("Une entreprise fermée est conservée pour des raisons légales et ne peut pas être supprimée.");
     }
 
-    const invoicesCount = await this.prismaService.invoice.count({ where: { companyId } });
+    const invoicesCount = await this.prismaService.document.count({ where: { companyId, type: "INVOICE" } });
     if (invoicesCount > 0) {
       throw new BadRequestException("Cette entreprise possède des factures et ne peut pas être supprimée.");
     }

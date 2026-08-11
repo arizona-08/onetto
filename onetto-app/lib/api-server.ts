@@ -16,15 +16,11 @@ function isRefreshPath(path: string): boolean {
   return path.replace(/^\/+/, "") === "api/auth/refresh";
 }
 
-function getAccessToken(payload: unknown): string | undefined {
-  if (!payload || typeof payload !== "object") {
-    return undefined;
-  }
+function getAccessTokenFromSetCookie(response: Response): string | undefined {
+  const setCookie = response.headers.get("set-cookie");
+  const match = setCookie?.match(/(?:^|,\s*)access_token=([^;]+)/);
 
-  const tokenPayload = payload as { accessToken?: unknown; access_token?: unknown };
-  const token = tokenPayload.accessToken ?? tokenPayload.access_token;
-
-  return typeof token === "string" ? token : undefined;
+  return match?.[1];
 }
 
 async function getServerHeaders(options?: RequestInit, accessToken?: string): Promise<Headers> {
@@ -60,7 +56,7 @@ async function fetchServerApi(path: string, options?: RequestInit, accessToken?:
 }
 
 async function refreshServerAccessToken(options?: RequestInit): Promise<string | undefined> {
-  const { res, payload } = await fetchServerApi("/api/auth/refresh", {
+  const { res } = await fetchServerApi("/api/auth/refresh", {
     method: "POST",
     headers: options?.headers,
   });
@@ -69,7 +65,7 @@ async function refreshServerAccessToken(options?: RequestInit): Promise<string |
     return undefined;
   }
 
-  return getAccessToken(payload);
+  return getAccessTokenFromSetCookie(res);
 }
 
 export async function apiServer<T, E = ApiError>(path: string, options?: RequestInit): Promise<Result<T, E>> {

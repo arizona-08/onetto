@@ -27,7 +27,7 @@ function ClientCard({ client, triggerEdit, triggerDelete }: ClientCardProps) {
         />
       </div>
       <h4 className="text-xl font-bold font-title mb-2">{client.name}</h4>
-      <p className="text-sm text-zinc-400">{client.street} {client.postalCode}, {client.city}, {client.country}</p>
+      <p className="text-sm text-zinc-400">{client.address} {client.postalCode}, {client.city}, {client.country}</p>
       {/* <div className="mt-4 flex items-center justify-between">
         <p><span className="font-semibold">{client.unitPrice !== '' ? client.unitPrice : 'N/A'}€</span> <span className="text-sm text-zinc-400">/ {client.unit}</span></p>
         <span className="inline-block px-2 py-1 rounded-full text-xs text-zinc-50 bg-primary">TVA: {client.taxRate}%</span>
