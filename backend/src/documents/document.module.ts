@@ -7,10 +7,11 @@ import { JwtModule } from "@nestjs/jwt";
 import { UserModule } from "src/user/user.module";
 import { MailModule } from "src/mail/mail.module";
 import { NegociationController } from "./negociation.controller";
+import { InvoicePdfService } from "./invoice-pdf.service";
 
 @Module({
   imports: [PrismaModule, UserModule, AuthModule, JwtModule, MailModule],
   controllers: [DocumentController, NegociationController],
-  providers: [DocumentService],
+  providers: [DocumentService, InvoicePdfService],
 })
 export class DocumentModule {}

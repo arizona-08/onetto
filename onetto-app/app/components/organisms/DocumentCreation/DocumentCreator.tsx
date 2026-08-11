@@ -34,7 +34,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
   useEffect(() => {
     if(document) {
       setClient({
-        id: 'TEMP-ID',
+        id: document.id ?? 'TEMP-ID',
         name: document.clientName,
         email: document.clientEmail,
         address: document.clientAddress,
@@ -71,7 +71,14 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
   const isInCreationEstimate = document && document?.type === "ESTIMATE" || mode === 'create';
   const isDraftEstimate = document && document?.type === "ESTIMATE" && document?.estimateStatus === "DRAFT";
   const isDraftInvoice = document && document?.type === "INVOICE" && document?.invoiceStatus === "DRAFT";
+  const isInvoice = document?.type === "INVOICE";
   const isEditable = document?.isEditable ?? true;
+  const isInvoiceContentLocked = Boolean(isInvoice);
+  // `isEditable` originated from estimate-version handling. A draft invoice is
+  // editable only for its due date, independently of that estimate-only flag.
+  const canEditInvoiceDueDate = Boolean(isDraftInvoice);
+  const canEditDocument = isInvoice ? canEditInvoiceDueDate : isEditable;
+  const issuanceDate = isInvoice ? (document?.sentAt ?? new Date().toISOString()) : (document?.createdAt ?? new Date().toISOString());
   
 
   React.useEffect(() => {
@@ -136,7 +143,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
     }
 
     if (!response.data.document) {
-      showToast("Le devis a été enregistré, mais son envoi est impossible.", "error");
+      showToast("Le document a été enregistré, mais son envoi est impossible.", "error");
       return null;
     }
 
@@ -166,7 +173,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
     setIsSending(false);
 
     if (!response.ok) {
-      showToast("Le devis est enregistré, mais l’envoi au client a échoué.", "error");
+      showToast("Le document est enregistré, mais l’envoi au client a échoué.", "error");
       return;
     }
 
@@ -184,7 +191,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
 
       {document && <div className="mb-5 flex items-center justify-between gap-4"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="edit" />{!isEditable && <p className="text-sm font-medium text-zinc-500">Cette version est en lecture seule.</p>}</div>}
 
-      <fieldset disabled={!isEditable} className={!isEditable ? 'opacity-50' : undefined}>
+      <fieldset disabled={!canEditDocument}>
         <DocumentForm
           onClientChange={setClient}
           onLineItemsChange={setLineItems}
@@ -197,21 +204,22 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
           client={client}
           lineItems={lineItems}
           documentDates={documentDates}
+          lockInvoiceContent={isInvoiceContentLocked}
         />
       </fieldset>
 
       <DocumentPreview
-        type="estimate"
+        type={document?.type.toLocaleLowerCase() as "estimate" | "invoice" ?? "estimate"}
         client={client}
         lineItems={lineItems}
         documentDates={documentDates}
-        creationDate={document?.createdAt ?? new Date().toISOString()}
+        creationDate={issuanceDate}
       />
 
       <div className="w-full max-w-2xl mx-auto mt-12 flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row-reverse sm:items-center">
         <button
           type="button"
-          disabled={isLineItemsEmpty || isSending || isSent || !isEditable}
+          disabled={isLineItemsEmpty || isSending || isSent || !canEditDocument}
           onClick={handleConfirmAndSend}
           className="disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-white disabled:opacity-45"
         >
@@ -223,7 +231,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
 
         <button
           type="button"
-          disabled={isLineItemsEmpty || isSending || isSent || !isEditable}
+          disabled={isSending || isSent || !canEditDocument}
           className="disabled:cursor-not-allowed disabled:opacity-45 rounded-md border border-primary bg-white px-3 py-2 font-semibold text-primary transition-colors duration-150 hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           onClick={handleSaveDraft}
         >
@@ -242,9 +250,9 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
           </span>
 
           <div className="min-w-0 flex-1">
-            <p className="font-title text-sm font-bold">{successToastType === 'sent' ? 'Devis envoyé' : 'Brouillon enregistré'}</p>
+            <p className="font-title text-sm font-bold">{successToastType === 'sent' ? (isInvoice ? 'Facture envoyée' : 'Devis envoyé') : 'Brouillon enregistré'}</p>
             <p className="mt-0.5 text-xs leading-relaxed text-emerald-50">
-              {successToastType === 'sent' ? 'Le devis et son lien de négociation ont été envoyés au client.' : 'Le brouillon du devis a bien été enregistré.'}
+              {successToastType === 'sent' ? `${isInvoice ? 'La facture et son lien ont été envoyés au client.' : 'Le devis et son lien ont été envoyés au client.'}` : 'Le brouillon a bien été enregistré.'}
             </p>
           </div>
 

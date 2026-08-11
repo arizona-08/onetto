@@ -15,6 +15,7 @@ const invoiceStatusStyles: Record<string, string> = {
   PAID: 'bg-indigo-100 text-indigo-700',
   PENDING: 'bg-orange-200 text-orange-700',
   DRAFT: 'bg-gray-200 text-gray-700 md:bg-gray-100',
+  SENT: 'bg-blue-100 text-blue-700',
 }
 
 const estimateStatusStyles: Record<string, string> = {

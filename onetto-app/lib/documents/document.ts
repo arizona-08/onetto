@@ -58,3 +58,9 @@ export async function createNewDocumentVersion(documentId: string) {
     method: "POST",
   })
 }
+
+export async function convertEstimateToInvoice(estimateId: string) {
+  return apiClient<{ document: Document }>(`api/documents/${estimateId}/turn-into-invoice`, {
+    method: "POST",
+  })
+}

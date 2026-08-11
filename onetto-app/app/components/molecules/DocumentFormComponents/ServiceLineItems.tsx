@@ -11,9 +11,10 @@ interface ServiceLineItemsProps {
   onLineItemsChange: (lineItems: ServiceLineItem[]) => void;
   onDocumentDatesChange: (dates: DocumentDates) => void;
   documentDateErrors?: DocumentDateError,
-  documentLineItemsErrors?: DocumentLineItemsError
+  documentLineItemsErrors?: DocumentLineItemsError,
+  disabled?: boolean
 }
-function ServiceLineItems({ hydratedLineItems, hydratedDocumentDates, onLineItemsChange, onDocumentDatesChange, documentDateErrors, documentLineItemsErrors }: ServiceLineItemsProps) {
+function ServiceLineItems({ hydratedLineItems, hydratedDocumentDates, onLineItemsChange, onDocumentDatesChange, documentDateErrors, documentLineItemsErrors, disabled = false }: ServiceLineItemsProps) {
 
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
 
@@ -93,8 +94,9 @@ function ServiceLineItems({ hydratedLineItems, hydratedDocumentDates, onLineItem
 
   return (
     <>
-      <AddLineItemModal isVisible={isModalVisible} onClose={handleOnCloseModal} onAddLineItem={handleOnAddLineItem} lineItemToModify={lineItemToModify} onEditLineItem={handleOnEditLineItem} />
+      <AddLineItemModal isVisible={!disabled && isModalVisible} onClose={handleOnCloseModal} onAddLineItem={handleOnAddLineItem} lineItemToModify={lineItemToModify} onEditLineItem={handleOnEditLineItem} />
       <div className="border border-gray-200 rounded-md p-4 mb-6">
+        <div className={disabled ? 'opacity-50 pointer-events-none' : undefined}>
         <header className="flex flex-col items-center mb-10 md:flex-row md:justify-between">
           <div className='flex items-center gap-4 w-full md:w-fit'>
             <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold font-title">
@@ -104,7 +106,7 @@ function ServiceLineItems({ hydratedLineItems, hydratedDocumentDates, onLineItem
           </div>
 
           <div className="mt-2 md:mt-0">
-            <button className="flex items-center gap-2 text-sm text-primary font-medium hover:text-primary-hover transition-colors" onClick={() => setIsModalVisible(true)}>
+            <button disabled={disabled} className="flex items-center gap-2 text-sm text-primary font-medium hover:text-primary-hover transition-colors" onClick={() => setIsModalVisible(true)}>
               <Plus size={16} />
               <span>Ajouter un service</span>
             </button>
@@ -139,13 +141,13 @@ function ServiceLineItems({ hydratedLineItems, hydratedDocumentDates, onLineItem
                   <td className="py-4 border-b border-gray-200">{totalHT} €</td>
                   <td className="py-4 border-b border-gray-200 font-semibold">{totalTTC} €</td>
                   <td className="py-4 border-b border-gray-200">
-                    <button className="text-primary hover:text-primary-hover" onClick={() => {
+                    <button disabled={disabled} className="text-primary hover:text-primary-hover" onClick={() => {
                       setLineItemToModify({ item: lineItem, index })
                       setIsModalVisible(true)
                     }}>
                       <Edit size={16} />
                     </button>
-                    <button className="text-danger hover:text-danger-hover ml-2" onClick={() => deleteLineItem(index)}>
+                    <button disabled={disabled} className="text-danger hover:text-danger-hover ml-2" onClick={() => deleteLineItem(index)}>
                       <Trash2 size={16} />
                     </button>
                   </td>
@@ -156,6 +158,7 @@ function ServiceLineItems({ hydratedLineItems, hydratedDocumentDates, onLineItem
           </table>
         </div>
 
+        </div>
         <div className="mt-10 flex justify-end gap-4">
           <div className="bg-primary/10 p-5 rounded-md flex flex-col items-center gap-5 w-full max-w-100 mx-auto md:mx-0">
               <div className="flex flex-col gap-2 w-full">

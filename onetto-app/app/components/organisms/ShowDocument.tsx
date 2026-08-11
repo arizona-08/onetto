@@ -1,7 +1,7 @@
 'use client'
 import { Document, DocumentNegociation } from '@/app/types'
-import { createNewDocumentVersion, getDocumentNegociations, sendDocumentToClient } from '@/lib/documents/document';
-import { Edit, ExternalLink, MessageSquareText, Send, Trash } from 'lucide-react';
+import { convertEstimateToInvoice, createNewDocumentVersion, getDocumentNegociations, sendDocumentToClient } from '@/lib/documents/document';
+import { Edit, ExternalLink, FileChartColumnIncreasing, MessageSquareText, Send, Trash } from 'lucide-react';
 import DocumentDisplayComponent from '../molecules/DocumentDisplayComponent/DocumentDisplayComponent';
 import Link from 'next/link';
 import { useToast } from '../context/ToastContext';
@@ -24,15 +24,9 @@ function ShowDocument({ document }: ShowDocumentProps) {
 
   const isSupersededEstimate = document.type === "ESTIMATE" && document.estimateStatus === "SUPERSEDED";
 
+  const isAcceptedEstimate = document.type === "ESTIMATE" && document.estimateStatus === "ACCEPTED";
+
   const isDraftInvoice = document.type === "INVOICE" && document.invoiceStatus === "DRAFT";
-
-  let editLink;
-
-  if(isDraftEstimate){
-    editLink = `/documents/${document.id}/update-draft`;
-  } else if(isSupersededEstimate){
-    editLink = `/documents/${document.id}/update-sent`;
-  }
 
   const { showToast } = useToast();
 
@@ -50,12 +44,13 @@ function ShowDocument({ document }: ShowDocumentProps) {
   async function handleSendDocument(){
     let response;
 
-    if(isDraftEstimate){
+    if(isDraftEstimate || isDraftInvoice){
       response = await sendDocumentToClient(document.id);
     }
 
     if(!response?.ok){
       showToast("Erreur lors de l'envoi du document", "error");
+      return;
     }
 
     showToast("Document envoyé avec succès", "success");
@@ -72,6 +67,19 @@ function ShowDocument({ document }: ShowDocumentProps) {
     }
 
     router.push(`/documents/${response.data.document.id}/update-draft`);
+  }
+
+  async function handleCreateInvoiceFromEstimate() {
+    const response = await convertEstimateToInvoice(document.id);
+    if(!response.ok) {
+      showToast("Impossible de créer la facture à partir du devis.", "error");
+      return;
+    }
+
+    const invoice = response.data.document
+    const newInvoiceId = invoice.id;
+
+    router.push(`/documents/${newInvoiceId}/update-invoice`);
   }
 
   return (
@@ -99,16 +107,15 @@ function ShowDocument({ document }: ShowDocumentProps) {
                 {isCreatingVersion ? 'Création…' : 'Créer une nouvelle version'}
               </button>
             )}
-            {isDraftEstimate && (
+
+            {(isDraftEstimate || isDraftInvoice) && (
               <Link
-                href={ editLink || '#' } className="px-4 py-2 text-primary border border-primary hover:bg-primary hover:text-white  rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
+                href={`/documents/${document.id}/update-draft`} className="px-4 py-2 text-primary border border-primary hover:bg-primary hover:text-white  rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
               >
                 Modifier
                 <Edit className="w-4 h-4" />
               </Link>
             )}
-
-            
 
             {(isDraftEstimate || isDraftInvoice) && (
               <button
@@ -116,6 +123,15 @@ function ShowDocument({ document }: ShowDocumentProps) {
                 onClick={handleSendDocument}
               >
                 Confirmer et envoyer <Send />
+              </button>
+            )}
+
+            {isAcceptedEstimate && (
+              <button
+                onClick={handleCreateInvoiceFromEstimate}
+                className="px-4 py-2 text-white bg-primary border border-primary hover:bg-primary/90 rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
+              >
+                Transformer en facture <FileChartColumnIncreasing className="w-5 h-5" />
               </button>
             )}
           </div>

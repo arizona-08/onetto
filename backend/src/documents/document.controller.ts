@@ -93,4 +93,15 @@ export class DocumentController {
 
     return await this.documentService.createNewDocumentVersion(documentId, user);
   }
+
+  @Post(":estimateId/turn-into-invoice")
+  async turnEstimateIntoInvoice(@Param("estimateId") estimateId: string, @Req() req: ExtendedRequest) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.convertEstimateToInvoice(estimateId, user);
+  }
 }
+  

@@ -4,12 +4,14 @@ import { CreateDocumentDto } from "./dtos/create-document.dto";
 import { User } from "src/types/extended-request.types";
 import { randomBytes } from "crypto";
 import { MailService } from "src/mail/mail.service";
+import { InvoicePdfService } from "./invoice-pdf.service";
 
 @Injectable()
 export class DocumentService {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly mailService: MailService
+    private readonly mailService: MailService,
+    private readonly invoicePdfService: InvoicePdfService,
   ) {}
 
   async createDocument(data: CreateDocumentDto, user: User) {
@@ -99,6 +101,22 @@ export class DocumentService {
 
       if (!document) {
         throw new BadRequestException("Document introuvable ou vous n'avez pas la permission d'y accéder.");
+      }
+
+      if (document.type === "INVOICE") {
+        if (document.invoiceStatus !== "DRAFT") {
+          throw new BadRequestException("Une facture envoyée ne peut plus être modifiée.");
+        }
+
+        const updatedDocument = await this.prismaService.document.update({
+          where: { id: document.id },
+          data: { paymentDueAt: new Date(data.documentDates.dueDate) },
+        });
+
+        return {
+          message: "Date d'échéance de la facture mise à jour avec succès.",
+          document: updatedDocument,
+        };
       }
 
       const totalPriceExludingTax = lineItems.reduce((acc, item) => {
@@ -257,7 +275,7 @@ export class DocumentService {
 
       return {
         message: "Devis converti en facture avec succès.",
-        invoice
+        document: invoice
       };
     } catch (error: unknown) {
       if (error instanceof HttpException) {
@@ -344,9 +362,10 @@ export class DocumentService {
       return {
         ...document,
         isEditable:
-          document.type === 'ESTIMATE' &&
-          document.estimateStatus === 'DRAFT' &&
-          document.versionNumber === latestVersion?.versionNumber,
+          (document.type === 'ESTIMATE' &&
+            document.estimateStatus === 'DRAFT' &&
+            document.versionNumber === latestVersion?.versionNumber) ||
+          (document.type === 'INVOICE' && document.invoiceStatus === 'DRAFT'),
       };
     } catch (error: unknown) {
       if (error instanceof HttpException) {
@@ -379,6 +398,7 @@ export class DocumentService {
             totalPrice: true,
             totalPriceExcludingTax: true,
             createdAt: true,
+            sentAt: true,
             paymentDueAt: true,
             services: {
               select: {
@@ -415,7 +435,7 @@ export class DocumentService {
   async renegociateByToken(negociationToken: string, message: string) {
     const result = await this.prismaService.$transaction(async (prisma) => {
       const negociation = await prisma.estimateNegociation.findFirst({
-        where: { negociationToken, status: 'PENDING' },
+        where: { negociationToken, status: 'PENDING', document: { type: 'ESTIMATE' } },
         select: { id: true, documentId: true },
       });
 
@@ -441,7 +461,7 @@ export class DocumentService {
   async setNegociationStatus(negociationToken: string, status: 'ACCEPTED' | 'REJECTED') {
     const result = await this.prismaService.$transaction(async (prisma) => {
       const negociation = await prisma.estimateNegociation.findFirst({
-        where: { negociationToken, status: 'PENDING' },
+        where: { negociationToken, status: 'PENDING', document: { type: 'ESTIMATE' } },
         select: { id: true, documentId: true },
       });
 
@@ -649,30 +669,60 @@ export class DocumentService {
         throw new BadRequestException("Vous n'avez pas la permission d'envoyer ce document.");
       }
 
-      const negociationToken = randomBytes(16).toString('hex');
+      if (document.type === "INVOICE" && document.invoiceStatus !== "DRAFT") {
+        throw new BadRequestException("Cette facture a déjà été envoyée.");
+      }
 
-      const negociation = await this.prismaService.estimateNegociation.create({
+      const isInvoice = document.type === "INVOICE";
+      const documentType = isInvoice ? "facture" : "devis";
+      const negociation = !isInvoice ? await this.prismaService.estimateNegociation.create({
         data: {
           documentId: document.id,
           message: "",
           proposedTotalPrice: document.totalPrice,
-          negociationToken
-        }
-      });
+          negociationToken: randomBytes(16).toString('hex'),
+        },
+      }) : null;
+      const documentUrl = negociation ? `${process.env.FRONTEND_URL}/negociations?token=${negociation.negociationToken}` : null;
+      const company = isInvoice ? await this.prismaService.company.findUnique({
+        where: { id: document.companyId },
+        select: { name: true, email: true, phoneNumber: true, siren: true, address: true, postalCode: true, city: true, country: true, vatNumber: true, IBAN: true, BIC: true },
+      }) : null;
 
-      const documentType = document.type === "INVOICE" ? "facture" : "devis";
+      if (isInvoice && !company) {
+        throw new BadRequestException("Entreprise introuvable pour cette facture.");
+      }
 
-      // different de mailerService.sendMail
+      const invoicePdf = isInvoice ? await this.invoicePdfService.generate({
+        ...document,
+        sentAt: new Date(),
+        company: company!,
+      }) : null;
+      const text = isInvoice
+        ? `Bonjour ${document.clientName},\n\nVeuillez trouver en pièce jointe votre facture ${document.documentNumber}, émise par ${company!.name}.\n\nMontant total : ${document.totalPrice.toFixed(2)} €\nDate d'échéance : ${document.paymentDueAt.toLocaleDateString('fr-FR')}\n\nMerci.`
+        : `Bonjour ${document.clientName},\n\nVous avez reçu un nouveau devis de la part de ${user.firstname} ${user.lastname}.\n\nVous pouvez consulter le devis en cliquant sur le lien suivant :\n\n${documentUrl}\n\nMerci.`;
+      const html = isInvoice ? `<div style="margin:0;padding:32px 16px;background:#f6f6f8;font-family:Arial,sans-serif;color:#18181b"><table role="presentation" style="max-width:600px;margin:auto;background:#fff;border-radius:14px;overflow:hidden;border-collapse:collapse"><tr><td style="padding:32px"><div style="display:inline-block;padding:7px 11px;border-radius:999px;background:#eeedff;color:#635bff;font-size:12px;font-weight:700">FACTURE</div><h1 style="margin:20px 0 8px;font-size:28px;letter-spacing:-.5px">Votre facture est prête</h1><p style="margin:0;color:#71717a;line-height:1.6">Bonjour ${document.clientName},</p><p style="margin:20px 0;color:#52525b;line-height:1.6">Veuillez trouver en pièce jointe votre facture <strong>${document.documentNumber}</strong>.</p><table role="presentation" style="width:100%;margin:24px 0;background:#fafafa;border-radius:10px"><tr><td style="padding:16px;color:#71717a">Montant total</td><td style="padding:16px;text-align:right;font-weight:700;color:#635bff">${document.totalPrice.toFixed(2)} €</td></tr><tr><td style="padding:0 16px 16px;color:#71717a">Date d’échéance</td><td style="padding:0 16px 16px;text-align:right;font-weight:700">${document.paymentDueAt.toLocaleDateString('fr-FR')}</td></tr></table><p style="margin:0;color:#71717a;font-size:13px;line-height:1.6">Pour toute question, vous pouvez contacter ${company!.name} à ${company!.email}.</p></td></tr><tr><td style="padding:18px 32px;background:#635bff;color:#fff;font-size:12px">${company!.name} · ${company!.email}</td></tr></table></div>` : undefined;
+
       await this.mailService.sendMail({
         to: document.clientEmail,
         subject: `Votre ${documentType} ${document.documentNumber}`,
-        text: `Bonjour ${document.clientName},\n\nVous avez reçu un nouveau ${documentType} de la part de ${user.firstname} ${user.lastname}.\n\nVous pouvez consulter le ${documentType} en cliquant sur le lien suivant :\n\n${process.env.FRONTEND_URL}/negociations?token=${negociation.negociationToken}\n\nMerci.`
+        text,
+        html,
+        attachments: invoicePdf ? [{ filename: `facture-${document.documentNumber?.replace(/[^a-zA-Z0-9]/g, '') ?? document.id}.pdf`, content: invoicePdf, contentType: 'application/pdf' }] : undefined,
       })
 
       if (document.type === 'ESTIMATE') {
         await this.prismaService.document.update({
           where: { id: document.id },
           data: { estimateStatus: 'SENT' },
+        });
+      } else {
+        await this.prismaService.document.update({
+          where: { id: document.id },
+          data: {
+            invoiceStatus: 'SENT',
+            sentAt: new Date(),
+          },
         });
       }
 

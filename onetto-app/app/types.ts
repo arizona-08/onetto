@@ -48,6 +48,7 @@ export type Document = {
   totalPrice: number;
   authorId: string;
   createdAt: string;
+  sentAt?: string | null;
   paymentDueAt: string;
   invoiceStatus: InvoiceStatus;
   estimateStatus: EstimateStatus;
@@ -63,7 +64,7 @@ export type Document = {
   isEditable?: boolean;
 }
 
-export type InvoiceStatus = "DRAFT" | "PENDING" | "PAID" | "OVERDUE";
+export type InvoiceStatus = "DRAFT" | "SENT" | "PENDING" | "PAID" | "OVERDUE";
 export type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "SUPERSEDED" | "REJECTED";
 
 
@@ -84,7 +85,7 @@ export type PublicNegociation = {
   message: string;
   proposedTotalPrice: number;
   status: "PENDING" | "ACCEPTED" | "RENEGOCIATED" | "REJECTED";
-  document: Pick<Document, "id" | "documentNumber" | "type" | "clientName" | "clientEmail" | "clientAddress" | "clientCity" | "clientPostalCode" | "clientCountry" | "totalPrice" | "createdAt" | "paymentDueAt"> & {
+  document: Pick<Document, "id" | "documentNumber" | "type" | "clientName" | "clientEmail" | "clientAddress" | "clientCity" | "clientPostalCode" | "clientCountry" | "totalPrice" | "createdAt" | "sentAt" | "paymentDueAt"> & {
     totalPriceExcludingTax: number;
     services: DocumentService[];
     company: {

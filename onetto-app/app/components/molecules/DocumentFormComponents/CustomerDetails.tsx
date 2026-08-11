@@ -9,6 +9,7 @@ interface CustomerDetailsProps {
   client?: Client | null;
   onClientChange: (client: Client | null) => void;
   documentClientErrors?: DocumentClientError
+  disabled?: boolean
 }
 const clients : Client[] = [
   {
@@ -40,7 +41,7 @@ const clients : Client[] = [
   }
 ]
 
-function CustomerDetails({ client, onClientChange, documentClientErrors }: CustomerDetailsProps) {
+function CustomerDetails({ client, onClientChange, documentClientErrors, disabled = false }: CustomerDetailsProps) {
   const [selectedClient, setSelectedClient] = React.useState<Client | null>(null);
   const [clientInfos, setClientInfos] = React.useState<Client>({
     id: "",
@@ -70,6 +71,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (disabled) return;
     const { name, value } = e.target;
     setClientInfos(prev => ({
       ...prev,
@@ -88,7 +90,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
   }
 
   return (
-    <div className="border border-gray-200 rounded-md p-4 mb-6">
+    <div className={`border border-gray-200 rounded-md p-4 mb-6 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
       <header className="flex items-center gap-4 mb-6">
         <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold font-title">
           <span>01</span>
@@ -153,7 +155,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
 
             <div>
               <label htmlFor="customer-name" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Nom du client <span className="text-red-500">*</span></label>
-              <input
+              <input disabled={disabled}
                 type="text"
                 id="customer-name"
                 name="name"
@@ -174,7 +176,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
 
             <div>
               <label htmlFor="customer-email" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Email du client <span className="text-red-500">*</span></label>
-              <input
+              <input disabled={disabled}
                 type="email"
                 id="customer-email"
                 name="email"
@@ -197,7 +199,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
           {/* address */}
           <div>
             <label htmlFor="customer-address" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Adresse du client <span className="text-red-500">*</span></label>
-            <input
+            <input disabled={disabled}
               type="text"
               id="customer-address"
               name="address"
@@ -221,7 +223,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
 
             <div className="md:w-1/2">
               <label htmlFor="city" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Ville <span className="text-red-500">*</span></label>
-              <input
+              <input disabled={disabled}
                 type="text"
                 id="city"
                 name="city"
@@ -242,7 +244,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
 
             <div className="md:w-1/2">
               <label htmlFor="postal-code" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Code postal <span className="text-red-500">*</span></label>
-              <input
+              <input disabled={disabled}
                 type="text"
                 id="postal-code"
                 name="postalCode"
@@ -266,7 +268,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
           {/* Country */}
           <div>
             <label htmlFor="customer-country" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Pays <span className="text-red-500">*</span></label>
-            <input
+            <input disabled={disabled}
               type="text"
               id="customer-country"
               name="country"

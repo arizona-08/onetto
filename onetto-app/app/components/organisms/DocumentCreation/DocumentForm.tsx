@@ -17,14 +17,15 @@ interface DocumentFormProps {
     documentClientErrors?: DocumentClientError,
     documentLineItemsErrors?: DocumentLineItemsError
   }
+  lockInvoiceContent?: boolean
 }
 
-function DocumentForm({ client, lineItems, documentDates, onClientChange, onLineItemsChange, onDocumentDatesChange, errors }: DocumentFormProps) {
+function DocumentForm({ client, lineItems, documentDates, onClientChange, onLineItemsChange, onDocumentDatesChange, errors, lockInvoiceContent = false }: DocumentFormProps) {
   
   return (
     <div className="">
-      <CustomerDetails client={client} onClientChange={onClientChange} documentClientErrors={errors?.documentClientErrors} />
-      <ServiceLineItems hydratedLineItems={lineItems} hydratedDocumentDates={documentDates} onLineItemsChange={onLineItemsChange} onDocumentDatesChange={onDocumentDatesChange} documentDateErrors={errors?.documentDateErrors} documentLineItemsErrors={errors?.documentLineItemsErrors} />
+      <CustomerDetails client={client} onClientChange={onClientChange} documentClientErrors={errors?.documentClientErrors} disabled={lockInvoiceContent} />
+      <ServiceLineItems hydratedLineItems={lineItems} hydratedDocumentDates={documentDates} onLineItemsChange={onLineItemsChange} onDocumentDatesChange={onDocumentDatesChange} documentDateErrors={errors?.documentDateErrors} documentLineItemsErrors={errors?.documentLineItemsErrors} disabled={lockInvoiceContent} />
     </div>
   )
 }

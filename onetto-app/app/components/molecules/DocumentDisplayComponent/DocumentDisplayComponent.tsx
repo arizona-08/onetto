@@ -84,7 +84,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
                   <p className="font-semibold text-zinc-500">
                     {isInvoice ? 'Date d’émission' : 'Date du devis'}
                   </p>
-                  <p>{formatDate(document.createdAt)}</p>
+                  <p>{formatDate(isInvoice ? (document.sentAt ?? new Date().toISOString()) : document.createdAt)}</p>
                 </div>
 
                 <div>

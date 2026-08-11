@@ -96,6 +96,7 @@ model Document {
   totalPriceExcludingTax Float
   totalPrice Float
   createdAt DateTime @default(now())
+  sentAt DateTime?
   documentNumber String?
   versionNumber Int @default(1)
   isLastVersion Boolean @default(true)
@@ -122,6 +123,7 @@ enum DocumentType {
 
 enum InvoiceStatus {
   DRAFT
+  SENT
   PENDING
   PAID
   OVERDUE
