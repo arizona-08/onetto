@@ -1,0 +1,93 @@
+import { BadRequestException } from '@nestjs/common';
+import { DocumentService } from './document.service';
+import { InvoicePdfService } from './invoice-pdf.service';
+import { MailService } from 'src/mail/mail.service';
+import { PrismaService } from 'src/prisma/prisma.service';
+
+const user = { id: 'user-1', firstname: 'Ada', lastname: 'Lovelace', email: 'ada@example.test', sub: 'user-1', iat: 0, exp: 0, role: 'BASIC_USER' };
+const dto = {
+  client: { name: 'Client modifié', email: 'modified@example.test', address: 'Rue modifiée', city: 'Lyon', postalCode: '69000', country: 'France' },
+  lineItems: [{ description: 'Prestation modifiée', quantity: 3, taxRate: 20, unitPrice: 99, unit: 'jour' }],
+  documentDates: { dueDate: '2026-09-15' },
+};
+const invoice = {
+  id: 'invoice-1', companyId: 'company-1', type: 'INVOICE', invoiceStatus: 'DRAFT', estimateStatus: 'DRAFT', documentNumber: '#FACT-2026-0001',
+  clientName: 'Client initial', clientEmail: 'client@example.test', clientAddress: '1 rue du Test', clientCity: 'Paris', clientPostalCode: '75001', clientCountry: 'France', totalPrice: 120, totalPriceExcludingTax: 100,
+  paymentDueAt: new Date('2026-09-01'), sentAt: null, services: [{ id: 'line-1', description: 'Prestation', quantity: 1, taxRate: 20, unitPrice: 100, unit: 'jour', totalPrice: 120, wtPrice: 100, documentId: 'invoice-1' }],
+};
+const company = { name: 'Atelier Onetto', email: 'contact@onetto.test', phoneNumber: '0102030405', siren: '123456789', address: '10 rue Onetto', postalCode: '75002', city: 'Paris', country: 'France', vatNumber: 'FR123', IBAN: 'FR761234', BIC: 'ABCDFRPP' };
+
+describe('DocumentService', () => {
+  let service: DocumentService;
+  const prisma = { document: { findFirst: jest.fn(), update: jest.fn() }, company: { findUnique: jest.fn() }, estimateNegociation: { create: jest.fn() }, $transaction: jest.fn() } as unknown as PrismaService;
+  const mail = { sendMail: jest.fn() } as unknown as MailService;
+  const pdf = { generate: jest.fn() } as unknown as InvoicePdfService;
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    service = new DocumentService(prisma, mail, pdf);
+    jest.spyOn(service, 'getDocumentById').mockResolvedValue(invoice as never);
+    jest.spyOn(service, 'isCompanyUser').mockResolvedValue(true);
+    jest.spyOn(service as never, 'getActiveCompanyId').mockResolvedValue('company-1');
+  });
+
+  it('ne modifie que la date d’échéance d’une facture brouillon', async () => {
+    (prisma.document.findFirst as jest.Mock).mockResolvedValue(invoice);
+    (prisma.document.update as jest.Mock).mockResolvedValue(invoice);
+
+    await service.updateDraftDocument(invoice.id, dto, user);
+
+    expect(prisma.document.update).toHaveBeenCalledWith({ where: { id: invoice.id }, data: { paymentDueAt: new Date('2026-09-15') } });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('refuse de modifier une facture déjà envoyée', async () => {
+    (prisma.document.findFirst as jest.Mock).mockResolvedValue({ ...invoice, invoiceStatus: 'SENT' });
+
+    await expect(service.updateDraftDocument(invoice.id, dto, user)).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('envoie une facture brouillon avec son PDF puis la marque SENT', async () => {
+    const pdfBuffer = Buffer.from('%PDF-test');
+    (prisma.company.findUnique as jest.Mock).mockResolvedValue(company);
+    (pdf.generate as jest.Mock).mockResolvedValue(pdfBuffer);
+
+    await service.sendDocumentToClient(invoice.id, user);
+
+    expect(pdf.generate).toHaveBeenCalledWith(expect.objectContaining({ company, documentNumber: invoice.documentNumber }));
+    expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: invoice.clientEmail, html: expect.stringContaining('Votre facture est prête'), attachments: [expect.objectContaining({ content: pdfBuffer, contentType: 'application/pdf' })] }));
+    expect(prisma.estimateNegociation.create).not.toHaveBeenCalled();
+    expect(prisma.document.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ invoiceStatus: 'SENT', sentAt: expect.any(Date) }) }));
+  });
+
+  it('ne marque pas une facture comme envoyée si la génération PDF échoue', async () => {
+    (prisma.company.findUnique as jest.Mock).mockResolvedValue(company);
+    (pdf.generate as jest.Mock).mockRejectedValue(new Error('PDF indisponible'));
+
+    const consoleError = jest.spyOn(console, 'error').mockImplementation();
+    await expect(service.sendDocumentToClient(invoice.id, user)).rejects.toThrow("Une erreur est survenue lors de l'envoi du document au client.");
+    consoleError.mockRestore();
+    expect(mail.sendMail).not.toHaveBeenCalled();
+    expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('refuse un second envoi de facture', async () => {
+    jest.spyOn(service, 'getDocumentById').mockResolvedValue({ ...invoice, invoiceStatus: 'SENT' } as never);
+
+    await expect(service.sendDocumentToClient(invoice.id, user)).rejects.toBeInstanceOf(BadRequestException);
+    expect(mail.sendMail).not.toHaveBeenCalled();
+  });
+
+  it('envoie un devis avec un token de négociation et le template HTML dédié', async () => {
+    const estimate = { ...invoice, id: 'estimate-1', type: 'ESTIMATE', documentNumber: '#DEV-2026-0001' };
+    jest.spyOn(service, 'getDocumentById').mockResolvedValue(estimate as never);
+    (prisma.estimateNegociation.create as jest.Mock).mockResolvedValue({ negociationToken: 'secure-token' });
+
+    await service.sendDocumentToClient(estimate.id, user);
+
+    expect(prisma.estimateNegociation.create).toHaveBeenCalled();
+    expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ html: expect.stringContaining('Un devis vous attend'), attachments: undefined }));
+    expect(prisma.document.update).toHaveBeenCalledWith({ where: { id: estimate.id }, data: { estimateStatus: 'SENT' } });
+  });
+});
