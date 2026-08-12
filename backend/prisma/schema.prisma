@@ -128,6 +128,7 @@ enum InvoiceStatus {
   PENDING
   PAID
   OVERDUE
+  REJECTED
 }
 
 enum EstimateStatus {
@@ -160,12 +161,31 @@ enum EstimateNegociationStatus {
 model BridgePaymentLink {
   id String @id @default(uuid())
   documentId String
-  bridgePaymentLinkId String @unique
+  bridgePaymentLinkId String? @unique
+  linkStatus BridgePaymentLinkStatus?
+  paymentRequestId String?
+  paymentTransactionId String?
+  paymentTransactionStatus BridgePaymentTransactionStatus?
   url String
   createdAt DateTime @default(now())
   expiresAt DateTime
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+enum BridgePaymentLinkStatus {
+  VALID
+  EXPIRED
+  REVOKED
+  COMPLETED
+}
+
+enum BridgePaymentTransactionStatus {
+  CREA
+  ACTC
+  PDNG
+  ACSC
+  RJCT
 }
 
 model DocumentService {
