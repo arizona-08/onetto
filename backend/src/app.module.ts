@@ -9,6 +9,7 @@ import { DocumentModule } from './documents/document.module';
 import { CompaniesModule } from './companies/companies.module';
 import { MailModule } from './mail/mail.module';
 import { BridgeApiModule } from './bridgeApi/bridgeApi.module';
+import { BridgeWebhookModule } from './bridgeWebhooks/bridgeWebhook.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
@@ -21,6 +22,7 @@ import { BridgeApiModule } from './bridgeApi/bridgeApi.module';
     CompaniesModule,
     MailModule, // custom mail module for sending emails
     BridgeApiModule,
+    BridgeWebhookModule
   ],
   controllers: [AppController],
   providers: [AppService],

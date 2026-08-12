@@ -114,6 +114,7 @@ model Document {
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   services DocumentService[]
   negociations EstimateNegociation[]
+  paymentLinks BridgePaymentLink[] // peut en créer plusieurs pour un même document, mais seulement un actif à la fois
 }
 
 enum DocumentType {
@@ -154,6 +155,17 @@ enum EstimateNegociationStatus {
   ACCEPTED
   RENEGOCIATED
   REJECTED
+}
+
+model BridgePaymentLink {
+  id String @id @default(uuid())
+  documentId String
+  bridgePaymentLinkId String @unique
+  url String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
 model DocumentService {
