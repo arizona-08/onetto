@@ -41,6 +41,12 @@ export async function sendDocumentToClient(documentId: string){
   })
 }
 
+export async function retryInvoicePayment(documentId: string) {
+  return apiClient<{ success: true; message: string }>(`api/documents/${documentId}/retry-payment`, {
+    method: 'POST',
+  });
+}
+
 export async function getDocumentNegociations(documentId: string) {
   return apiClient<DocumentNegociation[]>(`api/documents/${documentId}/negociations`, {
     method: "GET",

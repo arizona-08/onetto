@@ -67,6 +67,14 @@ export class MailService {
     };
   }
 
+  createInvoicePaymentRetryMail(input: InvoiceMailInput): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    return {
+      subject: `Nouveau lien de paiement — facture ${input.documentNumber}`,
+      text: this.createInvoicePaymentRetryText(input),
+      html: this.createInvoicePaymentRetryTemplate(input),
+    };
+  }
+
   private createInvoiceText(input: InvoiceMailInput): string {
     return [
       `Bonjour ${input.clientName},`,
@@ -92,6 +100,21 @@ export class MailService {
       '',
       'Consultez le devis et répondez depuis votre espace dédié :',
       input.documentUrl,
+      '',
+      'Merci.',
+    ].join('\n');
+  }
+
+  private createInvoicePaymentRetryText(input: InvoiceMailInput): string {
+    return [
+      `Bonjour ${input.clientName},`,
+      '',
+      `Le règlement de votre facture ${input.documentNumber} n'a pas pu aboutir.`,
+      `Montant total : ${formatAmount(input.totalPrice)}`,
+      `Date d'échéance : ${formatDate(input.paymentDueAt)}`,
+      '',
+      'Un nouveau lien de paiement sécurisé a été généré. Vous pouvez réessayer ici :',
+      input.paymentLink,
       '',
       'Merci.',
     ].join('\n');
@@ -130,6 +153,24 @@ export class MailService {
       action: { label: 'Consulter le devis', url: input.documentUrl },
       footer: 'Onetto · Votre espace documentaire',
       note: 'Ce lien est personnel et vous permet d’échanger directement au sujet du devis.',
+    });
+  }
+
+  private createInvoicePaymentRetryTemplate(input: InvoiceMailInput): string {
+    const details = this.createDetailsTable([
+      ['Montant total', formatAmount(input.totalPrice)],
+      ['Date d’échéance', formatDate(input.paymentDueAt)],
+    ]);
+
+    return this.createEmailLayout({
+      badge: 'PAIEMENT À RÉESSAYER',
+      title: 'Un nouveau lien de paiement est disponible',
+      greeting: `Bonjour ${input.clientName},`,
+      message: `Le règlement de votre facture <strong>${input.documentNumber}</strong> n’a pas pu aboutir. Un nouveau lien de paiement sécurisé a été généré afin de vous permettre de réessayer.`,
+      details,
+      action: { label: 'Payer la facture', url: input.paymentLink },
+      footer: `${input.companyName} · ${input.companyEmail}`,
+      note: `Pour toute question, vous pouvez contacter ${input.companyName} à ${input.companyEmail}.`,
     });
   }
 

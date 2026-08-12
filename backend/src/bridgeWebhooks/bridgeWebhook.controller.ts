@@ -9,7 +9,7 @@ export class BridgeWebhookController {
 
   @Post("payment")
   async handlePaymentTransactionCreated(@Body() webhook: WebhookTransactionDto | any) {
-    console.log(webhook);
+    // console.log(webhook);
     await this.bridgeWebhookService.handleWebhook(webhook)
 
     return { message: "Webhook received successfully" };

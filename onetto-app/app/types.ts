@@ -39,6 +39,7 @@ export type Document = {
   isLastVersion: boolean;
   type: "INVOICE" | "ESTIMATE";
   sourceDocumentId?: string;
+  convertedDocuments?: Array<{ id: string }>;
   clientName: string;
   clientEmail: string;
   clientAddress: string;

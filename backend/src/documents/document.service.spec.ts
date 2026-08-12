@@ -20,10 +20,11 @@ const company = { name: 'Atelier Onetto', email: 'contact@onetto.test', phoneNum
 
 describe('DocumentService', () => {
   let service: DocumentService;
-  const prisma = { document: { findFirst: jest.fn(), update: jest.fn() }, company: { findUnique: jest.fn() }, estimateNegociation: { create: jest.fn() }, $transaction: jest.fn() } as unknown as PrismaService;
+  const prisma = { document: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() }, company: { findUnique: jest.fn() }, estimateNegociation: { create: jest.fn() }, $transaction: jest.fn() } as unknown as PrismaService;
   const mail = {
     sendMail: jest.fn(),
     createInvoiceMail: jest.fn().mockReturnValue({ subject: 'Facture', text: 'facture', html: '<p>Facture</p>' }),
+    createInvoicePaymentRetryMail: jest.fn().mockReturnValue({ subject: 'Relance', text: 'relance', html: '<p>Relance</p>' }),
     createEstimateMail: jest.fn().mockReturnValue({ subject: 'Devis', text: 'devis', html: '<p>Devis</p>' }),
   } as unknown as MailService;
   const pdf = { generate: jest.fn() } as unknown as InvoicePdfService;
@@ -32,6 +33,7 @@ describe('DocumentService', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     (mail.createInvoiceMail as jest.Mock).mockReturnValue({ subject: 'Facture', text: 'facture', html: '<p>Facture</p>' });
+    (mail.createInvoicePaymentRetryMail as jest.Mock).mockReturnValue({ subject: 'Relance', text: 'relance', html: '<p>Relance</p>' });
     (mail.createEstimateMail as jest.Mock).mockReturnValue({ subject: 'Devis', text: 'devis', html: '<p>Devis</p>' });
     (bridge.getCallbackUrl as jest.Mock).mockReturnValue('https://callback.test');
     (bridge.createPaymentLink as jest.Mock).mockResolvedValue({ url: 'https://pay.test/link' });
@@ -56,6 +58,40 @@ describe('DocumentService', () => {
 
     await expect(service.updateDraftDocument(invoice.id, dto, user)).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('lie une facture créée au devis source avec sourceDocumentId', async () => {
+    const acceptedEstimate = {
+      ...invoice,
+      id: 'estimate-1',
+      type: 'ESTIMATE',
+      estimateStatus: 'ACCEPTED',
+      convertedDocuments: [],
+    };
+    (prisma.document.findFirst as jest.Mock).mockResolvedValue(acceptedEstimate);
+    (prisma.document.create as jest.Mock).mockResolvedValue({ id: 'invoice-2' });
+    (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => callback({
+      documentService: { create: jest.fn() },
+    }));
+    jest.spyOn(service, 'createDocumentNumber').mockResolvedValue('#FACT-2026-0002');
+
+    await service.convertEstimateToInvoice(acceptedEstimate.id, user);
+
+    expect(prisma.document.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ sourceDocumentId: acceptedEstimate.id }),
+    }));
+  });
+
+  it('empêche une seconde conversion du même devis', async () => {
+    (prisma.document.findFirst as jest.Mock).mockResolvedValue({
+      ...invoice,
+      type: 'ESTIMATE',
+      estimateStatus: 'ACCEPTED',
+      convertedDocuments: [{ id: 'invoice-2' }],
+    });
+
+    await expect(service.convertEstimateToInvoice('estimate-1', user)).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.document.create).not.toHaveBeenCalled();
   });
 
   it('envoie une facture brouillon avec son PDF puis la marque SENT', async () => {
@@ -88,6 +124,25 @@ describe('DocumentService', () => {
 
     await expect(service.sendDocumentToClient(invoice.id, user)).rejects.toBeInstanceOf(BadRequestException);
     expect(mail.sendMail).not.toHaveBeenCalled();
+  });
+
+  it('génère un nouveau lien et envoie un email de relance pour une facture rejetée', async () => {
+    const pdfBuffer = Buffer.from('%PDF-test');
+    jest.spyOn(service, 'getDocumentById').mockResolvedValue({ ...invoice, invoiceStatus: 'REJECTED' } as never);
+    (prisma.company.findUnique as jest.Mock).mockResolvedValue(company);
+    (pdf.generate as jest.Mock).mockResolvedValue(pdfBuffer);
+
+    await service.retryInvoicePayment(invoice.id, user);
+
+    expect(bridge.createPaymentLink).toHaveBeenCalled();
+    expect(mail.createInvoicePaymentRetryMail).toHaveBeenCalledWith(expect.objectContaining({ paymentLink: 'https://pay.test/link' }));
+    expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ attachments: [expect.objectContaining({ content: pdfBuffer })] }));
+    expect(prisma.document.update).toHaveBeenCalledWith({ where: { id: invoice.id }, data: { invoiceStatus: 'SENT' } });
+  });
+
+  it('refuse une relance si la facture n’est pas rejetée', async () => {
+    await expect(service.retryInvoicePayment(invoice.id, user)).rejects.toBeInstanceOf(BadRequestException);
+    expect(bridge.createPaymentLink).not.toHaveBeenCalled();
   });
 
   it('envoie un devis avec un token de négociation et le template HTML dédié', async () => {

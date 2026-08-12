@@ -32,4 +32,20 @@ describe('MailService templates', () => {
     expect(mail.html).toContain('Consulter le devis');
     expect(mail.html).toContain('secure-token');
   });
+
+  it('génère le message de relance et le bouton de paiement', () => {
+    const mail = service.createInvoicePaymentRetryMail({
+      clientName: 'Client',
+      documentNumber: '#FACT-2026-0001',
+      totalPrice: 120,
+      paymentDueAt: new Date('2026-09-01'),
+      companyName: 'Onetto',
+      companyEmail: 'contact@onetto.test',
+      paymentLink: 'https://pay.test/new-link',
+    });
+
+    expect(mail.html).toContain('Un nouveau lien de paiement est disponible');
+    expect(mail.html).toContain('https://pay.test/new-link');
+    expect(mail.text).toContain("n'a pas pu aboutir");
+  });
 });

@@ -225,15 +225,24 @@ export class DocumentService {
         where: {
           id: documentId,
           companyId,
-          type: "ESTIMATE"
+          type: "ESTIMATE",
+          estimateStatus: 'ACCEPTED',
         },
         include: {
-          services: true
+          services: true,
+          convertedDocuments: {
+            where: { type: 'INVOICE' },
+            select: { id: true },
+          },
         }
       });
 
       if (!document) {
-        throw new BadRequestException("Devis introuvable ou vous n'avez pas la permission d'y accéder.");
+        throw new BadRequestException("Seul un devis accepté peut être transformé en facture.");
+      }
+
+      if (document.convertedDocuments.length > 0) {
+        throw new BadRequestException('Ce devis a déjà été transformé en facture.');
       }
 
       const invoiceNumber = await this.createDocumentNumber("INVOICE", companyId);
@@ -250,6 +259,7 @@ export class DocumentService {
           totalPrice: document.totalPrice,
           documentNumber: invoiceNumber,
           type: "INVOICE",
+          sourceDocumentId: document.id,
           estimateStatus: "ACCEPTED",
           invoiceStatus: "DRAFT",
           companyId,
@@ -320,7 +330,11 @@ export class DocumentService {
           ],
         }, 
         include: {
-          services: withServices
+          services: withServices,
+          convertedDocuments: {
+            where: { type: 'INVOICE' },
+            select: { id: true },
+          },
         }
       });
 
@@ -686,26 +700,7 @@ export class DocumentService {
       }) : null;
       const documentUrl = negociation ? `${process.env.FRONTEND_URL}/negociations?token=${negociation.negociationToken}` : null;
 
-      const company = isInvoice ? await this.prismaService.company.findUnique({
-        where: { id: document.companyId },
-        select: {
-          name: true,
-          email: true,
-          phoneNumber: true,
-          siren: true,
-          address: true,
-          postalCode: true,
-          city: true,
-          country: true,
-          vatNumber: true,
-          IBAN: true,
-          BIC: true,
-        },
-      }) : null;
-
-      if (isInvoice && !company) {
-        throw new BadRequestException("Entreprise introuvable pour cette facture.");
-      }
+      const company = isInvoice ? await this.getInvoiceCompany(document.companyId) : null;
 
       const paymentLink = isInvoice
         ? await this.createInvoicePaymentLink(document, company!, user)
@@ -759,6 +754,59 @@ export class DocumentService {
     }
   }
 
+  async retryInvoicePayment(documentId: string, user: User) {
+    try {
+      const document = await this.getDocumentById(documentId, user, true);
+
+      if (document.type !== 'INVOICE' || document.invoiceStatus !== 'REJECTED') {
+        throw new BadRequestException('Seule une facture dont le paiement a été refusé peut être relancée.');
+      }
+
+      const canRetryPayment = await this.isCompanyUser(user.id, document.companyId);
+      if (!canRetryPayment) {
+        throw new BadRequestException("Vous n'avez pas la permission de relancer ce paiement.");
+      }
+
+      const company = await this.getInvoiceCompany(document.companyId);
+      const paymentLink = await this.createInvoicePaymentLink(document, company, user);
+      const invoicePdf = await this.invoicePdfService.generate({
+        ...document,
+        company,
+      });
+      const mailContent = this.mailService.createInvoicePaymentRetryMail({
+        clientName: document.clientName,
+        documentNumber: document.documentNumber,
+        totalPrice: document.totalPrice,
+        paymentDueAt: document.paymentDueAt,
+        companyName: company.name,
+        companyEmail: company.email,
+        paymentLink,
+      });
+
+      await this.mailService.sendMail({
+        to: document.clientEmail,
+        ...mailContent,
+        attachments: [this.createInvoiceAttachment(document.id, document.documentNumber, invoicePdf)],
+      });
+
+      await this.prismaService.document.update({
+        where: { id: document.id },
+        data: { invoiceStatus: 'SENT' },
+      });
+
+      return {
+        success: true,
+        message: 'Un nouveau lien de paiement a été envoyé au client.',
+      };
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      console.error('Error retrying invoice payment:', error);
+      throw new InternalServerErrorException('Une erreur est survenue lors de la relance du paiement.');
+    }
+  }
+
   async isCompanyUser(userId: string, companyId: string): Promise<boolean> {
     const companyUser = await this.prismaService.companyUser.findFirst({
       where: {
@@ -799,6 +847,31 @@ export class DocumentService {
 
     const paymentLink = await this.bridgeApiService.createPaymentLink(paymentLinkData);
     return paymentLink.url;
+  }
+
+  private async getInvoiceCompany(companyId: string) {
+    const company = await this.prismaService.company.findUnique({
+      where: { id: companyId },
+      select: {
+        name: true,
+        email: true,
+        phoneNumber: true,
+        siren: true,
+        address: true,
+        postalCode: true,
+        city: true,
+        country: true,
+        vatNumber: true,
+        IBAN: true,
+        BIC: true,
+      },
+    });
+
+    if (!company) {
+      throw new BadRequestException('Entreprise introuvable pour cette facture.');
+    }
+
+    return company;
   }
 
   private createInvoiceAttachment(

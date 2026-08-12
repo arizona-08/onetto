@@ -84,6 +84,16 @@ export class DocumentController {
     return await this.documentService.sendDocumentToClient(documentId, user);
   }
 
+  @Post(":documentId/retry-payment")
+  async retryInvoicePayment(@Param("documentId") documentId: string, @Req() req: ExtendedRequest) {
+    const user = req.user;
+    if (!user) {
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.retryInvoicePayment(documentId, user);
+  }
+
   @Post(":documentId/create-version")
   async createDocumentVersion(@Param("documentId") documentId: string, @Req() req: ExtendedRequest) {
     const user = req.user;

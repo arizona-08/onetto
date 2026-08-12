@@ -1,28 +1,32 @@
 'use client';
 import React from 'react'
 
-import { CirclePlusIcon, Trash } from 'lucide-react';
+import { CirclePlusIcon, FileChartColumnIncreasing, RotateCcw, Trash } from 'lucide-react';
 import Link from 'next/link';
 import { Document, InvoiceStatus } from '@/app/types';
 import { formatDate } from '@/shared/utils';
 import DocumentSelector from '../molecules/DcumentSelector';
 import DocumentSorter from '../molecules/DocumentSorter';
-import { massDeleteDocuments } from '@/lib/documents/document';
+import { convertEstimateToInvoice, massDeleteDocuments, retryInvoicePayment } from '@/lib/documents/document';
 import { useToast } from '@/app/components/context/ToastContext';
+import { useRouter } from 'next/navigation';
 
-const invoiceStatusStyles: Record<string, string> = {
-  OVERDUE: 'bg-rose-100 text-rose-700',
-  PAID: 'bg-indigo-100 text-indigo-700',
-  PENDING: 'bg-orange-200 text-orange-700',
-  DRAFT: 'bg-gray-200 text-gray-700 md:bg-gray-100',
-  SENT: 'bg-blue-100 text-blue-700',
-}
+const statusMatcher: Record<string, { label: string; dotClassName: string }> = {
+  DRAFT: { label: 'Brouillon', dotClassName: 'bg-zinc-400' },
+  SENT: { label: 'Envoyé', dotClassName: 'bg-blue-500' },
+  PENDING: { label: 'En attente', dotClassName: 'bg-amber-500' },
+  PAID: { label: 'Payé', dotClassName: 'bg-emerald-500' },
+  OVERDUE: { label: 'En retard', dotClassName: 'bg-orange-500' },
+  REJECTED: { label: 'Refusé', dotClassName: 'bg-red-600' },
+  ACCEPTED: { label: 'Accepté', dotClassName: 'bg-emerald-500' },
+  SUPERSEDED: { label: 'Remplacé', dotClassName: 'bg-violet-500' },
+};
 
-const estimateStatusStyles: Record<string, string> = {
-  DRAFT: 'bg-gray-200 text-gray-700 md:bg-gray-100',
-  SENT: 'bg-rose-100 text-rose-700',
-  ACCEPTED: 'bg-indigo-100 text-indigo-700',
-  REJECTED: 'bg-gray-200 text-gray-700 md:bg-gray-100',
+function getStatusPresentation(status: string) {
+  return statusMatcher[status] ?? {
+    label: `${status.slice(0, 1)}${status.slice(1).toLowerCase()}`,
+    dotClassName: 'bg-zinc-400',
+  };
 }
 
   export type InvoiceSelectStatus = 'Toutes' | 'En attente' | 'Payées' | 'Échues';
@@ -39,6 +43,7 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
 
   const isInvoiceType = type === 'invoices';
   const { showToast } = useToast();
+  const router = useRouter();
 
   const [selectedStatus, setSelectedStatus] = React.useState<InvoiceSelectStatus | EstimateSelectStatus>(isInvoiceType ? 'Toutes' : 'Tout');
   const [sortMethod, setSortMethod] = React.useState<'date' | 'amount'>('date')
@@ -46,6 +51,8 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
   const [checkedDocuments, setCheckedDocuments] = React.useState<string[]>([]);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [retryingDocumentIds, setRetryingDocumentIds] = React.useState<string[]>([]);
+  const [convertingDocumentIds, setConvertingDocumentIds] = React.useState<string[]>([]);
   
 
   const [masterDocumentsList, setMasterDocumentsList] = React.useState<Document[]>(documents.map((document) => ({
@@ -110,6 +117,43 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
     return
   }
 
+  async function handleRetryInvoicePayment(documentId: string) {
+    setRetryingDocumentIds((ids) => [...ids, documentId]);
+    const response = await retryInvoicePayment(documentId);
+    setRetryingDocumentIds((ids) => ids.filter((id) => id !== documentId));
+
+    if (!response.ok) {
+      showToast('Impossible de générer un nouveau lien de paiement.', 'error');
+      return;
+    }
+
+    setMasterDocumentsList((documents) => documents.map((document) => (
+      document.id === documentId
+        ? { ...document, invoiceStatus: 'SENT' }
+        : document
+    )));
+    showToast('Un nouveau lien de paiement a été envoyé au client.', 'success');
+  }
+
+  async function handleConvertEstimateToInvoice(documentId: string) {
+    setConvertingDocumentIds((ids) => [...ids, documentId]);
+    const response = await convertEstimateToInvoice(documentId);
+    setConvertingDocumentIds((ids) => ids.filter((id) => id !== documentId));
+
+    if (!response.ok) {
+      showToast('Impossible de transformer ce devis en facture.', 'error');
+      return;
+    }
+
+    router.push(`/documents/${response.data.document.id}/update-invoice`);
+  }
+
+  function canConvertEstimate(document: Document): boolean {
+    return !isInvoiceType
+      && document.estimateStatus === 'ACCEPTED'
+      && !document.convertedDocuments?.length;
+  }
+
 
   return (
     <div className="mt-3">
@@ -161,9 +205,34 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
                   {/* right part */}
                   <div className="flex flex-col items-end gap-1">
                     <p className="text-sm font-semibold">{document.totalPrice.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</p>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isInvoiceType ? invoiceStatusStyles[document.invoiceStatus] : estimateStatusStyles[document.estimateStatus]}`}>
-                      {isInvoiceType ? document.invoiceStatus : document.estimateStatus}
+                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-700">
+                      <span className={`h-2 w-2 rounded-full ${getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).dotClassName}`} />
+                      {getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).label}
                     </span>
+                    {isInvoiceType && document.invoiceStatus === 'REJECTED' && (
+                      <button
+                        type="button"
+                        onClick={() => void handleRetryInvoicePayment(document.id)}
+                        disabled={retryingDocumentIds.includes(document.id)}
+                        className="mt-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Générer et envoyer un nouveau lien de paiement"
+                        aria-label="Relancer le paiement"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    )}
+                    {canConvertEstimate(document) && (
+                      <button
+                        type="button"
+                        onClick={() => void handleConvertEstimateToInvoice(document.id)}
+                        disabled={convertingDocumentIds.includes(document.id)}
+                        className="mt-2 inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Transformer en facture"
+                        aria-label="Transformer en facture"
+                      >
+                        <FileChartColumnIncreasing className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </li>
@@ -244,11 +313,36 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
                   {document.totalPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                 </td>
                 <td className="px-5 py-5 align-top">
-                  <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${isInvoiceType ? invoiceStatusStyles[document.invoiceStatus] : estimateStatusStyles[document.estimateStatus]}`}
-                  >
-                    {isInvoiceType ? document.invoiceStatus : document.estimateStatus}
+                  <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-700">
+                    <span className={`h-2 w-2 rounded-full ${getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).dotClassName}`} />
+                    {getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).label}
                   </span>
+                  {isInvoiceType && document.invoiceStatus === 'REJECTED' && (
+                    <button
+                      type="button"
+                      onClick={() => void handleRetryInvoicePayment(document.id)}
+                      disabled={retryingDocumentIds.includes(document.id)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      title="Générer et envoyer un nouveau lien de paiement"
+                      aria-label="Relancer le paiement"
+                    >
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )}
+                  {canConvertEstimate(document) && (
+                    <button
+                      type="button"
+                      onClick={() => void handleConvertEstimateToInvoice(document.id)}
+                      disabled={convertingDocumentIds.includes(document.id)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                      title="Transformer en facture"
+                      aria-label="Transformer en facture"
+                    >
+                      <FileChartColumnIncreasing className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )}
+                  </div>
                 </td>
               </tr>
             ))}

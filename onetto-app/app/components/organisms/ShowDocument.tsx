@@ -1,7 +1,7 @@
 'use client'
 import { Document, DocumentNegociation } from '@/app/types'
-import { convertEstimateToInvoice, createNewDocumentVersion, getDocumentNegociations, sendDocumentToClient } from '@/lib/documents/document';
-import { Edit, ExternalLink, FileChartColumnIncreasing, MessageSquareText, Send, Trash } from 'lucide-react';
+import { convertEstimateToInvoice, createNewDocumentVersion, getDocumentNegociations, retryInvoicePayment, sendDocumentToClient } from '@/lib/documents/document';
+import { Edit, ExternalLink, FileChartColumnIncreasing, MessageSquareText, RotateCcw, Send, Trash } from 'lucide-react';
 import DocumentDisplayComponent from '../molecules/DocumentDisplayComponent/DocumentDisplayComponent';
 import Link from 'next/link';
 import { useToast } from '../context/ToastContext';
@@ -16,6 +16,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
 
   const [negociations, setNegociations] = useState<DocumentNegociation[]>([]);
   const [isCreatingVersion, setIsCreatingVersion] = useState(false);
+  const [isRetryingPayment, setIsRetryingPayment] = useState(false);
   const router = useRouter();
 
   const isEstimate = document.type === "ESTIMATE";
@@ -27,6 +28,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
   const isAcceptedEstimate = document.type === "ESTIMATE" && document.estimateStatus === "ACCEPTED";
 
   const isDraftInvoice = document.type === "INVOICE" && document.invoiceStatus === "DRAFT";
+  const isRejectedInvoice = document.type === "INVOICE" && document.invoiceStatus === "REJECTED";
 
   const { showToast } = useToast();
 
@@ -82,6 +84,20 @@ function ShowDocument({ document }: ShowDocumentProps) {
     router.push(`/documents/${newInvoiceId}/update-invoice`);
   }
 
+  async function handleRetryInvoicePayment() {
+    setIsRetryingPayment(true);
+    const response = await retryInvoicePayment(document.id);
+    setIsRetryingPayment(false);
+
+    if (!response.ok) {
+      showToast('Impossible de générer un nouveau lien de paiement.', 'error');
+      return;
+    }
+
+    showToast('Un nouveau lien de paiement a été envoyé au client.', 'success');
+    router.refresh();
+  }
+
   return (
     <div className="p-5">
       <div className="flex items-center justify-between">
@@ -115,6 +131,19 @@ function ShowDocument({ document }: ShowDocumentProps) {
                 Modifier
                 <Edit className="w-4 h-4" />
               </Link>
+            )}
+
+            {isRejectedInvoice && (
+              <button
+                type="button"
+                onClick={handleRetryInvoicePayment}
+                disabled={isRetryingPayment}
+                className="flex items-center gap-2 rounded-md border border-primary px-3 py-2 text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                title="Générer et envoyer un nouveau lien de paiement"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                {isRetryingPayment ? 'Génération…' : 'Relancer le paiement'}
+              </button>
             )}
 
             {(isDraftEstimate || isDraftInvoice) && (
