@@ -5,6 +5,7 @@ import { User } from "src/types/extended-request.types";
 import { randomBytes } from "crypto";
 import { MailService } from "src/mail/mail.service";
 import { InvoicePdfService } from "./invoice-pdf.service";
+import { BridgeApiService, PaymentLinkData } from "src/bridgeApi/bridgeApi.service";
 
 @Injectable()
 export class DocumentService {
@@ -12,6 +13,7 @@ export class DocumentService {
     private readonly prismaService: PrismaService,
     private readonly mailService: MailService,
     private readonly invoicePdfService: InvoicePdfService,
+    private readonly bridgeApiService: BridgeApiService
   ) {}
 
   async createDocument(data: CreateDocumentDto, user: User) {
@@ -674,7 +676,6 @@ export class DocumentService {
       }
 
       const isInvoice = document.type === "INVOICE";
-      const documentType = isInvoice ? "facture" : "devis";
       const negociation = !isInvoice ? await this.prismaService.estimateNegociation.create({
         data: {
           documentId: document.id,
@@ -684,49 +685,66 @@ export class DocumentService {
         },
       }) : null;
       const documentUrl = negociation ? `${process.env.FRONTEND_URL}/negociations?token=${negociation.negociationToken}` : null;
+
       const company = isInvoice ? await this.prismaService.company.findUnique({
         where: { id: document.companyId },
-        select: { name: true, email: true, phoneNumber: true, siren: true, address: true, postalCode: true, city: true, country: true, vatNumber: true, IBAN: true, BIC: true },
+        select: {
+          name: true,
+          email: true,
+          phoneNumber: true,
+          siren: true,
+          address: true,
+          postalCode: true,
+          city: true,
+          country: true,
+          vatNumber: true,
+          IBAN: true,
+          BIC: true,
+        },
       }) : null;
 
       if (isInvoice && !company) {
         throw new BadRequestException("Entreprise introuvable pour cette facture.");
       }
 
-      const invoicePdf = isInvoice ? await this.invoicePdfService.generate({
+      const paymentLink = isInvoice
+        ? await this.createInvoicePaymentLink(document, company!, user)
+        : undefined;
+
+      const invoicePdf = isInvoice
+        ? await this.invoicePdfService.generate({
         ...document,
         sentAt: new Date(),
         company: company!,
-      }) : null;
-      const text = isInvoice
-        ? `Bonjour ${document.clientName},\n\nVeuillez trouver en pièce jointe votre facture ${document.documentNumber}, émise par ${company!.name}.\n\nMontant total : ${document.totalPrice.toFixed(2)} €\nDate d'échéance : ${document.paymentDueAt.toLocaleDateString('fr-FR')}\n\nMerci.`
-        : `Bonjour ${document.clientName},\n\nVous avez reçu un nouveau devis de la part de ${user.firstname} ${user.lastname}.\n\nVous pouvez consulter le devis en cliquant sur le lien suivant :\n\n${documentUrl}\n\nMerci.`;
-      const html = isInvoice
-        ? `<div style="margin:0;padding:32px 16px;background:#f6f6f8;font-family:Arial,sans-serif;color:#18181b"><table role="presentation" style="max-width:600px;margin:auto;background:#fff;border-radius:14px;overflow:hidden;border-collapse:collapse"><tr><td style="padding:32px"><div style="display:inline-block;padding:7px 11px;border-radius:999px;background:#eeedff;color:#635bff;font-size:12px;font-weight:700">FACTURE</div><h1 style="margin:20px 0 8px;font-size:28px;letter-spacing:-.5px">Votre facture est prête</h1><p style="margin:0;color:#71717a;line-height:1.6">Bonjour ${document.clientName},</p><p style="margin:20px 0;color:#52525b;line-height:1.6">Veuillez trouver en pièce jointe votre facture <strong>${document.documentNumber}</strong>.</p><table role="presentation" style="width:100%;margin:24px 0;background:#fafafa;border-radius:10px"><tr><td style="padding:16px;color:#71717a">Montant total</td><td style="padding:16px;text-align:right;font-weight:700;color:#635bff">${document.totalPrice.toFixed(2)} €</td></tr><tr><td style="padding:0 16px 16px;color:#71717a">Date d’échéance</td><td style="padding:0 16px 16px;text-align:right;font-weight:700">${document.paymentDueAt.toLocaleDateString('fr-FR')}</td></tr></table><p style="margin:0;color:#71717a;font-size:13px;line-height:1.6">Pour toute question, vous pouvez contacter ${company!.name} à ${company!.email}.</p></td></tr><tr><td style="padding:18px 32px;background:#635bff;color:#fff;font-size:12px">${company!.name} · ${company!.email}</td></tr></table></div>`
-        : `<div style="margin:0;padding:32px 16px;background:#f6f6f8;font-family:Arial,sans-serif;color:#18181b"><table role="presentation" style="max-width:600px;margin:auto;background:#fff;border-radius:14px;overflow:hidden;border-collapse:collapse"><tr><td style="padding:32px"><div style="display:inline-block;padding:7px 11px;border-radius:999px;background:#eeedff;color:#635bff;font-size:12px;font-weight:700">DEVIS</div><h1 style="margin:20px 0 8px;font-size:28px;letter-spacing:-.5px">Un devis vous attend</h1><p style="margin:0;color:#71717a;line-height:1.6">Bonjour ${document.clientName},</p><p style="margin:20px 0;color:#52525b;line-height:1.6">${user.firstname} ${user.lastname} vous a envoyé le devis <strong>${document.documentNumber}</strong>. Consultez-le, puis acceptez-le, refusez-le ou demandez des ajustements depuis votre espace dédié.</p><table role="presentation" style="width:100%;margin:24px 0;background:#fafafa;border-radius:10px"><tr><td style="padding:16px;color:#71717a">Montant proposé</td><td style="padding:16px;text-align:right;font-weight:700;color:#635bff">${document.totalPrice.toFixed(2)} €</td></tr><tr><td style="padding:0 16px 16px;color:#71717a">Valable jusqu’au</td><td style="padding:0 16px 16px;text-align:right;font-weight:700">${document.paymentDueAt.toLocaleDateString('fr-FR')}</td></tr></table><a href="${documentUrl}" style="display:inline-block;border-radius:8px;background:#635bff;padding:13px 20px;color:#fff;font-size:14px;font-weight:700;text-decoration:none">Consulter le devis</a><p style="margin:24px 0 0;color:#71717a;font-size:13px;line-height:1.6">Ce lien est personnel et vous permet d’échanger directement au sujet du devis.</p></td></tr><tr><td style="padding:18px 32px;background:#635bff;color:#fff;font-size:12px">Onetto · Votre espace documentaire</td></tr></table></div>`;
+      })
+        : null;
+
+      const mailContent = isInvoice
+        ? this.mailService.createInvoiceMail({
+            clientName: document.clientName,
+            documentNumber: document.documentNumber,
+            totalPrice: document.totalPrice,
+            paymentDueAt: document.paymentDueAt,
+            companyName: company!.name,
+            companyEmail: company!.email,
+            paymentLink: paymentLink!,
+          })
+        : this.mailService.createEstimateMail({
+            clientName: document.clientName,
+            documentNumber: document.documentNumber,
+            totalPrice: document.totalPrice,
+            paymentDueAt: document.paymentDueAt,
+            senderName: `${user.firstname} ${user.lastname}`,
+            documentUrl: documentUrl!,
+          });
 
       await this.mailService.sendMail({
         to: document.clientEmail,
-        subject: `Votre ${documentType} ${document.documentNumber}`,
-        text,
-        html,
-        attachments: invoicePdf ? [{ filename: `facture-${document.documentNumber?.replace(/[^a-zA-Z0-9]/g, '') ?? document.id}.pdf`, content: invoicePdf, contentType: 'application/pdf' }] : undefined,
-      })
+        ...mailContent,
+        attachments: invoicePdf ? [this.createInvoiceAttachment(document.id, document.documentNumber, invoicePdf)] : undefined,
+      });
 
-      if (document.type === 'ESTIMATE') {
-        await this.prismaService.document.update({
-          where: { id: document.id },
-          data: { estimateStatus: 'SENT' },
-        });
-      } else {
-        await this.prismaService.document.update({
-          where: { id: document.id },
-          data: {
-            invoiceStatus: 'SENT',
-            sentAt: new Date(),
-          },
-        });
-      }
+      await this.markDocumentAsSent(document.id, isInvoice);
 
       return {
         success: true,
@@ -750,5 +768,61 @@ export class DocumentService {
     });
 
     return !!companyUser;
+  }
+
+  private async createInvoicePaymentLink(
+    document: { id: string; totalPrice: number; paymentDueAt: Date },
+    company: { name: string; email: string; IBAN: string },
+    user: User,
+  ): Promise<string> {
+    const paymentLinkData: PaymentLinkData = {
+      user: {
+        company_name: company.name,
+        email: company.email,
+        external_reference: user.id,
+      },
+      expired_date: document.paymentDueAt.toISOString(),
+      client_reference: document.id,
+      transactions: [{
+        amount: document.totalPrice,
+        currency: 'EUR',
+        beneficiary: {
+          company_name: company.name,
+          email: company.email,
+          iban: company.IBAN,
+        },
+        client_reference: document.id,
+        execution_date: document.paymentDueAt.toISOString(),
+      }],
+      callback_url: this.bridgeApiService.getCallbackUrl(),
+    };
+
+    const paymentLink = await this.bridgeApiService.createPaymentLink(paymentLinkData);
+    return paymentLink.url;
+  }
+
+  private createInvoiceAttachment(
+    documentId: string,
+    documentNumber: string | null,
+    content: Buffer,
+  ) {
+    const safeNumber = documentNumber?.replace(/[^a-zA-Z0-9]/g, '') ?? documentId;
+
+    return {
+      filename: `facture-${safeNumber}.pdf`,
+      content,
+      contentType: 'application/pdf',
+    };
+  }
+
+  private async markDocumentAsSent(documentId: string, isInvoice: boolean) {
+    const data = isInvoice
+      ? { invoiceStatus: 'SENT' as const, sentAt: new Date() }
+      : { estimateStatus: 'SENT' as const };
+
+    await this.prismaService.document.update({
+      where: { id: documentId },
+      data,
+    });
   }
 }

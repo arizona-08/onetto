@@ -13,21 +13,18 @@ type Transaction = {
   currency: string;
   beneficiary: {
     iban: string;
-    first_name: string;
-    last_name: string;
     company_name: string;
     email: string;
   },
-  end_to_end_id: string;
   client_reference: string;
   execution_date: string;
 }
 
-type PaymentLinkData = {
+export type PaymentLinkData = {
   user : {
     company_name: string;
     email: string;
-    external_reference: string;
+    external_reference: string; // l'id de l'utilisateur connecté
   },
   expired_date: string;
   client_reference: string;
@@ -44,6 +41,7 @@ export class BridgeApiService {
   private baseUrl: string;
   private authCredentials: { clientId: string; clientSecret: string };
   private bridgeVersion: string;
+  private callbackUrl: string;
 
   constructor(
     configService: ConfigService,
@@ -55,6 +53,12 @@ export class BridgeApiService {
       clientId: configService.getOrThrow("CLIENT_ID"),
       clientSecret: configService.getOrThrow("CLIENT_SECRET")
     };
+    this.callbackUrl = configService.getOrThrow("BRIDGE_CALLBACK_URL");
+  }
+
+  // À utiliser pour récupérer l'URL de callback depuis la configuration
+  getCallbackUrl(): string {
+    return this.callbackUrl;
   }
 
   buildUrl(endpoint: string): string {
@@ -73,7 +77,7 @@ export class BridgeApiService {
   async createPaymentLink(paymentLinkData: PaymentLinkData): Promise<PaymentLinkResponse> {
     try {
       const response = await fetch(
-        this.buildUrl("/payment-links"),
+        this.buildUrl("/payment/payment-links"),
         {
           method: "POST",
           headers: {
@@ -87,6 +91,7 @@ export class BridgeApiService {
       if(!response.ok) {
         const errorResponse = await response.json();
         console.error("Error response from Bridge API:", errorResponse);
+        console.error("beneficiary", paymentLinkData.transactions[0].beneficiary)
         throw new InternalServerErrorException("Erreur lors de la création du lien de paiement", errorResponse.message);
       }
 

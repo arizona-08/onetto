@@ -3,6 +3,7 @@ import { DocumentService } from './document.service';
 import { InvoicePdfService } from './invoice-pdf.service';
 import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { BridgeApiService } from 'src/bridgeApi/bridgeApi.service';
 
 const user = { id: 'user-1', firstname: 'Ada', lastname: 'Lovelace', email: 'ada@example.test', sub: 'user-1', iat: 0, exp: 0, role: 'BASIC_USER' };
 const dto = {
@@ -20,12 +21,21 @@ const company = { name: 'Atelier Onetto', email: 'contact@onetto.test', phoneNum
 describe('DocumentService', () => {
   let service: DocumentService;
   const prisma = { document: { findFirst: jest.fn(), update: jest.fn() }, company: { findUnique: jest.fn() }, estimateNegociation: { create: jest.fn() }, $transaction: jest.fn() } as unknown as PrismaService;
-  const mail = { sendMail: jest.fn() } as unknown as MailService;
+  const mail = {
+    sendMail: jest.fn(),
+    createInvoiceMail: jest.fn().mockReturnValue({ subject: 'Facture', text: 'facture', html: '<p>Facture</p>' }),
+    createEstimateMail: jest.fn().mockReturnValue({ subject: 'Devis', text: 'devis', html: '<p>Devis</p>' }),
+  } as unknown as MailService;
   const pdf = { generate: jest.fn() } as unknown as InvoicePdfService;
+  const bridge = { getCallbackUrl: jest.fn().mockReturnValue('https://callback.test'), createPaymentLink: jest.fn().mockResolvedValue({ url: 'https://pay.test/link' }) } as unknown as BridgeApiService;
 
   beforeEach(() => {
     jest.resetAllMocks();
-    service = new DocumentService(prisma, mail, pdf);
+    (mail.createInvoiceMail as jest.Mock).mockReturnValue({ subject: 'Facture', text: 'facture', html: '<p>Facture</p>' });
+    (mail.createEstimateMail as jest.Mock).mockReturnValue({ subject: 'Devis', text: 'devis', html: '<p>Devis</p>' });
+    (bridge.getCallbackUrl as jest.Mock).mockReturnValue('https://callback.test');
+    (bridge.createPaymentLink as jest.Mock).mockResolvedValue({ url: 'https://pay.test/link' });
+    service = new DocumentService(prisma, mail, pdf, bridge);
     jest.spyOn(service, 'getDocumentById').mockResolvedValue(invoice as never);
     jest.spyOn(service, 'isCompanyUser').mockResolvedValue(true);
     jest.spyOn(service as never, 'getActiveCompanyId').mockResolvedValue('company-1');
@@ -56,7 +66,8 @@ describe('DocumentService', () => {
     await service.sendDocumentToClient(invoice.id, user);
 
     expect(pdf.generate).toHaveBeenCalledWith(expect.objectContaining({ company, documentNumber: invoice.documentNumber }));
-    expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: invoice.clientEmail, html: expect.stringContaining('Votre facture est prête'), attachments: [expect.objectContaining({ content: pdfBuffer, contentType: 'application/pdf' })] }));
+    expect(mail.createInvoiceMail).toHaveBeenCalledWith(expect.objectContaining({ paymentLink: 'https://pay.test/link' }));
+    expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: invoice.clientEmail, attachments: [expect.objectContaining({ content: pdfBuffer, contentType: 'application/pdf' })] }));
     expect(prisma.estimateNegociation.create).not.toHaveBeenCalled();
     expect(prisma.document.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ invoiceStatus: 'SENT', sentAt: expect.any(Date) }) }));
   });
@@ -87,7 +98,8 @@ describe('DocumentService', () => {
     await service.sendDocumentToClient(estimate.id, user);
 
     expect(prisma.estimateNegociation.create).toHaveBeenCalled();
-    expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ html: expect.stringContaining('Un devis vous attend'), attachments: undefined }));
+    expect(mail.createEstimateMail).toHaveBeenCalledWith(expect.objectContaining({ documentUrl: expect.stringContaining('secure-token') }));
+    expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ attachments: undefined }));
     expect(prisma.document.update).toHaveBeenCalledWith({ where: { id: estimate.id }, data: { estimateStatus: 'SENT' } });
   });
 });
