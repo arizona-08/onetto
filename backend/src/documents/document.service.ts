@@ -323,6 +323,7 @@ export class DocumentService {
     user: User,
     withServices: boolean = true,
     type?: 'INVOICE' | 'ESTIMATE',
+    status?: string,
     page = 1,
     pageSize = 5,
   ) {
@@ -332,6 +333,11 @@ export class DocumentService {
         ? {
             type,
             ...(type === 'ESTIMATE' ? { isLastVersion: true } : {}),
+            ...(status
+              ? type === 'INVOICE'
+                ? { invoiceStatus: status as Prisma.EnumInvoiceStatusFilter }
+                : { estimateStatus: status as Prisma.EnumEstimateStatusFilter }
+              : {}),
           }
         : {
             OR: [

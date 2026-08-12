@@ -29,8 +29,35 @@ function getStatusPresentation(status: string) {
   };
 }
 
-  export type InvoiceSelectStatus = 'Toutes' | 'En attente' | 'Payées' | 'Échues';
-  export type EstimateSelectStatus = 'Tout' | 'Brouillons' | 'Envoyés' | 'Acceptés' | 'Refusés';
+const invoiceStatusFilterMatcher: Partial<Record<InvoiceSelectStatus, string>> = {
+  'En attente': 'PENDING',
+  Payées: 'PAID',
+  Échues: 'OVERDUE',
+  Refusées: 'REJECTED',
+  Brouillons: 'DRAFT',
+};
+
+const estimateStatusFilterMatcher: Partial<Record<EstimateSelectStatus, string>> = {
+  Brouillons: 'DRAFT',
+  Envoyés: 'SENT',
+  Acceptés: 'ACCEPTED',
+  Refusés: 'REJECTED',
+};
+
+export type InvoiceSelectStatus =
+  | 'Toutes'
+  | 'Brouillons'
+  | 'En attente'
+  | 'Payées'
+  | 'Échues'
+  | 'Refusées';
+
+export type EstimateSelectStatus =
+  | 'Tout'
+  | 'Brouillons'
+  | 'Envoyés'
+  | 'Acceptés'
+  | 'Refusés';
 
 interface DocumentsTableProps {
   type: 'invoices' | 'estimates'
@@ -162,7 +189,10 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
 
   async function loadDocumentsPage(page: number) {
     setIsLoadingPage(true);
-    const response = await getDocumentsPage(isInvoiceType ? 'INVOICE' : 'ESTIMATE', page);
+    const status = isInvoiceType
+      ? invoiceStatusFilterMatcher[selectedStatus as InvoiceSelectStatus]
+      : estimateStatusFilterMatcher[selectedStatus as EstimateSelectStatus];
+    const response = await getDocumentsPage(isInvoiceType ? 'INVOICE' : 'ESTIMATE', page, status);
     setIsLoadingPage(false);
 
     if (!response.ok) {
@@ -180,6 +210,28 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
   async function handlePageChange(nextPage: number) {
     if (nextPage === currentPage || nextPage < 1 || nextPage > totalPages) return;
     await loadDocumentsPage(nextPage);
+  }
+
+  async function handleStatusChange(status: InvoiceSelectStatus | EstimateSelectStatus) {
+    setSelectedStatus(status);
+    const technicalStatus = isInvoiceType
+      ? invoiceStatusFilterMatcher[status as InvoiceSelectStatus]
+      : estimateStatusFilterMatcher[status as EstimateSelectStatus];
+
+    setIsLoadingPage(true);
+    const response = await getDocumentsPage(isInvoiceType ? 'INVOICE' : 'ESTIMATE', 1, technicalStatus);
+    setIsLoadingPage(false);
+
+    if (!response.ok) {
+      showToast('Impossible de filtrer les documents.', 'error');
+      return;
+    }
+
+    setMasterDocumentsList(response.data.documents.map((document) => ({ ...document, isChecked: false })));
+    setCheckedDocuments([]);
+    setCurrentPage(response.data.pagination.page);
+    setTotalPages(response.data.pagination.totalPages);
+    setTotalDocuments(response.data.pagination.total);
   }
 
   function canConvertEstimate(document: Document): boolean {
@@ -229,7 +281,7 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
           </div>
 
           <div className="flex items-center justify-start flex-wrap gap-5">
-            <DocumentSelector type={isInvoiceType ? "invoices" : "estimates"} selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
+            <DocumentSelector type={isInvoiceType ? "invoices" : "estimates"} selectedStatus={selectedStatus} onSelectStatus={handleStatusChange} />
             <DocumentSorter type={isInvoiceType ? "invoices" : "estimates"} sortMethod={sortMethod} setSortMethod={setSortMethod} isOpen={isSortOpen} setIsOpen={setIsSortOpen} />
           </div>
         </div>
@@ -324,7 +376,7 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
 
             {masterDocumentsList.length > 0 && masterDocumentsList.map((document) => (
               <tr key={document.id} className="border-t border-zinc-100">
-                <td className="px-5 py-5 align-top">
+                <td className="px-5 py-5 align-center">
                   <input
                     type="checkbox"
                     checked={isChecked(document.id)}
@@ -332,13 +384,13 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
                     className="h-4 w-4 rounded border-zinc-300"
                   />
                 </td>
-                <td className="px-5 py-5 align-top">
+                <td className="px-5 py-5 align-center">
                   <Link href={`/documents/${document.id}`} className="underline text-zinc-900 hover:text-primary">
                     <p className="font-semibold ">{document.documentNumber}</p>
                   </Link>
-                  <p className="text-xs text-zinc-500">Type {isInvoiceType ? "de la facture" : "du devis"}</p>
+                  {/* <p className="text-xs text-zinc-500">Type {isInvoiceType ? "de la facture" : "du devis"}</p> */}
                 </td>
-                <td className="px-5 py-5 align-top">
+                <td className="px-5 py-5 align-center">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
                       {document.clientName.split(' ').map((n) => n[0]).join('')}
@@ -346,10 +398,10 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
                     <div className="font-medium text-zinc-900">{document.clientName}</div>
                   </div>
                 </td>
-                <td className="px-5 py-5 align-top">
+                <td className="px-5 py-5 align-center">
                   <div className="font-medium text-zinc-900">{formatDate(document.createdAt)}</div>
                 </td>
-                <td className="px-5 py-5 align-top">
+                <td className="px-5 py-5 align-center">
                   <div className="font-medium text-zinc-900">{formatDate(document.paymentDueAt)}</div>
                   {
                     createPaymentNote(document.paymentDueAt, document.invoiceStatus) && (
@@ -359,12 +411,12 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
                     )
                   }
                 </td>
-                <td className="px-5 py-5 align-top font-semibold text-zinc-900">
+                <td className="px-5 py-5 align-center font-semibold text-zinc-900">
                   {document.totalPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                 </td>
-                <td className="px-5 py-5 align-top">
+                <td className="px-5 py-5 align-center">
                   <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-700">
+                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-500">
                     <span className={`h-2 w-2 rounded-full ${getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).dotClassName}`} />
                     {getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).label}
                   </span>

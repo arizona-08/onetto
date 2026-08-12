@@ -20,8 +20,9 @@ export async function getMyDocumentsServer(withServices: boolean = true) {
   });
 }
 
-export async function getDocumentsPageServer(type: 'INVOICE' | 'ESTIMATE', page = 1) {
-  return apiServer<PaginatedDocuments>(`api/documents/mines?with-services=false&type=${type}&page=${page}&pageSize=5`, {
+export async function getDocumentsPageServer(type: 'INVOICE' | 'ESTIMATE', page = 1, status?: string) {
+  const statusQuery = status ? `&status=${encodeURIComponent(status)}` : '';
+  return apiServer<PaginatedDocuments>(`api/documents/mines?with-services=false&type=${type}&page=${page}&pageSize=5${statusQuery}`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
   });

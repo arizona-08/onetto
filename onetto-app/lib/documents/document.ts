@@ -22,8 +22,9 @@ export async function getMyDocuments(withServices: boolean = true) {
   })
 }
 
-export async function getDocumentsPage(type: 'INVOICE' | 'ESTIMATE', page: number) {
-  return apiClient<PaginatedDocuments>(`api/documents/mines?with-services=false&type=${type}&page=${page}&pageSize=5`, {
+export async function getDocumentsPage(type: 'INVOICE' | 'ESTIMATE', page: number, status?: string) {
+  const statusQuery = status ? `&status=${encodeURIComponent(status)}` : '';
+  return apiClient<PaginatedDocuments>(`api/documents/mines?with-services=false&type=${type}&page=${page}&pageSize=5${statusQuery}`, {
     method: 'GET',
   });
 }

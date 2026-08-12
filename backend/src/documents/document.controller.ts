@@ -16,6 +16,7 @@ export class DocumentController {
     @Req() req: ExtendedRequest,
     @Query("with-services") withServices: boolean,
     @Query('type') type?: 'INVOICE' | 'ESTIMATE',
+    @Query('status') status?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -28,6 +29,7 @@ export class DocumentController {
       user,
       withServices,
       type,
+      status,
       Number(page) || 1,
       Number(pageSize) || 5,
     );
