@@ -1,4 +1,5 @@
-import { Body, Controller, Post } from "@nestjs/common";
+import { Body, Controller, Get, Post, Res } from "@nestjs/common";
+import type { Response } from "express";
 
 @Controller("api/bridge/webhooks")
 export class BridgeWebhookController {
@@ -16,5 +17,11 @@ export class BridgeWebhookController {
     console.log("Received payment transaction updated webhook:", payload);
 
     return { message: "Webhook received successfully" };
+  }
+
+  // temporary endpoint to redirect to the frontend callback URL
+  @Get('payment/callback')
+  paymentCallback(@Res() res: Response) {
+    return res.redirect('http://localhost:3000/payment/callback');
   }
 }

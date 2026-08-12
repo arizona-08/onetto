@@ -771,26 +771,26 @@ export class DocumentService {
   }
 
   private async createInvoicePaymentLink(
-    document: { id: string; totalPrice: number; paymentDueAt: Date },
+    document: { id: string; totalPrice: number; clientName: string; clientEmail: string; paymentDueAt: Date },
     company: { name: string; email: string; IBAN: string },
     user: User,
   ): Promise<string> {
     const paymentLinkData: PaymentLinkData = {
-      user: {
-        company_name: company.name,
-        email: company.email,
-        external_reference: user.id,
+      user: { // client qui paye
+        company_name: document.clientName,
+        email: document.clientEmail,
+        external_reference: document.id,
       },
       expired_date: document.paymentDueAt.toISOString(),
       client_reference: document.id,
       transactions: [{
         amount: document.totalPrice,
         currency: 'EUR',
-        beneficiary: {
-          company_name: company.name,
-          email: company.email,
-          iban: company.IBAN,
-        },
+        // beneficiary: {
+        //   company_name: "Your Company", // company.name
+        //   email: company.email, // company.email
+        //   iban: "FR05 3000 3000 4029 1646 5922 J55", // company.IBAN
+        // },
         client_reference: document.id,
         execution_date: document.paymentDueAt.toISOString(),
       }],

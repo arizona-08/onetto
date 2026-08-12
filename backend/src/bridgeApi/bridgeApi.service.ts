@@ -11,7 +11,7 @@ type BridgeHeaders = {
 type Transaction = {
   amount: number;
   currency: string;
-  beneficiary: {
+  beneficiary?: {
     iban: string;
     company_name: string;
     email: string;
