@@ -1,4 +1,4 @@
-import { getMyDocumentsServer } from '@/lib/documents/document.server';
+import { getDocumentsPageServer } from '@/lib/documents/document.server';
 import { getMyCompaniesServer } from '@/lib/companies/companies.server';
 import { AlertTriangle, ChartLine, Check, CirclePlusIcon, File } from 'lucide-react';
 import React from 'react'
@@ -7,15 +7,18 @@ import DocumentsTable from '@/app/components/organisms/DocumentsTable';
 export const dynamic = 'force-dynamic'
 
 async function DocumentsPage() {
-  const documentsResponse = await getMyDocumentsServer(false);
+  const [estimatesResponse, invoicesResponse] = await Promise.all([
+    getDocumentsPageServer('ESTIMATE'),
+    getDocumentsPageServer('INVOICE'),
+  ]);
 
-  if (!documentsResponse.ok) {
-    console.error('Failed to fetch documents:', documentsResponse.error);
+  if (!estimatesResponse.ok || !invoicesResponse.ok) {
+    console.error('Failed to fetch documents:', estimatesResponse.ok ? invoicesResponse.error : estimatesResponse.error);
   }
   // console.log('Documents response:', documentsResponse);
 
-  const estimates = documentsResponse.ok ? documentsResponse.data.estimates : [];
-  const invoices = documentsResponse.ok ? documentsResponse.data.invoices : [];
+  const estimates = estimatesResponse.ok ? estimatesResponse.data.documents : [];
+  const invoices = invoicesResponse.ok ? invoicesResponse.data.documents : [];
 
   const companiesResponse = await getMyCompaniesServer();
   const activeCompany = companiesResponse.ok
@@ -27,7 +30,7 @@ async function DocumentsPage() {
     <div className="w-full p-4">
       <h1 className="text-2xl font-black font-title">Gérer mes factures et devis</h1>
 
-      {!documentsResponse.ok && (
+      {(!estimatesResponse.ok || !invoicesResponse.ok) && (
         // À modifier en production pour afficher un message d'erreur plus convivial
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="alert">
           Les factures et devis ne peuvent pas être chargés pour le moment. Vérifiez que l&apos;API est démarrée, puis réessayez.
@@ -91,12 +94,12 @@ async function DocumentsPage() {
       <div className="space-y-12">
         <div className="mt-6">
           <h2 className="font-semibold text-xl">Devis</h2>
-          <DocumentsTable type="estimates" documents={estimates} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
+          <DocumentsTable type="estimates" documents={estimates} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} initialPagination={estimatesResponse.ok ? estimatesResponse.data.pagination : undefined} />
         </div>
 
         <div>
           <h2 className="font-semibold text-xl">Factures</h2>
-          <DocumentsTable type="invoices" documents={invoices} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} />
+          <DocumentsTable type="invoices" documents={invoices} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} initialPagination={invoicesResponse.ok ? invoicesResponse.data.pagination : undefined} />
         </div>
       </div>
     </div>

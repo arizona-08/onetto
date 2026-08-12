@@ -4,6 +4,7 @@ import { CreateDocumentDto } from "./dtos/create-document.dto";
 import { CreateDocumentResponse } from "./responses/create-document.response";
 import { DeleteDocumentsResponse } from "./responses/DeleteDocumentsResponse";
 import { SendDocumentToClientResponse } from "./responses/send-document-to-client.response";
+import type { PaginatedDocuments } from './document.server';
 
 export async function createDocument(data: CreateDocumentDto) {
   return apiClient<CreateDocumentResponse>("api/documents/create", {
@@ -19,6 +20,12 @@ export async function getMyDocuments(withServices: boolean = true) {
       "Content-Type": "application/json"
     },
   })
+}
+
+export async function getDocumentsPage(type: 'INVOICE' | 'ESTIMATE', page: number) {
+  return apiClient<PaginatedDocuments>(`api/documents/mines?with-services=false&type=${type}&page=${page}&pageSize=5`, {
+    method: 'GET',
+  });
 }
 
 export async function updateDraftDocument(documentId: string, data: CreateDocumentDto) {

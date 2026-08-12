@@ -6,6 +6,7 @@ import { randomBytes } from "crypto";
 import { MailService } from "src/mail/mail.service";
 import { InvoicePdfService } from "./invoice-pdf.service";
 import { BridgeApiService, PaymentLinkData } from "src/bridgeApi/bridgeApi.service";
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class DocumentService {
@@ -318,17 +319,63 @@ export class DocumentService {
     return `#${prefix}-${currentYear}-${newDocumentNumber.toString().padStart(4, '0')}`;
   }
 
-  async getDocumentsByUser(user: User, withServices: boolean = true){
+  async getDocumentsByUser(
+    user: User,
+    withServices: boolean = true,
+    type?: 'INVOICE' | 'ESTIMATE',
+    page = 1,
+    pageSize = 5,
+  ) {
     try {
       const companyId = await this.getActiveCompanyId(user);
+      const documentTypeFilter: Prisma.DocumentWhereInput = type
+        ? {
+            type,
+            ...(type === 'ESTIMATE' ? { isLastVersion: true } : {}),
+          }
+        : {
+            OR: [
+              { type: 'INVOICE' },
+              { type: 'ESTIMATE', isLastVersion: true },
+            ],
+          };
+
+      if (type) {
+        const where = { companyId, ...documentTypeFilter };
+        const total = await this.prismaService.document.count({ where });
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        const currentPage = Math.min(Math.max(1, page), totalPages);
+        const documents = await this.prismaService.document.findMany({
+          where,
+          include: {
+            services: withServices,
+            convertedDocuments: {
+              where: { type: 'INVOICE' },
+              select: { id: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: (currentPage - 1) * pageSize,
+          take: pageSize,
+        });
+
+        return {
+          documents,
+          pagination: {
+            page: currentPage,
+            pageSize,
+            total,
+            totalPages,
+          },
+        };
+      }
+
       const documents = await this.prismaService.document.findMany({
         where: {
           companyId,
-          OR: [
-            { type: 'INVOICE' },
-            { type: 'ESTIMATE', isLastVersion: true },
-          ],
-        }, 
+          ...documentTypeFilter,
+        },
+        orderBy: { createdAt: 'desc' },
         include: {
           services: withServices,
           convertedDocuments: {

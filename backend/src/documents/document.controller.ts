@@ -12,13 +12,25 @@ export class DocumentController {
   ) {}
 
   @Get("mines")
-  async getMyDocuments(@Req() req: ExtendedRequest, @Query("with-services") withServices: boolean) {
+  async getMyDocuments(
+    @Req() req: ExtendedRequest,
+    @Query("with-services") withServices: boolean,
+    @Query('type') type?: 'INVOICE' | 'ESTIMATE',
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
     const user = req.user;
     if(!user){
       throw new UnauthorizedException("Non authentifié");
     }
 
-    return await this.documentService.getDocumentsByUser(user, withServices);
+    return await this.documentService.getDocumentsByUser(
+      user,
+      withServices,
+      type,
+      Number(page) || 1,
+      Number(pageSize) || 5,
+    );
   }
 
   @Get(":documentId")

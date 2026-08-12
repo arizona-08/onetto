@@ -1,13 +1,13 @@
 'use client';
 import React from 'react'
 
-import { CirclePlusIcon, FileChartColumnIncreasing, RotateCcw, Trash } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CirclePlusIcon, FileChartColumnIncreasing, RotateCcw, Trash } from 'lucide-react';
 import Link from 'next/link';
 import { Document, InvoiceStatus } from '@/app/types';
 import { formatDate } from '@/shared/utils';
 import DocumentSelector from '../molecules/DcumentSelector';
 import DocumentSorter from '../molecules/DocumentSorter';
-import { convertEstimateToInvoice, massDeleteDocuments, retryInvoicePayment } from '@/lib/documents/document';
+import { convertEstimateToInvoice, getDocumentsPage, massDeleteDocuments, retryInvoicePayment } from '@/lib/documents/document';
 import { useToast } from '@/app/components/context/ToastContext';
 import { useRouter } from 'next/navigation';
 
@@ -37,9 +37,10 @@ interface DocumentsTableProps {
   documents: Document[]
   currentDate: string
   canCreate: boolean
+  initialPagination?: { page: number; pageSize: number; total: number; totalPages: number }
 }
 
-function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTableProps) {
+function DocumentsTable({ type, documents, currentDate, canCreate, initialPagination }: DocumentsTableProps) {
 
   const isInvoiceType = type === 'invoices';
   const { showToast } = useToast();
@@ -53,6 +54,10 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [retryingDocumentIds, setRetryingDocumentIds] = React.useState<string[]>([]);
   const [convertingDocumentIds, setConvertingDocumentIds] = React.useState<string[]>([]);
+  const [currentPage, setCurrentPage] = React.useState(initialPagination?.page ?? 1);
+  const [totalPages, setTotalPages] = React.useState(initialPagination?.totalPages ?? 1);
+  const [totalDocuments, setTotalDocuments] = React.useState(initialPagination?.total ?? documents.length);
+  const [isLoadingPage, setIsLoadingPage] = React.useState(false);
   
 
   const [masterDocumentsList, setMasterDocumentsList] = React.useState<Document[]>(documents.map((document) => ({
@@ -99,9 +104,16 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
       return;
     }
 
-    setCheckedDocuments([]);
-    setMasterDocumentsList((prevDocuments) => prevDocuments.filter((document) => !checked.includes(document.id)));
     setIsDeleteModalOpen(false);
+
+    const nextTotal = Math.max(0, totalDocuments - checked.length);
+    const nextTotalPages = Math.max(1, Math.ceil(nextTotal / 5));
+    const nextPage = Math.min(currentPage, nextTotalPages);
+
+    setCheckedDocuments([]);
+    setTotalDocuments(nextTotal);
+    setTotalPages(nextTotalPages);
+    await loadDocumentsPage(nextPage);
 
     showToast(response.data.message, 'success');
   }
@@ -148,10 +160,48 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
     router.push(`/documents/${response.data.document.id}/update-invoice`);
   }
 
+  async function loadDocumentsPage(page: number) {
+    setIsLoadingPage(true);
+    const response = await getDocumentsPage(isInvoiceType ? 'INVOICE' : 'ESTIMATE', page);
+    setIsLoadingPage(false);
+
+    if (!response.ok) {
+      showToast('Impossible de charger cette page de documents.', 'error');
+      return;
+    }
+
+    setMasterDocumentsList(response.data.documents.map((document) => ({ ...document, isChecked: false })));
+    setCheckedDocuments([]);
+    setCurrentPage(response.data.pagination.page);
+    setTotalPages(response.data.pagination.totalPages);
+    setTotalDocuments(response.data.pagination.total);
+  }
+
+  async function handlePageChange(nextPage: number) {
+    if (nextPage === currentPage || nextPage < 1 || nextPage > totalPages) return;
+    await loadDocumentsPage(nextPage);
+  }
+
   function canConvertEstimate(document: Document): boolean {
     return !isInvoiceType
       && document.estimateStatus === 'ACCEPTED'
       && !document.convertedDocuments?.length;
+  }
+
+  function getPaginationPages(): Array<number | 'ellipsis'> {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    if (currentPage <= 4) {
+      return [1, 2, 3, 4, 'ellipsis', totalPages];
+    }
+
+    if (currentPage >= totalPages - 3) {
+      return [1, 'ellipsis', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+
+    return [1, 'ellipsis', currentPage - 1, currentPage, currentPage + 1, 'ellipsis', totalPages];
   }
 
 
@@ -349,6 +399,45 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <nav className="mt-6 flex justify-center" aria-label="Pagination des documents">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => void handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1 || isLoadingPage}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-600 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Page précédente"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+            {getPaginationPages().map((page, index) => page === 'ellipsis' ? (
+              <span key={`ellipsis-${index}`} className="inline-flex h-9 w-8 items-center justify-center text-sm text-zinc-500">…</span>
+            ) : (
+              <button
+                key={page}
+                type="button"
+                onClick={() => void handlePageChange(page)}
+                disabled={isLoadingPage}
+                aria-current={page === currentPage ? 'page' : undefined}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium transition-colors disabled:cursor-not-allowed ${page === currentPage ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-100'}`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => void handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages || isLoadingPage}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-600 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Page suivante"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </nav>
+      )}
 
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-documents-title">
