@@ -4,6 +4,7 @@ import { InvoicePdfService } from './invoice-pdf.service';
 import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BridgeApiService } from 'src/bridgeApi/bridgeApi.service';
+import { InvoicePaymentFeeService } from './invoice-payment-fee.service';
 
 const user = { id: 'user-1', firstname: 'Ada', lastname: 'Lovelace', email: 'ada@example.test', sub: 'user-1', iat: 0, exp: 0, role: 'BASIC_USER' };
 const dto = {
@@ -27,6 +28,12 @@ describe('DocumentService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    invoicePaymentFee: {
+      findUnique: jest.fn(),
+      aggregate: jest.fn(),
+      upsert: jest.fn(),
+      updateMany: jest.fn(),
+    },
     company: { findUnique: jest.fn() },
     estimateNegociation: { create: jest.fn() },
     $transaction: jest.fn(),
@@ -39,6 +46,10 @@ describe('DocumentService', () => {
   } as unknown as MailService;
   const pdf = { generate: jest.fn() } as unknown as InvoicePdfService;
   const bridge = { getCallbackUrl: jest.fn().mockReturnValue('https://callback.test'), createPaymentLink: jest.fn().mockResolvedValue({ url: 'https://pay.test/link' }) } as unknown as BridgeApiService;
+  const paymentFee = {
+    createForPaidInvoice: jest.fn(),
+    resetForPendingInvoice: jest.fn(),
+  } as unknown as InvoicePaymentFeeService;
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -47,7 +58,8 @@ describe('DocumentService', () => {
     (mail.createEstimateMail as jest.Mock).mockReturnValue({ subject: 'Devis', text: 'devis', html: '<p>Devis</p>' });
     (bridge.getCallbackUrl as jest.Mock).mockReturnValue('https://callback.test');
     (bridge.createPaymentLink as jest.Mock).mockResolvedValue({ url: 'https://pay.test/link' });
-    service = new DocumentService(prisma, mail, pdf, bridge);
+    (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => callback(prisma));
+    service = new DocumentService(prisma, mail, pdf, bridge, paymentFee);
     jest.spyOn(service, 'getDocumentById').mockResolvedValue(invoice as never);
     jest.spyOn(service, 'isCompanyUser').mockResolvedValue(true);
     jest.spyOn(service as never, 'getActiveCompanyId').mockResolvedValue('company-1');
@@ -163,6 +175,7 @@ describe('DocumentService', () => {
     (prisma.document.findUnique as jest.Mock).mockResolvedValue({
       type: 'INVOICE',
       invoiceStatus: 'PENDING',
+      companyId: 'company-1',
     });
     (prisma.document.update as jest.Mock).mockResolvedValue(invoice);
 
@@ -172,12 +185,18 @@ describe('DocumentService', () => {
       where: { id: invoice.id },
       data: { invoiceStatus: 'PAID_MANUALLY' },
     });
+    expect(paymentFee.createForPaidInvoice).toHaveBeenCalledWith(
+      invoice.id,
+      'company-1',
+      prisma,
+    );
   });
 
   it('remet en attente une facture payée manuellement', async () => {
     (prisma.document.findUnique as jest.Mock).mockResolvedValue({
       type: 'INVOICE',
       invoiceStatus: 'PAID_MANUALLY',
+      companyId: 'company-1',
     });
     (prisma.document.update as jest.Mock).mockResolvedValue(invoice);
 
@@ -187,6 +206,10 @@ describe('DocumentService', () => {
       where: { id: invoice.id },
       data: { invoiceStatus: 'PENDING' },
     });
+    expect(paymentFee.resetForPendingInvoice).toHaveBeenCalledWith(
+      invoice.id,
+      prisma,
+    );
   });
 
   it('envoie un devis avec un token de négociation et le template HTML dédié', async () => {

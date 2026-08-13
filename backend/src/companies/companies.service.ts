@@ -4,6 +4,8 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { CreateCompanyDto } from "./dtos/create-company.dto";
 import { UpdateCompanyDto } from "./dtos/update-company.dto";
 
+const PAID_INVOICE_STATUSES = ['PAID', 'PAID_MANUALLY'] as const;
+
 @Injectable()
 export class CompaniesService {
   constructor(
@@ -78,6 +80,57 @@ export class CompaniesService {
     const companies = [...companiesById.values()].sort((first, second) => first.name.localeCompare(second.name));
 
     return { companies, activeCompanyId: user?.lastConnectedCompanyId ?? null };
+  }
+
+  async getCurrentInvoiceFeeSummary(userId: string) {
+    const periodStart = this.getStartOfCurrentMonth();
+    const companies = await this.prismaService.company.findMany({
+      where: { ownerId: userId },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        invoicePaymentFees: {
+          where: {
+            createdAt: { gte: periodStart },
+            document: {
+              invoiceStatus: { in: [...PAID_INVOICE_STATUSES] },
+            },
+          },
+          select: { amountInCents: true },
+        },
+      },
+    });
+
+    const details = companies.map((company) => {
+      const paidInvoicesCount = company.invoicePaymentFees.length;
+      const amountInCents = company.invoicePaymentFees.reduce(
+        (total, fee) => total + fee.amountInCents,
+        0,
+      );
+
+      return {
+        companyId: company.id,
+        companyName: company.name,
+        paidInvoicesCount,
+        amountInCents,
+      };
+    });
+
+    return {
+      periodStart,
+      totalAmountInCents: details.reduce(
+        (total, company) => total + company.amountInCents,
+        0,
+      ),
+      companies: details,
+    };
+  }
+
+  private getStartOfCurrentMonth() {
+    const now = new Date();
+
+    return new Date(now.getFullYear(), now.getMonth(), 1);
   }
 
   async getCompany(companyId: string, userId: string) {

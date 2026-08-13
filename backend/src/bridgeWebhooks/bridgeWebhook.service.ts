@@ -3,6 +3,7 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { WebhookTransactionDto } from "./dtos/transaction.dto";
 import { $Enums, BridgePaymentLinkSession, Prisma } from "@prisma/client";
 import { MailService } from 'src/mail/mail.service';
+import { InvoicePaymentFeeService } from 'src/documents/invoice-payment-fee.service';
 
 type GetPaymentSessionResult =
   | {
@@ -19,6 +20,7 @@ export class BridgeWebhookService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly mailService: MailService,
+    private readonly invoicePaymentFeeService: InvoicePaymentFeeService,
   ) {}
 
 
@@ -131,17 +133,32 @@ export class BridgeWebhookService {
 
         if(allDocumentTransactionAttempts.some(attempt => attempt.paymentTransactionStatus === 'ACSC')){
           await this.markDocumentAs('PAID', existingDocument.id, prisma);
+          await this.invoicePaymentFeeService.createForPaidInvoice(
+            existingDocument.id,
+            existingDocument.companyId,
+            prisma,
+          );
           return webhookContent.status === 'ACSC' && existingDocument.invoiceStatus !== 'PAID'
             ? existingDocument
             : null;
         } else if(allDocumentTransactionAttempts.every(attempt => attempt.paymentTransactionStatus === 'RJCT')){
           await this.markDocumentAs('REJECTED', existingDocument.id, prisma);
         } else {
+          const nextStatus = this.transactionStatusMatcher(
+            webhookContent.status as $Enums.BridgePaymentTransactionStatus,
+          );
           await this.markDocumentAs(
-            this.transactionStatusMatcher(webhookContent.status as $Enums.BridgePaymentTransactionStatus),
+            nextStatus,
             existingDocument.id,
             prisma
-          )
+          );
+
+          if (nextStatus === 'PENDING') {
+            await this.invoicePaymentFeeService.resetForPendingInvoice(
+              existingDocument.id,
+              prisma,
+            );
+          }
         }
         return null;
       })

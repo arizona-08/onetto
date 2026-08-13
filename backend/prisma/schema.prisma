@@ -165,8 +165,8 @@ model InvoicePaymentFee {
   id String @id @default(uuid())
   documentId String @unique
   companyId String
-  feeAmountInCents Float // The fee amount in cents for Stripe
-  paymentMethod PaymentMethod
+  amountInCents Int
+  paymentMethod PaymentMethod?
   createdAt DateTime @default(now())
 
   document Document @relation(fields: [documentId], references: [id])
