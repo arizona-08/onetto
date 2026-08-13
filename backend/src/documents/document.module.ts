@@ -8,11 +8,12 @@ import { UserModule } from "src/user/user.module";
 import { MailModule } from "src/mail/mail.module";
 import { NegociationController } from "./negociation.controller";
 import { InvoicePdfService } from "./invoice-pdf.service";
+import { PublicPaymentController } from './public-payment.controller';
 import { BridgeApiModule } from "src/bridgeApi/bridgeApi.module";
 
 @Module({
   imports: [PrismaModule, UserModule, AuthModule, JwtModule, MailModule, BridgeApiModule],
-  controllers: [DocumentController, NegociationController],
+  controllers: [DocumentController, NegociationController, PublicPaymentController],
   providers: [DocumentService, InvoicePdfService],
 })
 export class DocumentModule {}

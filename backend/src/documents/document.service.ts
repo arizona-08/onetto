@@ -410,7 +410,11 @@ export class DocumentService {
           companyId
         },
         include: {
-          services: withServices
+          services: withServices,
+          convertedDocuments: {
+            where: { type: 'INVOICE' },
+            select: { id: true },
+          },
         }
       });
 
@@ -443,6 +447,16 @@ export class DocumentService {
       console.error("Error fetching document by ID:", error);
       throw new InternalServerErrorException("Une erreur est survenue lors de la récupération du document.");
     }
+  }
+
+  async generateDocumentPdf(documentId: string, user: User): Promise<Buffer> {
+    const document = await this.getDocumentById(documentId, user, true);
+    const company = await this.getInvoiceCompany(document.companyId);
+
+    return this.invoicePdfService.generate({
+      ...document,
+      company,
+    });
   }
 
   async getNegociationByToken(negociationToken: string) {
@@ -876,6 +890,7 @@ export class DocumentService {
     company: { name: string; email: string; IBAN: string },
     user: User,
   ): Promise<string> {
+    const paymentAccessToken = randomBytes(32).toString('hex');
     const paymentLinkData: PaymentLinkData = {
       user: { // client qui paye
         company_name: document.clientName,
@@ -898,8 +913,43 @@ export class DocumentService {
       callback_url: this.bridgeApiService.getCallbackUrl(),
     };
 
-    const paymentLink = await this.bridgeApiService.createPaymentLink(paymentLinkData);
-    return paymentLink.url;
+    await this.bridgeApiService.createPaymentLink(paymentLinkData, paymentAccessToken);
+
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+    return `${frontendUrl}/payment?token=${paymentAccessToken}`;
+  }
+
+  async getPublicPaymentByToken(paymentAccessToken: string) {
+    const paymentSession = await this.prismaService.bridgePaymentLinkSession.findUnique({
+      where: { paymentAccessToken },
+      include: {
+        document: {
+          include: {
+            services: true,
+            company: {
+              select: {
+                name: true,
+                email: true,
+                address: true,
+                postalCode: true,
+                city: true,
+                country: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!paymentSession || paymentSession.expiresAt < new Date()) {
+      throw new BadRequestException('Ce lien de paiement est invalide ou expiré.');
+    }
+
+    return {
+      paymentLink: paymentSession.url,
+      expiresAt: paymentSession.expiresAt,
+      document: paymentSession.document,
+    };
   }
 
   private async getInvoiceCompany(companyId: string) {

@@ -34,6 +34,14 @@ type EstimateMailInput = {
   documentUrl: string;
 };
 
+type PaymentConfirmationMailInput = {
+  clientName: string;
+  documentNumber: string | null;
+  totalPrice: number;
+  companyName: string;
+  companyEmail: string;
+};
+
 const formatAmount = (amount: number) => `${amount.toFixed(2)} €`;
 const formatDate = (date: Date) => date.toLocaleDateString('fr-FR');
 
@@ -72,6 +80,16 @@ export class MailService {
       subject: `Nouveau lien de paiement — facture ${input.documentNumber}`,
       text: this.createInvoicePaymentRetryText(input),
       html: this.createInvoicePaymentRetryTemplate(input),
+    };
+  }
+
+  createPaymentConfirmationMail(
+    input: PaymentConfirmationMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    return {
+      subject: `Paiement confirmé — facture ${input.documentNumber}`,
+      text: this.createPaymentConfirmationText(input),
+      html: this.createPaymentConfirmationTemplate(input),
     };
   }
 
@@ -117,6 +135,17 @@ export class MailService {
       input.paymentLink,
       '',
       'Merci.',
+    ].join('\n');
+  }
+
+  private createPaymentConfirmationText(input: PaymentConfirmationMailInput): string {
+    return [
+      `Bonjour ${input.clientName},`,
+      '',
+      `Nous vous confirmons la bonne réception du règlement de votre facture ${input.documentNumber}.`,
+      `Montant réglé : ${formatAmount(input.totalPrice)}`,
+      '',
+      'Merci pour votre paiement.',
     ].join('\n');
   }
 
@@ -174,6 +203,23 @@ export class MailService {
     });
   }
 
+  private createPaymentConfirmationTemplate(input: PaymentConfirmationMailInput): string {
+    const details = this.createDetailsTable([
+      ['Montant réglé', formatAmount(input.totalPrice)],
+      ['Statut', 'Paiement confirmé'],
+    ]);
+
+    return this.createEmailLayout({
+      badge: 'PAIEMENT CONFIRMÉ',
+      title: 'Votre paiement a bien été reçu',
+      greeting: `Bonjour ${input.clientName},`,
+      message: `Nous vous confirmons la bonne réception du règlement de votre facture <strong>${input.documentNumber}</strong>.`,
+      details,
+      footer: `${input.companyName} · ${input.companyEmail}`,
+      note: 'Merci pour votre confiance.',
+    });
+  }
+
   private createDetailsTable(rows: Array<[string, string]>): string {
     const cells = rows.map(([label, value], index) => {
       const bottomPadding = index === rows.length - 1 ? '16px' : '0';
@@ -189,7 +235,7 @@ export class MailService {
     greeting: string;
     message: string;
     details: string;
-    action: { label: string; url: string };
+    action?: { label: string; url: string };
     footer: string;
     note: string;
   }): string {
@@ -202,7 +248,7 @@ export class MailService {
             <p style="margin:0;color:#71717a;line-height:1.6">${greeting}</p>
             <p style="margin:20px 0;color:#52525b;line-height:1.6">${message}</p>
             ${details}
-            <a href="${action.url}" style="display:inline-block;border-radius:8px;background:#635bff;padding:13px 20px;color:#fff;font-size:14px;font-weight:700;text-decoration:none">${action.label}</a>
+            ${action ? `<a href="${action.url}" style="display:inline-block;border-radius:8px;background:#635bff;padding:13px 20px;color:#fff;font-size:14px;font-weight:700;text-decoration:none">${action.label}</a>` : ''}
             <p style="margin:24px 0 0;color:#71717a;font-size:13px;line-height:1.6">${note}</p>
           </td></tr>
           <tr><td style="padding:18px 32px;background:#635bff;color:#fff;font-size:12px">${footer}</td></tr>

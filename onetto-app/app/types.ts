@@ -81,6 +81,21 @@ export type DocumentService = {
   totalPrice: number;
 }
 
+export type PublicPayment = {
+  paymentLink: string;
+  expiresAt: string;
+  document: Pick<Document, 'documentNumber' | 'clientName' | 'totalPrice' | 'totalPriceExcludingTax' | 'paymentDueAt' | 'services'> & {
+    company: {
+      name: string;
+      email: string;
+      address: string;
+      postalCode: string;
+      city: string;
+      country: string;
+    };
+  };
+};
+
 export type PublicNegociation = {
   id: string;
   message: string;

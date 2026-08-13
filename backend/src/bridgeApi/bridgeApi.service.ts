@@ -74,7 +74,10 @@ export class BridgeApiService {
   }
 
   // enregistrer le payment link en bdd
-  async createPaymentLink(paymentLinkData: PaymentLinkData): Promise<PaymentLinkResponse> {
+  async createPaymentLink(
+    paymentLinkData: PaymentLinkData,
+    paymentAccessToken: string,
+  ): Promise<PaymentLinkResponse> {
     try {
       const response = await fetch(
         this.buildUrl("/payment/payment-links"),
@@ -102,6 +105,7 @@ export class BridgeApiService {
           await prisma.bridgePaymentLinkSession.create({
             data: {
               bridgePaymentLinkId: data.id,
+              paymentAccessToken,
               documentId: transaction.client_reference, // id de la facture
               url: data.url,
               expiresAt: new Date(paymentLinkData.expired_date),

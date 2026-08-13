@@ -2,7 +2,19 @@ import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 
 type InvoicePdfData = {
-  documentNumber: string | null; sentAt: Date | null; paymentDueAt: Date; clientName: string; clientEmail: string; clientAddress: string; clientPostalCode: string; clientCity: string; clientCountry: string; totalPrice: number; totalPriceExcludingTax: number;
+  type: 'INVOICE' | 'ESTIMATE';
+  documentNumber: string | null;
+  createdAt: Date;
+  sentAt: Date | null;
+  paymentDueAt: Date;
+  clientName: string;
+  clientEmail: string;
+  clientAddress: string;
+  clientPostalCode: string;
+  clientCity: string;
+  clientCountry: string;
+  totalPrice: number;
+  totalPriceExcludingTax: number;
   services: Array<{ description: string; quantity: number; unit: string; unitPrice: number; taxRate: number | null; totalPrice: number }>;
   company: { name: string; email: string; phoneNumber: string; siren: string; address: string; postalCode: string; city: string; country: string; vatNumber: string | null; IBAN: string; BIC: string };
 };
@@ -23,13 +35,19 @@ export class InvoicePdfService {
       pdf.on('error', reject);
 
       const width = pdf.page.width - 84;
-      pdf.fillColor(primary).font('Helvetica').fontSize(42).text('FACTURE', 42, 42);
+      const isInvoice = data.type === 'INVOICE';
+      const title = isInvoice ? 'FACTURE' : 'DEVIS';
+      const issueDateLabel = isInvoice ? 'DATE D’ÉMISSION' : 'DATE DU DEVIS';
+      const dueDateLabel = isInvoice ? 'DATE D’ÉCHÉANCE' : 'VALABLE JUSQU’AU';
+      const issueDate = isInvoice ? (data.sentAt ?? new Date()) : data.createdAt;
+
+      pdf.fillColor(primary).font('Helvetica').fontSize(42).text(title, 42, 42);
       pdf.roundedRect(42, 88, 110, 19, 9).strokeColor('#18181B').lineWidth(0.7).stroke();
       pdf.fillColor('#18181B').fontSize(9).text(`n° ${data.documentNumber ?? ''}`, 51, 94);
       pdf.roundedRect(477, 42, 75, 75, 6).fill(primary);
-      pdf.fillColor(muted).font('Helvetica-Bold').fontSize(9).text('DATE D’ÉMISSION', 42, 130);
-      pdf.fillColor('#18181B').font('Helvetica').fontSize(10).text(date(data.sentAt ?? new Date()), 42, 144);
-      pdf.fillColor(muted).font('Helvetica-Bold').fontSize(9).text('DATE D’ÉCHÉANCE', 42, 165);
+      pdf.fillColor(muted).font('Helvetica-Bold').fontSize(9).text(issueDateLabel, 42, 130);
+      pdf.fillColor('#18181B').font('Helvetica').fontSize(10).text(date(issueDate), 42, 144);
+      pdf.fillColor(muted).font('Helvetica-Bold').fontSize(9).text(dueDateLabel, 42, 165);
       pdf.fillColor('#18181B').font('Helvetica').fontSize(10).text(date(data.paymentDueAt), 42, 179);
       pdf.moveTo(42, 211).lineTo(553, 211).strokeColor('#E4E4E7').stroke();
 

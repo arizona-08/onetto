@@ -1,4 +1,4 @@
-import { Document, PublicNegociation } from "@/app/types";
+import { Document, PublicNegociation, PublicPayment } from "@/app/types";
 import { apiServer } from "../api-server";
 
 type EstimatesAndInvoicesType = {
@@ -41,5 +41,12 @@ export async function getNegociationByTokenServer(token: string) {
   return apiServer<PublicNegociation>(`api/negociations/${encodeURIComponent(token)}`, {
     method: "GET",
     cache: "no-store",
+  });
+}
+
+export async function getPublicPaymentServer(token: string) {
+  return apiServer<PublicPayment>(`api/public/payments?token=${encodeURIComponent(token)}`, {
+    method: 'GET',
+    cache: 'no-store',
   });
 }

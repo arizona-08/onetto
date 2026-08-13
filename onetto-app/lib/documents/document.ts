@@ -55,6 +55,19 @@ export async function retryInvoicePayment(documentId: string) {
   });
 }
 
+export async function downloadDocumentPdf(documentId: string) {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/api/documents/${documentId}/download-pdf`,
+    { credentials: 'include' },
+  );
+
+  if (!response.ok) {
+    throw new Error('Impossible de télécharger le document.');
+  }
+
+  return response.blob();
+}
+
 export async function getDocumentNegociations(documentId: string) {
   return apiClient<DocumentNegociation[]>(`api/documents/${documentId}/negociations`, {
     method: "GET",

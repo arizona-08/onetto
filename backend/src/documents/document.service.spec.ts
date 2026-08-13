@@ -102,7 +102,9 @@ describe('DocumentService', () => {
     await service.sendDocumentToClient(invoice.id, user);
 
     expect(pdf.generate).toHaveBeenCalledWith(expect.objectContaining({ company, documentNumber: invoice.documentNumber }));
-    expect(mail.createInvoiceMail).toHaveBeenCalledWith(expect.objectContaining({ paymentLink: 'https://pay.test/link' }));
+    expect(mail.createInvoiceMail).toHaveBeenCalledWith(expect.objectContaining({
+      paymentLink: expect.stringContaining('/payment?token='),
+    }));
     expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: invoice.clientEmail, attachments: [expect.objectContaining({ content: pdfBuffer, contentType: 'application/pdf' })] }));
     expect(prisma.estimateNegociation.create).not.toHaveBeenCalled();
     expect(prisma.document.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ invoiceStatus: 'SENT', sentAt: expect.any(Date) }) }));
@@ -135,7 +137,9 @@ describe('DocumentService', () => {
     await service.retryInvoicePayment(invoice.id, user);
 
     expect(bridge.createPaymentLink).toHaveBeenCalled();
-    expect(mail.createInvoicePaymentRetryMail).toHaveBeenCalledWith(expect.objectContaining({ paymentLink: 'https://pay.test/link' }));
+    expect(mail.createInvoicePaymentRetryMail).toHaveBeenCalledWith(expect.objectContaining({
+      paymentLink: expect.stringContaining('/payment?token='),
+    }));
     expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ attachments: [expect.objectContaining({ content: pdfBuffer })] }));
     expect(prisma.document.update).toHaveBeenCalledWith({ where: { id: invoice.id }, data: { invoiceStatus: 'SENT' } });
   });

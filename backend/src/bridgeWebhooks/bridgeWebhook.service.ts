@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 import { WebhookTransactionDto } from "./dtos/transaction.dto";
 import { $Enums, BridgePaymentLinkSession, Prisma } from "@prisma/client";
+import { MailService } from 'src/mail/mail.service';
 
 type GetPaymentSessionResult =
   | {
@@ -15,7 +16,10 @@ type GetPaymentSessionResult =
 
 @Injectable()
 export class BridgeWebhookService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
 
   async handleWebhook(webhook: WebhookTransactionDto) {
@@ -75,7 +79,7 @@ export class BridgeWebhookService {
 
       const session = sessionResult.session;
 
-      await this.prismaService.$transaction(async (prisma) => {
+      const paidDocument = await this.prismaService.$transaction(async (prisma) => {
         await prisma.bridgePaymentAttempt.upsert({
           where: {
             paymentRequestId: webhookContent.payment_request_id,
@@ -96,13 +100,21 @@ export class BridgeWebhookService {
 
         const existingDocument = await prisma.document.findUnique({
           where: {
-            id: webhookContent.client_reference
-          }
+            id: session.documentId,
+          },
+          include: {
+            company: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
         });
 
         if(!existingDocument){
-          console.error(`Document with id ${webhookContent.client_reference} not found.`);
-          return;
+          console.error(`Document with id ${session.documentId} not found.`);
+          return null;
         }
 
         const allDocumentTransactionAttempts = await prisma.bridgePaymentAttempt.findMany({
@@ -119,6 +131,9 @@ export class BridgeWebhookService {
 
         if(allDocumentTransactionAttempts.some(attempt => attempt.paymentTransactionStatus === 'ACSC')){
           await this.markDocumentAs('PAID', existingDocument.id, prisma);
+          return webhookContent.status === 'ACSC' && existingDocument.invoiceStatus !== 'PAID'
+            ? existingDocument
+            : null;
         } else if(allDocumentTransactionAttempts.every(attempt => attempt.paymentTransactionStatus === 'RJCT')){
           await this.markDocumentAs('REJECTED', existingDocument.id, prisma);
         } else {
@@ -128,7 +143,12 @@ export class BridgeWebhookService {
             prisma
           )
         }
+        return null;
       })
+
+      if (paidDocument) {
+        await this.sendPaymentConfirmationEmail(paidDocument);
+      }
     } catch (error) {
       console.error("Error handling transaction updated webhook:", error);
       return;
@@ -192,5 +212,30 @@ export class BridgeWebhookService {
         invoiceStatus: status,
       }
     })
+  }
+
+  private async sendPaymentConfirmationEmail(document: {
+    clientName: string;
+    clientEmail: string;
+    documentNumber: string | null;
+    totalPrice: number;
+    company: { name: string; email: string };
+  }) {
+    const mailContent = this.mailService.createPaymentConfirmationMail({
+      clientName: document.clientName,
+      documentNumber: document.documentNumber,
+      totalPrice: document.totalPrice,
+      companyName: document.company.name,
+      companyEmail: document.company.email,
+    });
+
+    try {
+      await this.mailService.sendMail({
+        to: document.clientEmail,
+        ...mailContent,
+      });
+    } catch (error) {
+      console.error('Unable to send payment confirmation email:', error);
+    }
   }
 }

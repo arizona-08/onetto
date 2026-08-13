@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+import type { Response } from 'express';
 import { DocumentService } from "./document.service";
 import { CreateDocumentDto } from "./dtos/create-document.dto";
 import type { ExtendedRequest, User } from "src/types/extended-request.types";
@@ -44,6 +45,23 @@ export class DocumentController {
 
     return await this.documentService.getDocumentById(documentId, user, withServices);
 
+  }
+
+  @Get(':documentId/download-pdf')
+  async downloadDocumentPdf(
+    @Param('documentId') documentId: string,
+    @Req() req: ExtendedRequest,
+    @Res() res: Response,
+  ) {
+    const user = req.user;
+    if (!user) {
+      throw new UnauthorizedException('Non authentifié');
+    }
+
+    const pdf = await this.documentService.generateDocumentPdf(documentId, user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="document-${documentId}.pdf"`);
+    res.send(pdf);
   }
 
   @Get(":documentId/negociations")

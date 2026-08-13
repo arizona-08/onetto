@@ -48,4 +48,19 @@ describe('MailService templates', () => {
     expect(mail.html).toContain('https://pay.test/new-link');
     expect(mail.text).toContain("n'a pas pu aboutir");
   });
+
+  it('génère une confirmation de paiement sans bouton de paiement', () => {
+    const mail = service.createPaymentConfirmationMail({
+      clientName: 'Client',
+      documentNumber: '#FACT-2026-0001',
+      totalPrice: 120,
+      companyName: 'Onetto',
+      companyEmail: 'contact@onetto.test',
+    });
+
+    expect(mail.subject).toContain('Paiement confirmé');
+    expect(mail.html).toContain('Votre paiement a bien été reçu');
+    expect(mail.html).not.toContain('Payer la facture');
+    expect(mail.text).toContain('Montant réglé : 120.00 €');
+  });
 });

@@ -162,6 +162,7 @@ model BridgePaymentLinkSession {
   id String @id @default(uuid())
   documentId String
   bridgePaymentLinkId String @unique
+  paymentAccessToken String @unique
   linkStatus BridgePaymentLinkStatus?
   url String
   createdAt DateTime @default(now())
