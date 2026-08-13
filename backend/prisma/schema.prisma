@@ -114,7 +114,7 @@ model Document {
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   services DocumentService[]
   negociations EstimateNegociation[]
-  paymentLinks BridgePaymentLink[] // peut en créer plusieurs pour un même document, mais seulement un actif à la fois
+  paymentLinkSessions BridgePaymentLinkSession[] // peut en créer plusieurs pour un même document, mais seulement un actif à la fois
 }
 
 enum DocumentType {
@@ -158,19 +158,31 @@ enum EstimateNegociationStatus {
   REJECTED
 }
 
-model BridgePaymentLink {
+model BridgePaymentLinkSession {
   id String @id @default(uuid())
   documentId String
-  bridgePaymentLinkId String? @unique
+  bridgePaymentLinkId String @unique
   linkStatus BridgePaymentLinkStatus?
-  paymentRequestId String?
-  paymentTransactionId String?
-  paymentTransactionStatus BridgePaymentTransactionStatus?
   url String
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   expiresAt DateTime
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  bridgePaymentAttempts BridgePaymentAttempt[]
+}
+
+model BridgePaymentAttempt {
+  id String @id @default(uuid())
+  bridgePaymentLinkSessionId String
+  paymentRequestId String
+  paymentTransactionId String @unique
+  paymentTransactionStatus BridgePaymentTransactionStatus?
+  paymentTransactionStatusReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bridgePaymentLinkSession BridgePaymentLinkSession @relation(fields: [bridgePaymentLinkSessionId], references: [id], onDelete: Cascade)
 }
 
 enum BridgePaymentLinkStatus {

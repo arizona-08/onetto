@@ -99,12 +99,12 @@ export class BridgeApiService {
 
       await this.prismaService.$transaction(async (prisma) => {
         for (const transaction of paymentLinkData.transactions) {
-          await prisma.bridgePaymentLink.create({
+          await prisma.bridgePaymentLinkSession.create({
             data: {
+              bridgePaymentLinkId: data.id,
+              documentId: transaction.client_reference, // id de la facture
               url: data.url,
               expiresAt: new Date(paymentLinkData.expired_date),
-              documentId: transaction.client_reference, // id de la facture
-              bridgePaymentLinkId: data.id,
             }
           });
         }

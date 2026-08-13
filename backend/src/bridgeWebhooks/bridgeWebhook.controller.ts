@@ -8,7 +8,7 @@ export class BridgeWebhookController {
   constructor(private readonly bridgeWebhookService: BridgeWebhookService) {}
 
   @Post("payment")
-  async handlePaymentTransactionCreated(@Body() webhook: WebhookTransactionDto | any) {
+  async handlePaymentTransactionAttempt(@Body() webhook: WebhookTransactionDto | any) {
     // console.log(webhook);
     await this.bridgeWebhookService.handleWebhook(webhook)
 
