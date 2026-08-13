@@ -3,6 +3,10 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateCompanyDto } from "./dtos/create-company.dto";
 import { UpdateCompanyDto } from "./dtos/update-company.dto";
+import { CreateCompanyClientDto } from './dtos/create-company-client.dto';
+import { CreateCompanyServiceDto } from './dtos/create-company-service.dto';
+import { UpdateCompanyClientDto } from './dtos/update-company-client.dto';
+import { UpdateCompanyServiceDto } from './dtos/update-company-service.dto';
 
 const PAID_INVOICE_STATUSES = ['PAID', 'PAID_MANUALLY'] as const;
 
@@ -154,6 +158,177 @@ export class CompaniesService {
     } catch (error) {
       this.handleDatabaseError(error, "récupération de l'entreprise active.");
     }
+  }
+
+  async getActiveCompanyServices(userId: string) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+
+    return this.prismaService.companyService.findMany({
+      where: { companyId },
+      orderBy: { description: 'asc' },
+    });
+  }
+
+  async getActiveCompanyClients(userId: string) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+
+    return this.prismaService.companyClient.findMany({
+      where: { companyId },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createActiveCompanyService(userId: string, data: CreateCompanyServiceDto) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+
+    return this.prismaService.companyService.create({
+      data: {
+        ...data,
+        companyId,
+        taxRate: data.taxRate ?? 0,
+        wtPrice: data.unitPrice,
+        totalPrice: this.getServiceTotalPrice(data.unitPrice, data.taxRate),
+      },
+    });
+  }
+
+  async updateActiveCompanyService(
+    userId: string,
+    serviceId: string,
+    data: UpdateCompanyServiceDto,
+  ) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+    const existingService = await this.prismaService.companyService.findFirst({
+      where: { id: serviceId, companyId },
+    });
+
+    if (!existingService) {
+      throw new NotFoundException('Service introuvable.');
+    }
+
+    const unitPrice = data.unitPrice ?? existingService.unitPrice;
+    const taxRate = data.taxRate ?? existingService.taxRate ?? 0;
+
+    return this.prismaService.companyService.update({
+      where: { id: serviceId },
+      data: {
+        ...data,
+        wtPrice: unitPrice,
+        totalPrice: this.getServiceTotalPrice(unitPrice, taxRate),
+      },
+    });
+  }
+
+  async deleteActiveCompanyService(userId: string, serviceId: string) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+    const existingService = await this.prismaService.companyService.findFirst({
+      where: { id: serviceId, companyId },
+      select: { id: true },
+    });
+
+    if (!existingService) {
+      throw new NotFoundException('Service introuvable.');
+    }
+
+    await this.prismaService.companyService.delete({
+      where: { id: serviceId },
+    });
+
+    return { success: true };
+  }
+
+  async createActiveCompanyClient(userId: string, data: CreateCompanyClientDto) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+
+    return this.prismaService.companyClient.create({
+      data: { ...data, companyId },
+    });
+  }
+
+  async updateActiveCompanyClient(
+    userId: string,
+    clientId: string,
+    data: UpdateCompanyClientDto,
+  ) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+    const existingClient = await this.prismaService.companyClient.findFirst({
+      where: { id: clientId, companyId },
+      select: { id: true },
+    });
+
+    if (!existingClient) {
+      throw new NotFoundException('Client introuvable.');
+    }
+
+    return this.prismaService.companyClient.update({
+      where: { id: clientId },
+      data,
+    });
+  }
+
+  async deleteActiveCompanyClient(userId: string, clientId: string) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+    const existingClient = await this.prismaService.companyClient.findFirst({
+      where: { id: clientId, companyId },
+      select: { id: true },
+    });
+
+    if (!existingClient) {
+      throw new NotFoundException('Client introuvable.');
+    }
+
+    await this.prismaService.companyClient.delete({
+      where: { id: clientId },
+    });
+
+    return { success: true };
+  }
+
+  private async getActiveCompanyIdForUser(userId: string) {
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+      select: { lastConnectedCompanyId: true },
+    });
+
+    if (!user?.lastConnectedCompanyId) {
+      throw new NotFoundException('Aucune entreprise active sélectionnée.');
+    }
+
+    const companyUser = await this.prismaService.companyUser.findFirst({
+      where: {
+        companyId: user.lastConnectedCompanyId,
+        userId,
+        isHidden: false,
+      },
+      select: { companyId: true },
+    });
+
+    if (!companyUser) {
+      throw new NotFoundException('Entreprise active introuvable ou accès non autorisé.');
+    }
+
+    return companyUser.companyId;
+  }
+
+  private async ensureCompanyCatalogIsEditable(companyId: string) {
+    const company = await this.prismaService.company.findUnique({
+      where: { id: companyId },
+      select: { status: true },
+    });
+
+    if (!company || company.status === 'CLOSED') {
+      throw new BadRequestException('Le catalogue d’une entreprise fermée ne peut pas être modifié.');
+    }
+  }
+
+  private getServiceTotalPrice(unitPrice: number, taxRate?: number) {
+    return unitPrice * (1 + (taxRate ?? 0) / 100);
   }
 
   async updateCompany(companyId: string, data: UpdateCompanyDto, userId: string) {

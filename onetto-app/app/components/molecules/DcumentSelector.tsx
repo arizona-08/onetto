@@ -6,6 +6,7 @@ const INVOICES_STATUS: InvoiceSelectStatus[] = [
   'Toutes',
   'Brouillons',
   'En attente',
+  'Paiement en cours',
   'Payées',
   'Échues',
   'Refusées',

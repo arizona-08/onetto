@@ -17,10 +17,42 @@ export type InvoiceFeeSummary = {
   }>;
 };
 
+export type CompanyService = {
+  id: string;
+  companyId: string;
+  name: string;
+  description: string;
+  unitPrice: number;
+  unit: string;
+  taxRate: number | null;
+  category: string;
+  wtPrice: number;
+  totalPrice: number;
+};
+
+export type CompanyClient = {
+  id: string;
+  companyId: string;
+  name: string;
+  email: string;
+  address: string;
+  city: string;
+  postalCode: string;
+  country: string;
+};
+
 export function getMyCompaniesServer() {
   return apiServer<CompaniesResponse>("api/companies");
 }
 
 export function getCurrentInvoiceFeeSummaryServer() {
   return apiServer<InvoiceFeeSummary>("api/companies/invoice-fees/summary");
+}
+
+export function getActiveCompanyServicesServer() {
+  return apiServer<CompanyService[]>("api/companies/active/services");
+}
+
+export function getActiveCompanyClientsServer() {
+  return apiServer<CompanyClient[]>("api/companies/active/clients");
 }

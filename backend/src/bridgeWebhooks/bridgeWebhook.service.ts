@@ -209,8 +209,9 @@ export class BridgeWebhookService {
     switch (status) {
       case 'CREA':
       case 'ACTC':
-      case 'PDNG':
         return 'PENDING';
+      case 'PDNG':
+        return 'PAYMENT_IN_PROGRESS';
       case 'ACSC':
         return 'PAID';
       case 'RJCT':

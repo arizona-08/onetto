@@ -3,6 +3,10 @@ import { CompaniesService } from "./companies.service";
 import { AuthGuard } from "src/auth/auth.guard";
 import { CreateCompanyDto } from "./dtos/create-company.dto";
 import { UpdateCompanyDto } from "./dtos/update-company.dto";
+import { CreateCompanyClientDto } from './dtos/create-company-client.dto';
+import { CreateCompanyServiceDto } from './dtos/create-company-service.dto';
+import { UpdateCompanyClientDto } from './dtos/update-company-client.dto';
+import { UpdateCompanyServiceDto } from './dtos/update-company-service.dto';
 import type { ExtendedRequest } from "src/types/extended-request.types";
 
 @UseGuards(AuthGuard)
@@ -31,6 +35,46 @@ export class CompaniesController {
   @Get("active")
   getMyActiveCompany(@Req() req: ExtendedRequest) {
     return this.companiesService.getMyActiveCompany(this.getUserId(req));
+  }
+
+  @Get("active/services")
+  getActiveCompanyServices(@Req() req: ExtendedRequest) {
+    return this.companiesService.getActiveCompanyServices(this.getUserId(req));
+  }
+
+  @Get("active/clients")
+  getActiveCompanyClients(@Req() req: ExtendedRequest) {
+    return this.companiesService.getActiveCompanyClients(this.getUserId(req));
+  }
+
+  @Post("active/services")
+  createActiveCompanyService(@Body() data: CreateCompanyServiceDto, @Req() req: ExtendedRequest) {
+    return this.companiesService.createActiveCompanyService(this.getUserId(req), data);
+  }
+
+  @Patch("active/services/:serviceId")
+  updateActiveCompanyService(@Param('serviceId') serviceId: string, @Body() data: UpdateCompanyServiceDto, @Req() req: ExtendedRequest) {
+    return this.companiesService.updateActiveCompanyService(this.getUserId(req), serviceId, data);
+  }
+
+  @Delete("active/services/:serviceId")
+  deleteActiveCompanyService(@Param('serviceId') serviceId: string, @Req() req: ExtendedRequest) {
+    return this.companiesService.deleteActiveCompanyService(this.getUserId(req), serviceId);
+  }
+
+  @Post("active/clients")
+  createActiveCompanyClient(@Body() data: CreateCompanyClientDto, @Req() req: ExtendedRequest) {
+    return this.companiesService.createActiveCompanyClient(this.getUserId(req), data);
+  }
+
+  @Patch("active/clients/:clientId")
+  updateActiveCompanyClient(@Param('clientId') clientId: string, @Body() data: UpdateCompanyClientDto, @Req() req: ExtendedRequest) {
+    return this.companiesService.updateActiveCompanyClient(this.getUserId(req), clientId, data);
+  }
+
+  @Delete("active/clients/:clientId")
+  deleteActiveCompanyClient(@Param('clientId') clientId: string, @Req() req: ExtendedRequest) {
+    return this.companiesService.deleteActiveCompanyClient(this.getUserId(req), clientId);
   }
 
   @Get("invoice-fees/summary")

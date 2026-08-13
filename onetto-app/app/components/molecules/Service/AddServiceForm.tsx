@@ -8,14 +8,16 @@ import ServiceCard from './ServiceCard';
 interface AddServiceFormProps {
   isActive: boolean;
   setIsActive: (active: boolean) => void;
-  handleAddService: (newService: Service) => void;
+  onClose: () => void;
+  handleAddService: (newService: Service) => Promise<boolean>;
   serviceToEdit: Service | null;
-  handleEditService: (serviceToEdit: Service) => void;
+  handleEditService: (serviceToEdit: Service) => Promise<boolean>;
 }
 
-function AddServiceForm({ isActive, setIsActive, handleAddService, serviceToEdit, handleEditService }: AddServiceFormProps) {
+function AddServiceForm({ isActive, setIsActive, onClose, handleAddService, serviceToEdit, handleEditService }: AddServiceFormProps) {
   function closeForm() {
     setIsActive(false);
+    onClose();
   }
 
   const [previewService, setPreviewService] = React.useState<Service>({
@@ -166,14 +168,16 @@ function AddServiceForm({ isActive, setIsActive, handleAddService, serviceToEdit
             <div className="flex items-center justify-end mt-6">
               <button
                 className="bg-primary hover:bg-bg-secondary text-white py-2 px-4 rounded-md focus:outline-none"
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.preventDefault();
-                  if(serviceToEdit) {
-                    handleEditService(previewService);
-                  } else {
-                    handleAddService(previewService);
+                  const isSaved = serviceToEdit
+                    ? await handleEditService(previewService)
+                    : await handleAddService(previewService);
+
+                  if (!isSaved) {
+                    return;
                   }
-                  
+
                   resetForm();
                   closeForm();
                 }}

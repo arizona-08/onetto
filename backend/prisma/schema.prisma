@@ -23,8 +23,6 @@ model User {
   lastConnectedCompany Company? @relation("LastConnectedCompany", fields: [lastConnectedCompanyId], references: [id])
   ownedCompanies Company[]
   companies CompanyUser[]
-  services UserService[]
-  clients UserClient[]
 }
 
 enum Role {
@@ -59,6 +57,9 @@ model Company {
   companyUsers CompanyUser[]
   lastConnectedUsers User[] @relation("LastConnectedCompany")
   invoicePaymentFees InvoicePaymentFee[]
+
+  services CompanyService[]
+  clients CompanyClient[]
 }
 
 enum CompanyStatus {
@@ -126,8 +127,8 @@ enum DocumentType {
 
 enum InvoiceStatus {
   DRAFT
-  SENT
   PENDING
+  PAYMENT_IN_PROGRESS
   PAID
   PAID_MANUALLY
   OVERDUE
@@ -238,21 +239,24 @@ model DocumentService {
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
-model UserService {
+model CompanyService {
   id String @id @default(uuid())
-  userId String
+  companyId String
+  name String
   description String
   unitPrice Float
+  unit String
   taxRate Float?
+  category String
   wtPrice Float
   totalPrice Float
 
-  user User @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
-model UserClient {
+model CompanyClient {
   id String @id @default(uuid())
-  authorId String
+  companyId String
   name String
   email String
   address String
@@ -260,5 +264,5 @@ model UserClient {
   postalCode String
   country String
 
-  author User @relation(fields: [authorId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }

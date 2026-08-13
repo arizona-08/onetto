@@ -76,7 +76,7 @@ describe('DocumentService', () => {
   });
 
   it('refuse de modifier une facture déjà envoyée', async () => {
-    (prisma.document.findFirst as jest.Mock).mockResolvedValue({ ...invoice, invoiceStatus: 'SENT' });
+    (prisma.document.findFirst as jest.Mock).mockResolvedValue({ ...invoice, invoiceStatus: 'PENDING' });
 
     await expect(service.updateDraftDocument(invoice.id, dto, user)).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.document.update).not.toHaveBeenCalled();
@@ -129,7 +129,7 @@ describe('DocumentService', () => {
     }));
     expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ to: invoice.clientEmail, attachments: [expect.objectContaining({ content: pdfBuffer, contentType: 'application/pdf' })] }));
     expect(prisma.estimateNegociation.create).not.toHaveBeenCalled();
-    expect(prisma.document.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ invoiceStatus: 'SENT', sentAt: expect.any(Date) }) }));
+    expect(prisma.document.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ invoiceStatus: 'PENDING', sentAt: expect.any(Date) }) }));
   });
 
   it('ne marque pas une facture comme envoyée si la génération PDF échoue', async () => {
@@ -144,7 +144,7 @@ describe('DocumentService', () => {
   });
 
   it('refuse un second envoi de facture', async () => {
-    jest.spyOn(service, 'getDocumentById').mockResolvedValue({ ...invoice, invoiceStatus: 'SENT' } as never);
+    jest.spyOn(service, 'getDocumentById').mockResolvedValue({ ...invoice, invoiceStatus: 'PENDING' } as never);
 
     await expect(service.sendDocumentToClient(invoice.id, user)).rejects.toBeInstanceOf(BadRequestException);
     expect(mail.sendMail).not.toHaveBeenCalled();
@@ -163,7 +163,7 @@ describe('DocumentService', () => {
       paymentLink: expect.stringContaining('/payment?token='),
     }));
     expect(mail.sendMail).toHaveBeenCalledWith(expect.objectContaining({ attachments: [expect.objectContaining({ content: pdfBuffer })] }));
-    expect(prisma.document.update).toHaveBeenCalledWith({ where: { id: invoice.id }, data: { invoiceStatus: 'SENT' } });
+    expect(prisma.document.update).toHaveBeenCalledWith({ where: { id: invoice.id }, data: { invoiceStatus: 'PENDING' } });
   });
 
   it('refuse une relance si la facture n’est pas rejetée', async () => {

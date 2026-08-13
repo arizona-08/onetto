@@ -812,7 +812,7 @@ export class DocumentService {
         attachments: invoicePdf ? [this.createInvoiceAttachment(document.id, document.documentNumber, invoicePdf)] : undefined,
       });
 
-      await this.markDocumentAsSent(document.id, isInvoice);
+      await this.markDocumentAsDelivered(document.id, isInvoice);
 
       return {
         success: true,
@@ -864,7 +864,7 @@ export class DocumentService {
 
       await this.prismaService.document.update({
         where: { id: document.id },
-        data: { invoiceStatus: 'SENT' },
+        data: { invoiceStatus: 'PENDING' },
       });
 
       return {
@@ -997,9 +997,9 @@ export class DocumentService {
     };
   }
 
-  private async markDocumentAsSent(documentId: string, isInvoice: boolean) {
+  private async markDocumentAsDelivered(documentId: string, isInvoice: boolean) {
     const data = isInvoice
-      ? { invoiceStatus: 'SENT' as const, sentAt: new Date() }
+      ? { invoiceStatus: 'PENDING' as const, sentAt: new Date() }
       : { estimateStatus: 'SENT' as const };
 
     await this.prismaService.document.update({

@@ -5,6 +5,12 @@ import React from 'react'
 import ServiceCard from '../molecules/Service/ServiceCard'
 import AddServiceForm from '../molecules/Service/AddServiceForm'
 import DeleteServiceModal from '../molecules/Service/DeleteServiceModal'
+import {
+  createActiveCompanyService,
+  deleteActiveCompanyService,
+  updateActiveCompanyService,
+} from '@/lib/companies/catalog';
+import { useToast } from '../context/ToastContext';
 
 interface ServiceSectionProps {
   services: Service[]
@@ -17,9 +23,19 @@ function ServiceSection({ services, canCreate }: ServiceSectionProps) {
 
   const [serviceToEdit, setServiceToEdit] = React.useState<Service | null>(null);
   const [serviceToDelete, setServiceToDelete] = React.useState<Service | null>(null);
+  const { showToast } = useToast();
 
-  function handleAddService(newService: Service) {
-    setMasterServiceList(prevList => [...prevList, newService]);
+  async function handleAddService(newService: Service) {
+    const response = await createActiveCompanyService(newService);
+
+    if (!response.ok) {
+      showToast('Impossible de créer ce service.', 'error');
+      return false;
+    }
+
+    setMasterServiceList((services) => [...services, response.data]);
+    showToast('Service créé avec succès.', 'success');
+    return true;
   }
 
   function handleTriggerEdit(serviceId: string) {
@@ -30,12 +46,19 @@ function ServiceSection({ services, canCreate }: ServiceSectionProps) {
     }
   }
   
-  function handleEditService(serviceToEdit: Service) {
-    setMasterServiceList(prevList => prevList.map(service => service.id === serviceToEdit.id ? serviceToEdit : service));
-  }
+  async function handleEditService(serviceToEdit: Service) {
+    const response = await updateActiveCompanyService(serviceToEdit);
 
-  function handleDeleteService(serviceId: string) {
-    setMasterServiceList(prevList => prevList.filter(service => service.id !== serviceId));
+    if (!response.ok) {
+      showToast('Impossible de modifier ce service.', 'error');
+      return false;
+    }
+
+    setMasterServiceList((services) => services.map((service) => (
+      service.id === serviceToEdit.id ? response.data : service
+    )));
+    showToast('Service modifié avec succès.', 'success');
+    return true;
   }
 
   function handleTriggerDelete(serviceId: string) {
@@ -45,11 +68,23 @@ function ServiceSection({ services, canCreate }: ServiceSectionProps) {
     }
   }
 
-  function handleConfirmDelete() {
-    if (serviceToDelete) {
-      handleDeleteService(serviceToDelete.id);
-      setServiceToDelete(null);
+  async function handleConfirmDelete() {
+    if (!serviceToDelete) {
+      return;
     }
+
+    const response = await deleteActiveCompanyService(serviceToDelete.id);
+
+    if (!response.ok) {
+      showToast('Impossible de supprimer ce service.', 'error');
+      return;
+    }
+
+    setMasterServiceList((services) => services.filter((service) => (
+      service.id !== serviceToDelete.id
+    )));
+    setServiceToDelete(null);
+    showToast('Service supprimé avec succès.', 'success');
   }
 
 
@@ -58,6 +93,7 @@ function ServiceSection({ services, canCreate }: ServiceSectionProps) {
       <AddServiceForm
         isActive={isAddFormActive}
         setIsActive={setIsAddFormActive}
+        onClose={() => setServiceToEdit(null)}
         handleAddService={handleAddService}
         serviceToEdit={serviceToEdit}
         handleEditService={handleEditService}
@@ -67,13 +103,16 @@ function ServiceSection({ services, canCreate }: ServiceSectionProps) {
           <DeleteServiceModal
             service={serviceToDelete}
             onCancel={() => setServiceToDelete(null)}
-            onConfirm={handleConfirmDelete}
+            onConfirm={() => void handleConfirmDelete()}
           />
         </div>
       )}
       <div>
         <button 
-          onClick={() => setIsAddFormActive(true)}
+          onClick={() => {
+            setServiceToEdit(null);
+            setIsAddFormActive(true);
+          }}
           disabled={!canCreate}
           title={canCreate ? undefined : 'L’entreprise active est fermée'}
           aria-disabled={!canCreate}

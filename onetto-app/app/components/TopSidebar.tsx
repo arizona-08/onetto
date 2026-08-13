@@ -14,8 +14,8 @@ const links = [
   { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboardIcon />  },
   {name: 'Mes entreprises', href: '/my-companies', icon: <Building />},
   { name: 'Devis & Factures', href: '/documents', icon: <FileChartColumnIncreasing />  },
-  { name: 'Services', href: '/services', icon: <Waypoints /> },
-  { name: 'Clients', href: '/customers', icon: <UserIcon />  },
+  { name: 'Mes Clients', href: '/customers', icon: <UserIcon />  },
+  { name: 'Mes Services', href: '/services', icon: <Waypoints /> },
   { name: 'Paramètres', href: '/settings/account', icon: <SettingsIcon />  },
 ]
 

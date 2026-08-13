@@ -1,0 +1,4 @@
+ALTER TABLE "CompanyService"
+ADD COLUMN "name" TEXT NOT NULL DEFAULT '',
+ADD COLUMN "unit" TEXT NOT NULL DEFAULT 'unité',
+ADD COLUMN "category" TEXT NOT NULL DEFAULT 'Prestation';

@@ -1,13 +1,19 @@
 import ClientSection from '@/app/components/organisms/ClientsSection'
-import { clientsData } from '@/shared/clients'
-import { getMyCompaniesServer } from '@/lib/companies/companies.server'
+import {
+  getActiveCompanyClientsServer,
+  getMyCompaniesServer,
+} from '@/lib/companies/companies.server'
 
 async function clients() {
-  const companiesResponse = await getMyCompaniesServer();
+  const [companiesResponse, clientsResponse] = await Promise.all([
+    getMyCompaniesServer(),
+    getActiveCompanyClientsServer(),
+  ]);
   const activeCompany = companiesResponse.ok
     ? companiesResponse.data.companies.find((company) => company.id === companiesResponse.data.activeCompanyId)
     : undefined;
   const canCreate = activeCompany?.status !== 'CLOSED';
+  const clientsData = clientsResponse.ok ? clientsResponse.data : [];
 
   return (
     <div className="w-full p-4">

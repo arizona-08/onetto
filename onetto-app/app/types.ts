@@ -67,8 +67,8 @@ export type Document = {
 
 export type InvoiceStatus =
   | "DRAFT"
-  | "SENT"
   | "PENDING"
+  | "PAYMENT_IN_PROGRESS"
   | "PAID"
   | "PAID_MANUALLY"
   | "OVERDUE"

@@ -30,6 +30,7 @@ const statusMatcher: Record<string, { label: string; dotClassName: string }> = {
   DRAFT: { label: 'Brouillon', dotClassName: 'bg-zinc-400' },
   SENT: { label: 'Envoyé', dotClassName: 'bg-blue-500' },
   PENDING: { label: 'En attente', dotClassName: 'bg-amber-500' },
+  PAYMENT_IN_PROGRESS: { label: 'Paiement en cours', dotClassName: 'bg-blue-500' },
   PAID: { label: 'Payé', dotClassName: 'bg-emerald-500' },
   PAID_MANUALLY: { label: 'Payée manuellement', dotClassName: 'bg-emerald-500' },
   OVERDUE: { label: 'En retard', dotClassName: 'bg-orange-500' },
@@ -47,6 +48,7 @@ function getStatusPresentation(status: string) {
 
 const invoiceStatusFilterMatcher: Partial<Record<InvoiceSelectStatus, string>> = {
   'En attente': 'PENDING',
+  'Paiement en cours': 'PAYMENT_IN_PROGRESS',
   Payées: 'PAID',
   Échues: 'OVERDUE',
   Refusées: 'REJECTED',
@@ -72,6 +74,7 @@ export type InvoiceSelectStatus =
   | 'Toutes'
   | 'Brouillons'
   | 'En attente'
+  | 'Paiement en cours'
   | 'Payées'
   | 'Échues'
   | 'Refusées';
@@ -217,7 +220,7 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
 
     setMasterDocumentsList((documents) => documents.map((document) => (
       document.id === documentId
-        ? { ...document, invoiceStatus: 'SENT' }
+        ? { ...document, invoiceStatus: 'PENDING' }
         : document
     )));
     showToast('Un nouveau lien de paiement a été envoyé au client.', 'success');
