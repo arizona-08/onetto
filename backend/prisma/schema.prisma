@@ -58,6 +58,7 @@ model Company {
   owner User @relation(fields: [ownerId], references: [id])
   companyUsers CompanyUser[]
   lastConnectedUsers User[] @relation("LastConnectedCompany")
+  invoicePaymentFees InvoicePaymentFee[]
 }
 
 enum CompanyStatus {
@@ -115,6 +116,7 @@ model Document {
   services DocumentService[]
   negociations EstimateNegociation[]
   paymentLinkSessions BridgePaymentLinkSession[] // peut en créer plusieurs pour un même document, mais seulement un actif à la fois
+  invoicePaymentFee InvoicePaymentFee?
 }
 
 enum DocumentType {
@@ -127,6 +129,7 @@ enum InvoiceStatus {
   SENT
   PENDING
   PAID
+  PAID_MANUALLY
   OVERDUE
   REJECTED
 }
@@ -156,6 +159,26 @@ enum EstimateNegociationStatus {
   ACCEPTED
   RENEGOCIATED
   REJECTED
+}
+
+model InvoicePaymentFee {
+  id String @id @default(uuid())
+  documentId String @unique
+  companyId String
+  feeAmountInCents Float // The fee amount in cents for Stripe
+  paymentMethod PaymentMethod
+  createdAt DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  BANK_TRANSFER
+  CHECK
+  CASH
+  OTHER
 }
 
 model BridgePaymentLinkSession {

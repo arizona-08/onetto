@@ -65,7 +65,14 @@ export type Document = {
   isEditable?: boolean;
 }
 
-export type InvoiceStatus = "DRAFT" | "SENT" | "PENDING" | "PAID" | "OVERDUE" | "REJECTED"; // rejected payment by Bridge API, can ask to recreate another paymentLink
+export type InvoiceStatus =
+  | "DRAFT"
+  | "SENT"
+  | "PENDING"
+  | "PAID"
+  | "PAID_MANUALLY"
+  | "OVERDUE"
+  | "REJECTED"; // rejected payment by Bridge API, can ask to recreate another paymentLink
 export type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "SUPERSEDED" | "REJECTED";
 
 

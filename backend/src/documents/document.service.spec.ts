@@ -20,7 +20,17 @@ const company = { name: 'Atelier Onetto', email: 'contact@onetto.test', phoneNum
 
 describe('DocumentService', () => {
   let service: DocumentService;
-  const prisma = { document: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() }, company: { findUnique: jest.fn() }, estimateNegociation: { create: jest.fn() }, $transaction: jest.fn() } as unknown as PrismaService;
+  const prisma = {
+    document: {
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    company: { findUnique: jest.fn() },
+    estimateNegociation: { create: jest.fn() },
+    $transaction: jest.fn(),
+  } as unknown as PrismaService;
   const mail = {
     sendMail: jest.fn(),
     createInvoiceMail: jest.fn().mockReturnValue({ subject: 'Facture', text: 'facture', html: '<p>Facture</p>' }),
@@ -147,6 +157,36 @@ describe('DocumentService', () => {
   it('refuse une relance si la facture n’est pas rejetée', async () => {
     await expect(service.retryInvoicePayment(invoice.id, user)).rejects.toBeInstanceOf(BadRequestException);
     expect(bridge.createPaymentLink).not.toHaveBeenCalled();
+  });
+
+  it('marque manuellement comme payée une facture en attente', async () => {
+    (prisma.document.findUnique as jest.Mock).mockResolvedValue({
+      type: 'INVOICE',
+      invoiceStatus: 'PENDING',
+    });
+    (prisma.document.update as jest.Mock).mockResolvedValue(invoice);
+
+    await service.manuallyMarkInvoiceAsPaid(invoice.id, user);
+
+    expect(prisma.document.update).toHaveBeenCalledWith({
+      where: { id: invoice.id },
+      data: { invoiceStatus: 'PAID_MANUALLY' },
+    });
+  });
+
+  it('remet en attente une facture payée manuellement', async () => {
+    (prisma.document.findUnique as jest.Mock).mockResolvedValue({
+      type: 'INVOICE',
+      invoiceStatus: 'PAID_MANUALLY',
+    });
+    (prisma.document.update as jest.Mock).mockResolvedValue(invoice);
+
+    await service.manuallyMarkInvoiceAsPending(invoice.id, user);
+
+    expect(prisma.document.update).toHaveBeenCalledWith({
+      where: { id: invoice.id },
+      data: { invoiceStatus: 'PENDING' },
+    });
   });
 
   it('envoie un devis avec un token de négociation et le template HTML dédié', async () => {

@@ -1,13 +1,28 @@
 'use client';
 import React from 'react'
 
-import { ChevronLeft, ChevronRight, CirclePlusIcon, FileChartColumnIncreasing, RotateCcw, Trash } from 'lucide-react';
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CirclePlusIcon,
+  FileChartColumnIncreasing,
+  RotateCcw,
+  Trash,
+} from 'lucide-react';
 import Link from 'next/link';
 import { Document, InvoiceStatus } from '@/app/types';
 import { formatDate } from '@/shared/utils';
 import DocumentSelector from '../molecules/DcumentSelector';
 import DocumentSorter from '../molecules/DocumentSorter';
-import { convertEstimateToInvoice, getDocumentsPage, massDeleteDocuments, retryInvoicePayment } from '@/lib/documents/document';
+import {
+  convertEstimateToInvoice,
+  getDocumentsPage,
+  markInvoiceAsPaidManually,
+  markInvoiceAsPendingManually,
+  massDeleteDocuments,
+  retryInvoicePayment,
+} from '@/lib/documents/document';
 import { useToast } from '@/app/components/context/ToastContext';
 import { useRouter } from 'next/navigation';
 
@@ -16,6 +31,7 @@ const statusMatcher: Record<string, { label: string; dotClassName: string }> = {
   SENT: { label: 'Envoyé', dotClassName: 'bg-blue-500' },
   PENDING: { label: 'En attente', dotClassName: 'bg-amber-500' },
   PAID: { label: 'Payé', dotClassName: 'bg-emerald-500' },
+  PAID_MANUALLY: { label: 'Payée manuellement', dotClassName: 'bg-emerald-500' },
   OVERDUE: { label: 'En retard', dotClassName: 'bg-orange-500' },
   REJECTED: { label: 'Refusé', dotClassName: 'bg-red-600' },
   ACCEPTED: { label: 'Accepté', dotClassName: 'bg-emerald-500' },
@@ -43,6 +59,14 @@ const estimateStatusFilterMatcher: Partial<Record<EstimateSelectStatus, string>>
   Acceptés: 'ACCEPTED',
   Refusés: 'REJECTED',
 };
+
+const paymentMethodOptions = [
+  { value: 'CREDIT_CARD', label: 'Carte bancaire' },
+  { value: 'BANK_TRANSFER', label: 'Virement bancaire' },
+  { value: 'CHECK', label: 'Chèque' },
+  { value: 'CASH', label: 'Espèces' },
+  { value: 'OTHER', label: 'Autre' },
+] as const;
 
 export type InvoiceSelectStatus =
   | 'Toutes'
@@ -80,6 +104,9 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
   const [retryingDocumentIds, setRetryingDocumentIds] = React.useState<string[]>([]);
+  const [updatingManualPaymentIds, setUpdatingManualPaymentIds] = React.useState<string[]>([]);
+  const [manualPaymentDocument, setManualPaymentDocument] = React.useState<Document | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = React.useState('');
   const [convertingDocumentIds, setConvertingDocumentIds] = React.useState<string[]>([]);
   const [currentPage, setCurrentPage] = React.useState(initialPagination?.page ?? 1);
   const [totalPages, setTotalPages] = React.useState(initialPagination?.totalPages ?? 1);
@@ -145,6 +172,28 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
     showToast(response.data.message, 'success');
   }
 
+  function openManualPaymentModal(document: Document) {
+    setManualPaymentDocument(document);
+    setSelectedPaymentMethod('');
+  }
+
+  function closeManualPaymentModal() {
+    setManualPaymentDocument(null);
+    setSelectedPaymentMethod('');
+  }
+
+  async function confirmManualPayment() {
+    if (!manualPaymentDocument || !selectedPaymentMethod) {
+      return;
+    }
+
+    const hasBeenMarkedAsPaid = await handleManualPaymentStatus(manualPaymentDocument);
+
+    if (hasBeenMarkedAsPaid) {
+      closeManualPaymentModal();
+    }
+  }
+
   function createPaymentNote(paymentDueAt: string, invoiceStatus: InvoiceStatus): string | undefined{
     const dueDate = new Date(paymentDueAt);
     const renderedDate = new Date(currentDate);
@@ -172,6 +221,82 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
         : document
     )));
     showToast('Un nouveau lien de paiement a été envoyé au client.', 'success');
+  }
+
+  async function handleManualPaymentStatus(document: Document): Promise<boolean> {
+    const isPending = document.invoiceStatus === 'PENDING';
+    const nextStatus: InvoiceStatus = isPending ? 'PAID_MANUALLY' : 'PENDING';
+
+    setUpdatingManualPaymentIds((ids) => [...ids, document.id]);
+
+    const response = isPending
+      ? await markInvoiceAsPaidManually(document.id)
+      : await markInvoiceAsPendingManually(document.id);
+
+    setUpdatingManualPaymentIds((ids) => ids.filter((id) => id !== document.id));
+
+    if (!response.ok) {
+      const message = isPending
+        ? 'Impossible de marquer cette facture comme payée manuellement.'
+        : 'Impossible de remettre cette facture en attente.';
+      showToast(message, 'error');
+      return false;
+    }
+
+    setMasterDocumentsList((documents) => documents.map((item) => (
+      item.id === document.id
+        ? { ...item, invoiceStatus: nextStatus }
+        : item
+    )));
+    showToast(response.data.message, 'success');
+    return true;
+  }
+
+  function canUpdateManualPaymentStatus(document: Document): boolean {
+    return isInvoiceType && (
+      document.invoiceStatus === 'PENDING'
+      || document.invoiceStatus === 'PAID_MANUALLY'
+    );
+  }
+
+  function renderManualPaymentStatusButton(document: Document) {
+    if (!canUpdateManualPaymentStatus(document)) {
+      return null;
+    }
+
+    const isPending = document.invoiceStatus === 'PENDING';
+    const isUpdating = updatingManualPaymentIds.includes(document.id);
+    const title = isPending
+      ? 'Marquer comme payée manuellement'
+      : 'Remettre la facture en attente';
+
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          if (isPending) {
+            openManualPaymentModal(document);
+            return;
+          }
+
+          void handleManualPaymentStatus(document);
+        }}
+        disabled={isUpdating}
+        className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+          isPending
+            ? 'bg-emerald-600 hover:bg-emerald-700'
+            : 'bg-orange-400 hover:bg-orange-500'
+        }`}
+        title={title}
+        aria-label={title}
+      >
+        {isPending ? (
+          <Check className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+      </button>
+    );
   }
 
   async function handleConvertEstimateToInvoice(documentId: string) {
@@ -323,6 +448,7 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
                         <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
                     )}
+                    {renderManualPaymentStatusButton(document)}
                     {canConvertEstimate(document) && (
                       <button
                         type="button"
@@ -432,6 +558,7 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
                       <RotateCcw className="h-4 w-4" aria-hidden="true" />
                     </button>
                   )}
+                  {renderManualPaymentStatusButton(document)}
                   {canConvertEstimate(document) && (
                     <button
                       type="button"
@@ -489,6 +616,76 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
             </button>
           </div>
         </nav>
+      )}
+
+      {manualPaymentDocument && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="manual-payment-title"
+        >
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h2
+              id="manual-payment-title"
+              className="font-title text-xl font-black text-zinc-900"
+            >
+              Confirmer le paiement manuel
+            </h2>
+            <p className="mt-3 text-sm text-zinc-600">
+              Indiquez le moyen de paiement utilisé pour la facture{' '}
+              <span className="font-semibold text-zinc-800">
+                {manualPaymentDocument.documentNumber}
+              </span>
+              .
+            </p>
+            <label
+              htmlFor="manual-payment-method"
+              className="mt-5 block text-sm font-semibold text-zinc-800"
+            >
+              Moyen de paiement
+            </label>
+            <select
+              id="manual-payment-method"
+              value={selectedPaymentMethod}
+              onChange={(event) => setSelectedPaymentMethod(event.target.value)}
+              className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            >
+              <option value="" disabled>
+                Sélectionnez un moyen de paiement
+              </option>
+              {paymentMethodOptions.map((method) => (
+                <option key={method.value} value={method.value}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-zinc-500">
+              Ce choix sera enregistré ultérieurement.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeManualPaymentModal}
+                disabled={updatingManualPaymentIds.includes(manualPaymentDocument.id)}
+                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmManualPayment()}
+                disabled={
+                  !selectedPaymentMethod
+                  || updatingManualPaymentIds.includes(manualPaymentDocument.id)
+                }
+                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Confirmer le paiement
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {isDeleteModalOpen && (

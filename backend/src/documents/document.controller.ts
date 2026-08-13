@@ -145,5 +145,25 @@ export class DocumentController {
 
     return await this.documentService.convertEstimateToInvoice(estimateId, user);
   }
+
+  @Put(":invoiceId/mark-as-paid-manually")
+  async markAsPaidManually(@Param("invoiceId") invoiceId: string, @Req() req: ExtendedRequest) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.manuallyMarkInvoiceAsPaid(invoiceId, user);
+  }
+
+  @Put(":invoiceId/mark-as-pending-manually")
+  async markAsPendingManually(@Param("invoiceId") invoiceId: string, @Req() req: ExtendedRequest) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.manuallyMarkInvoiceAsPending(invoiceId, user);
+  }
 }
   

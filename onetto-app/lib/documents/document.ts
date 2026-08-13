@@ -55,6 +55,24 @@ export async function retryInvoicePayment(documentId: string) {
   });
 }
 
+export async function markInvoiceAsPaidManually(documentId: string) {
+  return apiClient<{ success: true; message: string }>(
+    `api/documents/${documentId}/mark-as-paid-manually`,
+    {
+      method: 'PUT',
+    },
+  );
+}
+
+export async function markInvoiceAsPendingManually(documentId: string) {
+  return apiClient<{ success: true; message: string }>(
+    `api/documents/${documentId}/mark-as-pending-manually`,
+    {
+      method: 'PUT',
+    },
+  );
+}
+
 export async function downloadDocumentPdf(documentId: string) {
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/documents/${documentId}/download-pdf`,

@@ -6,7 +6,7 @@ import { randomBytes } from "crypto";
 import { MailService } from "src/mail/mail.service";
 import { InvoicePdfService } from "./invoice-pdf.service";
 import { BridgeApiService, PaymentLinkData } from "src/bridgeApi/bridgeApi.service";
-import { Prisma } from '@prisma/client';
+import { $Enums, Prisma } from '@prisma/client';
 
 @Injectable()
 export class DocumentService {
@@ -335,7 +335,11 @@ export class DocumentService {
             ...(type === 'ESTIMATE' ? { isLastVersion: true } : {}),
             ...(status
               ? type === 'INVOICE'
-                ? { invoiceStatus: status as Prisma.EnumInvoiceStatusFilter }
+                ? {
+                    invoiceStatus: status === 'PAID'
+                      ? { in: ['PAID', 'PAID_MANUALLY'] }
+                      : status as Prisma.EnumInvoiceStatusFilter,
+                  }
                 : { estimateStatus: status as Prisma.EnumEstimateStatusFilter }
               : {}),
           }
@@ -1000,5 +1004,126 @@ export class DocumentService {
       where: { id: documentId },
       data,
     });
+  }
+
+  async manuallyMarkInvoiceAsPaid(documentId: string, user: User) {
+    try {
+      const activeCompanyId = await this.getActiveCompanyId(user, true);
+      const isCompanyUser = await this.isCompanyUser(user.id, activeCompanyId);
+
+      if(!isCompanyUser){
+        throw new BadRequestException("Vous n'avez pas la permission de marquer cette facture comme payée.");
+      }
+
+      const document = await this.prismaService.document.findUnique({
+        where: { id: documentId },
+        select: { type: true, invoiceStatus: true }
+      });
+
+      if(!document){
+        throw new BadRequestException("Document introuvable.");
+      }
+
+      const canBeMarkedAsPaid = document.invoiceStatus === "PENDING";
+
+      if(!canBeMarkedAsPaid){
+        throw new BadRequestException("Seule une facture en attente peut être marquée comme payée manuellement.");
+      }
+
+      await this.manuallyMarkInvoiceAs("PAID_MANUALLY", documentId);
+
+      return {
+        success: true,
+        message: "La facture a été marquée comme payée manuellement avec succès."
+      }
+    } catch (error: unknown) {
+      console.error("Error marking invoice as paid:", error);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException("Une erreur est survenue lors de la mise à jour du statut de la facture.");
+    }
+  }
+
+  async manuallyMarkInvoiceAsPending(documentId: string, user: User) {
+    try {
+      const activeCompanyId = await this.getActiveCompanyId(user, true);
+      const isCompanyUser = await this.isCompanyUser(user.id, activeCompanyId);
+
+      if(!isCompanyUser){
+        throw new BadRequestException("Vous n'avez pas la permission de marquer cette facture comme en attente.");
+      }
+
+      const document = await this.prismaService.document.findUnique({
+        where: { id: documentId },
+        select: { type: true, invoiceStatus: true }
+      });
+
+      if(!document){
+        throw new BadRequestException("Document introuvable.");
+      }
+
+      if(document.invoiceStatus === "PENDING"){
+        throw new BadRequestException("La facture est déjà marquée comme en attente.");
+      }
+
+      const canBeMarkedAsPending = document.invoiceStatus === "PAID_MANUALLY";
+
+      if(!canBeMarkedAsPending){
+        throw new BadRequestException("Seule une facture qui a été manuellement marquée comme payée peut être marquée comme en attente.");
+      }
+
+      await this.manuallyMarkInvoiceAs("PENDING", documentId);
+
+      return {
+        success: true,
+        message: "La facture a été marquée comme étant en attente avec succès."
+      }
+    } catch (error: unknown) {
+      console.error("Error marking invoice as pending:", error);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException("Une erreur est survenue lors de la mise à jour du statut de la facture.");
+    }
+  }
+
+  private async manuallyMarkInvoiceAs(status: $Enums.InvoiceStatus, documentId: string){
+    try {
+
+      const document = await this.prismaService.document.findUnique({
+        where: { id: documentId },
+        select: { type: true, invoiceStatus: true }
+      });
+
+      if(!document){
+        throw new BadRequestException("Document introuvable.");
+      }
+
+      if(document.type !== "INVOICE"){
+        throw new BadRequestException("Seule une facture peut être marquée avec un statut de paiement.");
+      }
+
+      if(document.invoiceStatus === status){
+        throw new BadRequestException(`La facture est déjà marquée comme ${status}.`);
+      }
+
+      await this.prismaService.document.update({
+        where: { id: documentId },
+        data: { invoiceStatus: status }
+      });
+    } catch (error: unknown) {
+      console.error("Error manually marking invoice as:", error);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException("Une erreur est survenue lors de la mise à jour du statut de la facture.");
+    }
   }
 }
