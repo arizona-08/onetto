@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
-import { WebhookTransactionDto } from "./dtos/transaction.dto";
 import { $Enums, BridgePaymentLinkSession, Prisma } from "@prisma/client";
 import { MailService } from 'src/mail/mail.service';
-import { InvoicePaymentFeeService } from 'src/documents/invoice-payment-fee.service';
+import { InvoicePaymentFeeService } from 'src/payment-fee/invoice-payment-fee.service';
+import { WebhookTransactionDto } from "./dtos/transaction.dto";
 
 type GetPaymentSessionResult =
   | {
@@ -16,7 +16,7 @@ type GetPaymentSessionResult =
     };
 
 @Injectable()
-export class BridgeWebhookService {
+export class BridgeWebhookHandler {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly mailService: MailService,

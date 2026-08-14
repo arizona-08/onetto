@@ -7,15 +7,26 @@ import { JwtModule } from "@nestjs/jwt";
 import { UserModule } from "src/user/user.module";
 import { MailModule } from "src/mail/mail.module";
 import { NegociationController } from "./negociation.controller";
-import { InvoicePdfService } from "./invoice-pdf.service";
 import { PublicPaymentController } from './public-payment.controller';
-import { BridgeApiModule } from "src/bridgeApi/bridgeApi.module";
-import { InvoicePaymentFeeService } from './invoice-payment-fee.service';
+import { InvoicePaymentFeeService } from '../payment-fee/invoice-payment-fee.service';
+import { PaymentProviderModule } from "src/Adapters/PaymentAdapters/payment-provider.module";
+import { ConfigModule } from "@nestjs/config";
+import { PdfModule } from "src/pdf/pdf.module";
+import { InvoicePaymentFeeModule } from "src/payment-fee/invoice-payment-fee.module";
 
 @Module({
-  imports: [PrismaModule, UserModule, AuthModule, JwtModule, MailModule, BridgeApiModule],
+  imports: [ConfigModule,
+    PrismaModule,
+    UserModule,
+    AuthModule,
+    JwtModule,
+    MailModule,
+    PdfModule,
+    InvoicePaymentFeeModule,
+    PaymentProviderModule
+  ],
   controllers: [DocumentController, NegociationController, PublicPaymentController],
-  providers: [DocumentService, InvoicePdfService, InvoicePaymentFeeService],
+  providers: [DocumentService, InvoicePaymentFeeService],
   exports: [InvoicePaymentFeeService],
 })
 export class DocumentModule {}

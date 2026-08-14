@@ -1,16 +1,16 @@
 import { Body, Controller, Get, Post, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { WebhookTransactionDto } from "./dtos/transaction.dto";
-import { BridgeWebhookService } from "./bridgeWebhook.service";
+import { WebhookTransactionDto } from "./webhook-handlers/dtos/transaction.dto";
+import { BridgeWebhookHandler } from "./webhook-handlers/webhook.handler";
 
 @Controller("api/bridge/webhooks")
 export class BridgeWebhookController {
-  constructor(private readonly bridgeWebhookService: BridgeWebhookService) {}
+  constructor(private readonly bridgeWebhookHandler: BridgeWebhookHandler) {}
 
   @Post("payment")
   async handlePaymentTransactionAttempt(@Body() webhook: WebhookTransactionDto | any) {
     // console.log(webhook);
-    await this.bridgeWebhookService.handleWebhook(webhook)
+    await this.bridgeWebhookHandler.handleWebhook(webhook)
 
     return { message: "Webhook received successfully" };
   }

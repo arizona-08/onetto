@@ -4,20 +4,27 @@ import { CreateDocumentDto } from "./dtos/create-document.dto";
 import { User } from "src/types/extended-request.types";
 import { randomBytes } from "crypto";
 import { MailService } from "src/mail/mail.service";
-import { InvoicePdfService } from "./invoice-pdf.service";
-import { BridgeApiService, PaymentLinkData } from "src/bridgeApi/bridgeApi.service";
 import { $Enums, Prisma } from '@prisma/client';
-import { InvoicePaymentFeeService } from './invoice-payment-fee.service';
+import { InvoicePaymentFeeService } from '../payment-fee/invoice-payment-fee.service';
+import { ConfigService } from "@nestjs/config";
+import { CreatePaymentLinkInput } from "src/Adapters/PaymentAdapters/Types/InputTypes/CreatePaymentLinkInput.types";
+import { PaymentService } from "src/Adapters/PaymentAdapters/payment.service";
+import { PdfService } from "src/pdf/pdf.service";
 
 @Injectable()
 export class DocumentService {
+  callbackUrl: string;
+
   constructor(
     private readonly prismaService: PrismaService,
     private readonly mailService: MailService,
-    private readonly invoicePdfService: InvoicePdfService,
-    private readonly bridgeApiService: BridgeApiService,
+    private readonly pdfService: PdfService,
+    private readonly paymentService: PaymentService,
+    private readonly configService: ConfigService,
     private readonly invoicePaymentFeeService: InvoicePaymentFeeService,
-  ) {}
+  ) {
+    this.callbackUrl = this.configService.get<string>('BRIDGE_CALLBACK_URL') || '';
+  }
 
   async createDocument(data: CreateDocumentDto, user: User) {
     try {
@@ -507,7 +514,7 @@ export class DocumentService {
     const document = await this.getDocumentById(documentId, user, true);
     const company = await this.getInvoiceCompany(document.companyId);
 
-    return this.invoicePdfService.generate({
+    return this.pdfService.generate({
       ...document,
       company,
     });
@@ -828,7 +835,7 @@ export class DocumentService {
         : undefined;
 
       const invoicePdf = isInvoice
-        ? await this.invoicePdfService.generate({
+        ? await this.pdfService.generate({
         ...document,
         sentAt: new Date(),
         company: company!,
@@ -890,7 +897,7 @@ export class DocumentService {
 
       const company = await this.getInvoiceCompany(document.companyId);
       const paymentLink = await this.createInvoicePaymentLink(document, company, user);
-      const invoicePdf = await this.invoicePdfService.generate({
+      const invoicePdf = await this.pdfService.generate({
         ...document,
         company,
       });
@@ -945,7 +952,7 @@ export class DocumentService {
     user: User,
   ): Promise<string> {
     const paymentAccessToken = randomBytes(32).toString('hex');
-    const paymentLinkData: PaymentLinkData = {
+    const paymentLinkData: CreatePaymentLinkInput = {
       user: { // client qui paye
         company_name: document.clientName,
         email: document.clientEmail,
@@ -964,10 +971,10 @@ export class DocumentService {
         client_reference: document.id,
         execution_date: document.paymentDueAt.toISOString(),
       }],
-      callback_url: this.bridgeApiService.getCallbackUrl(),
+      callback_url: this.callbackUrl,
     };
 
-    await this.bridgeApiService.createPaymentLink(paymentLinkData, paymentAccessToken);
+    await this.paymentService.createPaymentLink('BRIDGE', paymentLinkData, paymentAccessToken);
 
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
     return `${frontendUrl}/payment?token=${paymentAccessToken}`;

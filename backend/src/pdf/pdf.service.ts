@@ -25,7 +25,7 @@ const primary = '#635BFF';
 const muted = '#71717A';
 
 @Injectable()
-export class InvoicePdfService {
+export class PdfService {
   async generate(data: InvoicePdfData): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const pdf = new PDFDocument({ size: 'A4', margin: 42, bufferPages: true });

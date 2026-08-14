@@ -1,0 +1,24 @@
+import { Module } from "@nestjs/common";
+import { GoCardlessWebhookController } from "./gocardless-webhook.controller";
+import { GoCardlessProviderService } from "./gocardless-provider.service";
+import { GoCardlessMandateWebhookHandler } from "./webhook-handlers/gocardless-mandate-webhook.handler";
+import { GoCardlessPaymentWebhookHandler } from "./webhook-handlers/gocardless-payment-webhook.handler";
+import { GoCardlessPayoutWebhookHandler } from "./webhook-handlers/gocardless-payout-webhook.handler";
+import { GoCardlessSubscriptionWebhookHandler } from "./webhook-handlers/gocardless-subscription-webhook.handler";
+import { PrismaModule } from "src/prisma/prisma.module";
+import { MailModule } from "src/mail/mail.module";
+import { InvoicePaymentFeeModule } from "src/payment-fee/invoice-payment-fee.module";
+
+@Module({
+  imports: [PrismaModule, MailModule, InvoicePaymentFeeModule],
+  controllers: [GoCardlessWebhookController],
+  providers: [
+    GoCardlessProviderService,
+    GoCardlessMandateWebhookHandler,
+    GoCardlessPaymentWebhookHandler,
+    GoCardlessPayoutWebhookHandler,
+    GoCardlessSubscriptionWebhookHandler
+  ],
+  exports: [GoCardlessProviderService],
+})
+export class GoCardlessModule {}
