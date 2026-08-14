@@ -1,7 +1,7 @@
 'use client'
 import { Document, DocumentNegociation } from '@/app/types'
-import { createNewDocumentVersion, getDocumentNegociations, sendDocumentToClient } from '@/lib/documents/document';
-import { Edit, ExternalLink, MessageSquareText, Send, Trash } from 'lucide-react';
+import { convertEstimateToInvoice, createNewDocumentVersion, downloadDocumentPdf, getDocumentNegociations, retryInvoicePayment, sendDocumentToClient } from '@/lib/documents/document';
+import { Download, Edit, ExternalLink, FileChartColumnIncreasing, MessageSquareText, RotateCcw, Send, Trash } from 'lucide-react';
 import DocumentDisplayComponent from '../molecules/DocumentDisplayComponent/DocumentDisplayComponent';
 import Link from 'next/link';
 import { useToast } from '../context/ToastContext';
@@ -16,6 +16,8 @@ function ShowDocument({ document }: ShowDocumentProps) {
 
   const [negociations, setNegociations] = useState<DocumentNegociation[]>([]);
   const [isCreatingVersion, setIsCreatingVersion] = useState(false);
+  const [isRetryingPayment, setIsRetryingPayment] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const router = useRouter();
 
   const isEstimate = document.type === "ESTIMATE";
@@ -24,15 +26,11 @@ function ShowDocument({ document }: ShowDocumentProps) {
 
   const isSupersededEstimate = document.type === "ESTIMATE" && document.estimateStatus === "SUPERSEDED";
 
+  const isAcceptedEstimate = document.type === "ESTIMATE" && document.estimateStatus === "ACCEPTED";
+  const hasConvertedInvoice = Boolean(document.convertedDocuments?.length);
+
   const isDraftInvoice = document.type === "INVOICE" && document.invoiceStatus === "DRAFT";
-
-  let editLink;
-
-  if(isDraftEstimate){
-    editLink = `/documents/${document.id}/update-draft`;
-  } else if(isSupersededEstimate){
-    editLink = `/documents/${document.id}/update-sent`;
-  }
+  const isRejectedInvoice = document.type === "INVOICE" && document.invoiceStatus === "REJECTED";
 
   const { showToast } = useToast();
 
@@ -50,12 +48,13 @@ function ShowDocument({ document }: ShowDocumentProps) {
   async function handleSendDocument(){
     let response;
 
-    if(isDraftEstimate){
+    if(isDraftEstimate || isDraftInvoice){
       response = await sendDocumentToClient(document.id);
     }
 
     if(!response?.ok){
       showToast("Erreur lors de l'envoi du document", "error");
+      return;
     }
 
     showToast("Document envoyé avec succès", "success");
@@ -74,6 +73,51 @@ function ShowDocument({ document }: ShowDocumentProps) {
     router.push(`/documents/${response.data.document.id}/update-draft`);
   }
 
+  async function handleCreateInvoiceFromEstimate() {
+    const response = await convertEstimateToInvoice(document.id);
+    if(!response.ok) {
+      showToast("Impossible de créer la facture à partir du devis.", "error");
+      return;
+    }
+
+    const invoice = response.data.document
+    const newInvoiceId = invoice.id;
+
+    router.push(`/documents/${newInvoiceId}/update-invoice`);
+  }
+
+  async function handleRetryInvoicePayment() {
+    setIsRetryingPayment(true);
+    const response = await retryInvoicePayment(document.id);
+    setIsRetryingPayment(false);
+
+    if (!response.ok) {
+      showToast('Impossible de générer un nouveau lien de paiement.', 'error');
+      return;
+    }
+
+    showToast('Un nouveau lien de paiement a été envoyé au client.', 'success');
+    router.refresh();
+  }
+
+  async function handleDownloadPdf() {
+    setIsDownloading(true);
+
+    try {
+      const pdf = await downloadDocumentPdf(document.id);
+      const url = URL.createObjectURL(pdf);
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = `${document.type === 'INVOICE' ? 'facture' : 'devis'}-${document.documentNumber}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      showToast('Impossible de télécharger le document.', 'error');
+    } finally {
+      setIsDownloading(false);
+    }
+  }
+
   return (
     <div className="p-5">
       <div className="flex items-center justify-between">
@@ -90,6 +134,15 @@ function ShowDocument({ document }: ShowDocumentProps) {
           )}
 
           <div className="modify-and-confirm flex items-center justify-between gap-4">
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloading}
+              className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              {isDownloading ? 'Téléchargement…' : 'Télécharger le PDF'}
+            </button>
             {isSupersededEstimate && (
               <button
                 className="px-4 py-2 text-white bg-primary border border-primary hover:bg-primary/90 rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150 disabled:opacity-50"
@@ -99,16 +152,31 @@ function ShowDocument({ document }: ShowDocumentProps) {
                 {isCreatingVersion ? 'Création…' : 'Créer une nouvelle version'}
               </button>
             )}
-            {isDraftEstimate && (
+
+            {(isDraftEstimate || isDraftInvoice) && (
               <Link
-                href={ editLink || '#' } className="px-4 py-2 text-primary border border-primary hover:bg-primary hover:text-white  rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
+                href={isDraftInvoice
+                  ? `/documents/${document.id}/update-invoice`
+                  : `/documents/${document.id}/update-draft`}
+                className="px-4 py-2 text-primary border border-primary hover:bg-primary hover:text-white rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
               >
                 Modifier
                 <Edit className="w-4 h-4" />
               </Link>
             )}
 
-            
+            {isRejectedInvoice && (
+              <button
+                type="button"
+                onClick={handleRetryInvoicePayment}
+                disabled={isRetryingPayment}
+                className="flex items-center gap-2 rounded-md border border-primary px-3 py-2 text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                title="Générer et envoyer un nouveau lien de paiement"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                {isRetryingPayment ? 'Génération…' : 'Relancer le paiement'}
+              </button>
+            )}
 
             {(isDraftEstimate || isDraftInvoice) && (
               <button
@@ -116,6 +184,15 @@ function ShowDocument({ document }: ShowDocumentProps) {
                 onClick={handleSendDocument}
               >
                 Confirmer et envoyer <Send />
+              </button>
+            )}
+
+            {isAcceptedEstimate && !hasConvertedInvoice && (
+              <button
+                onClick={handleCreateInvoiceFromEstimate}
+                className="px-4 py-2 text-white bg-primary border border-primary hover:bg-primary/90 rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
+              >
+                Transformer en facture <FileChartColumnIncreasing className="w-5 h-5" />
               </button>
             )}
           </div>

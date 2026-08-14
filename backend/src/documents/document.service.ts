@@ -4,19 +4,26 @@ import { CreateDocumentDto } from "./dtos/create-document.dto";
 import { User } from "src/types/extended-request.types";
 import { randomBytes } from "crypto";
 import { MailService } from "src/mail/mail.service";
+import { InvoicePdfService } from "./invoice-pdf.service";
+import { BridgeApiService, PaymentLinkData } from "src/bridgeApi/bridgeApi.service";
+import { $Enums, Prisma } from '@prisma/client';
+import { InvoicePaymentFeeService } from './invoice-payment-fee.service';
 
 @Injectable()
 export class DocumentService {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly mailService: MailService
+    private readonly mailService: MailService,
+    private readonly invoicePdfService: InvoicePdfService,
+    private readonly bridgeApiService: BridgeApiService,
+    private readonly invoicePaymentFeeService: InvoicePaymentFeeService,
   ) {}
 
   async createDocument(data: CreateDocumentDto, user: User) {
     try {
-      const {lineItems, ...documentData} = data;
+      const { lineItems, type = 'ESTIMATE', ...documentData } = data;
       const companyId = await this.getActiveCompanyId(user, true);
-      const documentNumber = await this.createDocumentNumber("ESTIMATE", companyId);
+      const documentNumber = await this.createDocumentNumber(type, companyId);
 
       const totalPriceExludingTax = lineItems.reduce((acc, item) => {
         const basePrice = item.unitPrice * item.quantity;
@@ -42,6 +49,8 @@ export class DocumentService {
           totalPriceExcludingTax: totalPriceExludingTax,
           totalPrice: totalDocumentPrice,
           documentNumber,
+          type,
+          isFromEstimate: type === 'ESTIMATE',
           estimateStatus: "DRAFT",
           invoiceStatus: "DRAFT",
           companyId,
@@ -70,7 +79,7 @@ export class DocumentService {
       });
 
       return {
-        message: "Facture créée avec succès.",
+        message: `${type === 'INVOICE' ? 'Facture' : 'Devis'} créé avec succès.`,
         document
       };
     } catch (error: unknown) {
@@ -99,6 +108,22 @@ export class DocumentService {
 
       if (!document) {
         throw new BadRequestException("Document introuvable ou vous n'avez pas la permission d'y accéder.");
+      }
+
+      if (document.type === "INVOICE" && document.isFromEstimate !== false) {
+        if (document.invoiceStatus !== "DRAFT") {
+          throw new BadRequestException("Une facture envoyée ne peut plus être modifiée.");
+        }
+
+        const updatedDocument = await this.prismaService.document.update({
+          where: { id: document.id },
+          data: { paymentDueAt: new Date(data.documentDates.dueDate) },
+        });
+
+        return {
+          message: "Date d'échéance de la facture mise à jour avec succès.",
+          document: updatedDocument,
+        };
       }
 
       const totalPriceExludingTax = lineItems.reduce((acc, item) => {
@@ -205,15 +230,24 @@ export class DocumentService {
         where: {
           id: documentId,
           companyId,
-          type: "ESTIMATE"
+          type: "ESTIMATE",
+          estimateStatus: 'ACCEPTED',
         },
         include: {
-          services: true
+          services: true,
+          convertedDocuments: {
+            where: { type: 'INVOICE' },
+            select: { id: true },
+          },
         }
       });
 
       if (!document) {
-        throw new BadRequestException("Devis introuvable ou vous n'avez pas la permission d'y accéder.");
+        throw new BadRequestException("Seul un devis accepté peut être transformé en facture.");
+      }
+
+      if (document.convertedDocuments.length > 0) {
+        throw new BadRequestException('Ce devis a déjà été transformé en facture.');
       }
 
       const invoiceNumber = await this.createDocumentNumber("INVOICE", companyId);
@@ -230,6 +264,8 @@ export class DocumentService {
           totalPrice: document.totalPrice,
           documentNumber: invoiceNumber,
           type: "INVOICE",
+          isFromEstimate: true,
+          sourceDocumentId: document.id,
           estimateStatus: "ACCEPTED",
           invoiceStatus: "DRAFT",
           companyId,
@@ -257,7 +293,7 @@ export class DocumentService {
 
       return {
         message: "Devis converti en facture avec succès.",
-        invoice
+        document: invoice
       };
     } catch (error: unknown) {
       if (error instanceof HttpException) {
@@ -288,19 +324,79 @@ export class DocumentService {
     return `#${prefix}-${currentYear}-${newDocumentNumber.toString().padStart(4, '0')}`;
   }
 
-  async getDocumentsByUser(user: User, withServices: boolean = true){
+  async getDocumentsByUser(
+    user: User,
+    withServices: boolean = true,
+    type?: 'INVOICE' | 'ESTIMATE',
+    status?: string,
+    page = 1,
+    pageSize = 5,
+  ) {
     try {
       const companyId = await this.getActiveCompanyId(user);
+      const documentTypeFilter: Prisma.DocumentWhereInput = type
+        ? {
+            type,
+            ...(type === 'ESTIMATE' ? { isLastVersion: true } : {}),
+            ...(status
+              ? type === 'INVOICE'
+                ? {
+                    invoiceStatus: status === 'PAID'
+                      ? { in: ['PAID', 'PAID_MANUALLY'] }
+                      : status as Prisma.EnumInvoiceStatusFilter,
+                  }
+                : { estimateStatus: status as Prisma.EnumEstimateStatusFilter }
+              : {}),
+          }
+        : {
+            OR: [
+              { type: 'INVOICE' },
+              { type: 'ESTIMATE', isLastVersion: true },
+            ],
+          };
+
+      if (type) {
+        const where = { companyId, ...documentTypeFilter };
+        const total = await this.prismaService.document.count({ where });
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        const currentPage = Math.min(Math.max(1, page), totalPages);
+        const documents = await this.prismaService.document.findMany({
+          where,
+          include: {
+            services: withServices,
+            convertedDocuments: {
+              where: { type: 'INVOICE' },
+              select: { id: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: (currentPage - 1) * pageSize,
+          take: pageSize,
+        });
+
+        return {
+          documents,
+          pagination: {
+            page: currentPage,
+            pageSize,
+            total,
+            totalPages,
+          },
+        };
+      }
+
       const documents = await this.prismaService.document.findMany({
         where: {
           companyId,
-          OR: [
-            { type: 'INVOICE' },
-            { type: 'ESTIMATE', isLastVersion: true },
-          ],
-        }, 
+          ...documentTypeFilter,
+        },
+        orderBy: { createdAt: 'desc' },
         include: {
-          services: withServices
+          services: withServices,
+          convertedDocuments: {
+            where: { type: 'INVOICE' },
+            select: { id: true },
+          },
         }
       });
 
@@ -323,7 +419,11 @@ export class DocumentService {
           companyId
         },
         include: {
-          services: withServices
+          services: withServices,
+          convertedDocuments: {
+            where: { type: 'INVOICE' },
+            select: { id: true },
+          },
         }
       });
 
@@ -344,9 +444,10 @@ export class DocumentService {
       return {
         ...document,
         isEditable:
-          document.type === 'ESTIMATE' &&
-          document.estimateStatus === 'DRAFT' &&
-          document.versionNumber === latestVersion?.versionNumber,
+          (document.type === 'ESTIMATE' &&
+            document.estimateStatus === 'DRAFT' &&
+            document.versionNumber === latestVersion?.versionNumber) ||
+          (document.type === 'INVOICE' && document.invoiceStatus === 'DRAFT'),
       };
     } catch (error: unknown) {
       if (error instanceof HttpException) {
@@ -355,6 +456,16 @@ export class DocumentService {
       console.error("Error fetching document by ID:", error);
       throw new InternalServerErrorException("Une erreur est survenue lors de la récupération du document.");
     }
+  }
+
+  async generateDocumentPdf(documentId: string, user: User): Promise<Buffer> {
+    const document = await this.getDocumentById(documentId, user, true);
+    const company = await this.getInvoiceCompany(document.companyId);
+
+    return this.invoicePdfService.generate({
+      ...document,
+      company,
+    });
   }
 
   async getNegociationByToken(negociationToken: string) {
@@ -379,6 +490,7 @@ export class DocumentService {
             totalPrice: true,
             totalPriceExcludingTax: true,
             createdAt: true,
+            sentAt: true,
             paymentDueAt: true,
             services: {
               select: {
@@ -415,7 +527,7 @@ export class DocumentService {
   async renegociateByToken(negociationToken: string, message: string) {
     const result = await this.prismaService.$transaction(async (prisma) => {
       const negociation = await prisma.estimateNegociation.findFirst({
-        where: { negociationToken, status: 'PENDING' },
+        where: { negociationToken, status: 'PENDING', document: { type: 'ESTIMATE' } },
         select: { id: true, documentId: true },
       });
 
@@ -441,7 +553,7 @@ export class DocumentService {
   async setNegociationStatus(negociationToken: string, status: 'ACCEPTED' | 'REJECTED') {
     const result = await this.prismaService.$transaction(async (prisma) => {
       const negociation = await prisma.estimateNegociation.findFirst({
-        where: { negociationToken, status: 'PENDING' },
+        where: { negociationToken, status: 'PENDING', document: { type: 'ESTIMATE' } },
         select: { id: true, documentId: true },
       });
 
@@ -649,32 +761,61 @@ export class DocumentService {
         throw new BadRequestException("Vous n'avez pas la permission d'envoyer ce document.");
       }
 
-      const negociationToken = randomBytes(16).toString('hex');
+      if (document.type === "INVOICE" && document.invoiceStatus !== "DRAFT") {
+        throw new BadRequestException("Cette facture a déjà été envoyée.");
+      }
 
-      const negociation = await this.prismaService.estimateNegociation.create({
+      const isInvoice = document.type === "INVOICE";
+      const negociation = !isInvoice ? await this.prismaService.estimateNegociation.create({
         data: {
           documentId: document.id,
           message: "",
           proposedTotalPrice: document.totalPrice,
-          negociationToken
-        }
-      });
+          negociationToken: randomBytes(16).toString('hex'),
+        },
+      }) : null;
+      const documentUrl = negociation ? `${process.env.FRONTEND_URL}/negociations?token=${negociation.negociationToken}` : null;
 
-      const documentType = document.type === "INVOICE" ? "facture" : "devis";
+      const company = isInvoice ? await this.getInvoiceCompany(document.companyId) : null;
 
-      // different de mailerService.sendMail
+      const paymentLink = isInvoice
+        ? await this.createInvoicePaymentLink(document, company!, user)
+        : undefined;
+
+      const invoicePdf = isInvoice
+        ? await this.invoicePdfService.generate({
+        ...document,
+        sentAt: new Date(),
+        company: company!,
+      })
+        : null;
+
+      const mailContent = isInvoice
+        ? this.mailService.createInvoiceMail({
+            clientName: document.clientName,
+            documentNumber: document.documentNumber,
+            totalPrice: document.totalPrice,
+            paymentDueAt: document.paymentDueAt,
+            companyName: company!.name,
+            companyEmail: company!.email,
+            paymentLink: paymentLink!,
+          })
+        : this.mailService.createEstimateMail({
+            clientName: document.clientName,
+            documentNumber: document.documentNumber,
+            totalPrice: document.totalPrice,
+            paymentDueAt: document.paymentDueAt,
+            senderName: `${user.firstname} ${user.lastname}`,
+            documentUrl: documentUrl!,
+          });
+
       await this.mailService.sendMail({
         to: document.clientEmail,
-        subject: `Votre ${documentType} ${document.documentNumber}`,
-        text: `Bonjour ${document.clientName},\n\nVous avez reçu un nouveau ${documentType} de la part de ${user.firstname} ${user.lastname}.\n\nVous pouvez consulter le ${documentType} en cliquant sur le lien suivant :\n\n${process.env.FRONTEND_URL}/negociations?token=${negociation.negociationToken}\n\nMerci.`
-      })
+        ...mailContent,
+        attachments: invoicePdf ? [this.createInvoiceAttachment(document.id, document.documentNumber, invoicePdf)] : undefined,
+      });
 
-      if (document.type === 'ESTIMATE') {
-        await this.prismaService.document.update({
-          where: { id: document.id },
-          data: { estimateStatus: 'SENT' },
-        });
-      }
+      await this.markDocumentAsDelivered(document.id, isInvoice);
 
       return {
         success: true,
@@ -689,6 +830,59 @@ export class DocumentService {
     }
   }
 
+  async retryInvoicePayment(documentId: string, user: User) {
+    try {
+      const document = await this.getDocumentById(documentId, user, true);
+
+      if (document.type !== 'INVOICE' || document.invoiceStatus !== 'REJECTED') {
+        throw new BadRequestException('Seule une facture dont le paiement a été refusé peut être relancée.');
+      }
+
+      const canRetryPayment = await this.isCompanyUser(user.id, document.companyId);
+      if (!canRetryPayment) {
+        throw new BadRequestException("Vous n'avez pas la permission de relancer ce paiement.");
+      }
+
+      const company = await this.getInvoiceCompany(document.companyId);
+      const paymentLink = await this.createInvoicePaymentLink(document, company, user);
+      const invoicePdf = await this.invoicePdfService.generate({
+        ...document,
+        company,
+      });
+      const mailContent = this.mailService.createInvoicePaymentRetryMail({
+        clientName: document.clientName,
+        documentNumber: document.documentNumber,
+        totalPrice: document.totalPrice,
+        paymentDueAt: document.paymentDueAt,
+        companyName: company.name,
+        companyEmail: company.email,
+        paymentLink,
+      });
+
+      await this.mailService.sendMail({
+        to: document.clientEmail,
+        ...mailContent,
+        attachments: [this.createInvoiceAttachment(document.id, document.documentNumber, invoicePdf)],
+      });
+
+      await this.prismaService.document.update({
+        where: { id: document.id },
+        data: { invoiceStatus: 'PENDING' },
+      });
+
+      return {
+        success: true,
+        message: 'Un nouveau lien de paiement a été envoyé au client.',
+      };
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      console.error('Error retrying invoice payment:', error);
+      throw new InternalServerErrorException('Une erreur est survenue lors de la relance du paiement.');
+    }
+  }
+
   async isCompanyUser(userId: string, companyId: string): Promise<boolean> {
     const companyUser = await this.prismaService.companyUser.findFirst({
       where: {
@@ -698,5 +892,272 @@ export class DocumentService {
     });
 
     return !!companyUser;
+  }
+
+  private async createInvoicePaymentLink(
+    document: { id: string; totalPrice: number; clientName: string; clientEmail: string; paymentDueAt: Date },
+    company: { name: string; email: string; IBAN: string },
+    user: User,
+  ): Promise<string> {
+    const paymentAccessToken = randomBytes(32).toString('hex');
+    const paymentLinkData: PaymentLinkData = {
+      user: { // client qui paye
+        company_name: document.clientName,
+        email: document.clientEmail,
+        external_reference: document.id,
+      },
+      expired_date: document.paymentDueAt.toISOString(),
+      client_reference: document.id,
+      transactions: [{
+        amount: document.totalPrice,
+        currency: 'EUR',
+        // beneficiary: {
+        //   company_name: "Your Company", // company.name
+        //   email: company.email, // company.email
+        //   iban: "FR05 3000 3000 4029 1646 5922 J55", // company.IBAN
+        // },
+        client_reference: document.id,
+        execution_date: document.paymentDueAt.toISOString(),
+      }],
+      callback_url: this.bridgeApiService.getCallbackUrl(),
+    };
+
+    await this.bridgeApiService.createPaymentLink(paymentLinkData, paymentAccessToken);
+
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+    return `${frontendUrl}/payment?token=${paymentAccessToken}`;
+  }
+
+  async getPublicPaymentByToken(paymentAccessToken: string) {
+    const paymentSession = await this.prismaService.bridgePaymentLinkSession.findUnique({
+      where: { paymentAccessToken },
+      include: {
+        document: {
+          include: {
+            services: true,
+            company: {
+              select: {
+                name: true,
+                email: true,
+                address: true,
+                postalCode: true,
+                city: true,
+                country: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!paymentSession || paymentSession.expiresAt < new Date()) {
+      throw new BadRequestException('Ce lien de paiement est invalide ou expiré.');
+    }
+
+    return {
+      paymentLink: paymentSession.url,
+      expiresAt: paymentSession.expiresAt,
+      document: paymentSession.document,
+    };
+  }
+
+  private async getInvoiceCompany(companyId: string) {
+    const company = await this.prismaService.company.findUnique({
+      where: { id: companyId },
+      select: {
+        name: true,
+        email: true,
+        phoneNumber: true,
+        siren: true,
+        address: true,
+        postalCode: true,
+        city: true,
+        country: true,
+        vatNumber: true,
+        IBAN: true,
+        BIC: true,
+      },
+    });
+
+    if (!company) {
+      throw new BadRequestException('Entreprise introuvable pour cette facture.');
+    }
+
+    return company;
+  }
+
+  private createInvoiceAttachment(
+    documentId: string,
+    documentNumber: string | null,
+    content: Buffer,
+  ) {
+    const safeNumber = documentNumber?.replace(/[^a-zA-Z0-9]/g, '') ?? documentId;
+
+    return {
+      filename: `facture-${safeNumber}.pdf`,
+      content,
+      contentType: 'application/pdf',
+    };
+  }
+
+  private async markDocumentAsDelivered(documentId: string, isInvoice: boolean) {
+    const data = isInvoice
+      ? { invoiceStatus: 'PENDING' as const, sentAt: new Date() }
+      : { estimateStatus: 'SENT' as const };
+
+    await this.prismaService.document.update({
+      where: { id: documentId },
+      data,
+    });
+  }
+
+  async manuallyMarkInvoiceAsPaid(
+    documentId: string,
+    user: User,
+    paymentMethod: $Enums.PaymentMethod,
+  ) {
+    try {
+      const activeCompanyId = await this.getActiveCompanyId(user, true);
+      const isCompanyUser = await this.isCompanyUser(user.id, activeCompanyId);
+
+      if(!isCompanyUser){
+        throw new BadRequestException("Vous n'avez pas la permission de marquer cette facture comme payée.");
+      }
+
+      const document = await this.prismaService.document.findUnique({
+        where: { id: documentId },
+        select: { type: true, invoiceStatus: true }
+      });
+
+      if(!document){
+        throw new BadRequestException("Document introuvable.");
+      }
+
+      const canBeMarkedAsPaid = document.invoiceStatus === "PENDING";
+
+      if(!canBeMarkedAsPaid){
+        throw new BadRequestException("Seule une facture en attente peut être marquée comme payée manuellement.");
+      }
+
+      await this.manuallyMarkInvoiceAs(
+        "PAID_MANUALLY",
+        documentId,
+        paymentMethod,
+      );
+
+      return {
+        success: true,
+        message: "La facture a été marquée comme payée manuellement avec succès."
+      }
+    } catch (error: unknown) {
+      console.error("Error marking invoice as paid:", error);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException("Une erreur est survenue lors de la mise à jour du statut de la facture.");
+    }
+  }
+
+  async manuallyMarkInvoiceAsPending(documentId: string, user: User) {
+    try {
+      const activeCompanyId = await this.getActiveCompanyId(user, true);
+      const isCompanyUser = await this.isCompanyUser(user.id, activeCompanyId);
+
+      if(!isCompanyUser){
+        throw new BadRequestException("Vous n'avez pas la permission de marquer cette facture comme en attente.");
+      }
+
+      const document = await this.prismaService.document.findUnique({
+        where: { id: documentId },
+        select: { type: true, invoiceStatus: true }
+      });
+
+      if(!document){
+        throw new BadRequestException("Document introuvable.");
+      }
+
+      if(document.invoiceStatus === "PENDING"){
+        throw new BadRequestException("La facture est déjà marquée comme en attente.");
+      }
+
+      const canBeMarkedAsPending = document.invoiceStatus === "PAID_MANUALLY";
+
+      if(!canBeMarkedAsPending){
+        throw new BadRequestException("Seule une facture qui a été manuellement marquée comme payée peut être marquée comme en attente.");
+      }
+
+      await this.manuallyMarkInvoiceAs("PENDING", documentId);
+
+      return {
+        success: true,
+        message: "La facture a été marquée comme étant en attente avec succès."
+      }
+    } catch (error: unknown) {
+      console.error("Error marking invoice as pending:", error);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException("Une erreur est survenue lors de la mise à jour du statut de la facture.");
+    }
+  }
+
+  private async manuallyMarkInvoiceAs(
+    status: $Enums.InvoiceStatus,
+    documentId: string,
+    paymentMethod?: $Enums.PaymentMethod,
+  ){
+    try {
+      await this.prismaService.$transaction(async (prisma) => {
+        const document = await prisma.document.findUnique({
+          where: { id: documentId },
+          select: { type: true, invoiceStatus: true, companyId: true },
+        });
+
+        if(!document){
+          throw new BadRequestException("Document introuvable.");
+        }
+
+        if(document.type !== "INVOICE"){
+          throw new BadRequestException("Seule une facture peut être marquée avec un statut de paiement.");
+        }
+
+        if(document.invoiceStatus === status){
+          throw new BadRequestException(`La facture est déjà marquée comme ${status}.`);
+        }
+
+        await prisma.document.update({
+          where: { id: documentId },
+          data: { invoiceStatus: status }
+        });
+
+        if (status === 'PAID_MANUALLY') {
+          await this.invoicePaymentFeeService.createForPaidInvoice(
+            documentId,
+            document.companyId,
+            prisma,
+            paymentMethod,
+          );
+        }
+
+        if (status === 'PENDING') {
+          await this.invoicePaymentFeeService.resetForPendingInvoice(
+            documentId,
+            prisma,
+          );
+        }
+      });
+    } catch (error: unknown) {
+      console.error("Error manually marking invoice as:", error);
+
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException("Une erreur est survenue lors de la mise à jour du statut de la facture.");
+    }
   }
 }

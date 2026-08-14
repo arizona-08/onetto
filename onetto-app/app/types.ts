@@ -38,7 +38,9 @@ export type Document = {
   versionNumber: number;
   isLastVersion: boolean;
   type: "INVOICE" | "ESTIMATE";
+  isFromEstimate?: boolean | null;
   sourceDocumentId?: string;
+  convertedDocuments?: Array<{ id: string }>;
   clientName: string;
   clientEmail: string;
   clientAddress: string;
@@ -48,6 +50,7 @@ export type Document = {
   totalPrice: number;
   authorId: string;
   createdAt: string;
+  sentAt?: string | null;
   paymentDueAt: string;
   invoiceStatus: InvoiceStatus;
   estimateStatus: EstimateStatus;
@@ -63,7 +66,14 @@ export type Document = {
   isEditable?: boolean;
 }
 
-export type InvoiceStatus = "DRAFT" | "PENDING" | "PAID" | "OVERDUE";
+export type InvoiceStatus =
+  | "DRAFT"
+  | "PENDING"
+  | "PAYMENT_IN_PROGRESS"
+  | "PAID"
+  | "PAID_MANUALLY"
+  | "OVERDUE"
+  | "REJECTED"; // rejected payment by Bridge API, can ask to recreate another paymentLink
 export type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "SUPERSEDED" | "REJECTED";
 
 
@@ -79,12 +89,27 @@ export type DocumentService = {
   totalPrice: number;
 }
 
+export type PublicPayment = {
+  paymentLink: string;
+  expiresAt: string;
+  document: Pick<Document, 'documentNumber' | 'clientName' | 'totalPrice' | 'totalPriceExcludingTax' | 'paymentDueAt' | 'services'> & {
+    company: {
+      name: string;
+      email: string;
+      address: string;
+      postalCode: string;
+      city: string;
+      country: string;
+    };
+  };
+};
+
 export type PublicNegociation = {
   id: string;
   message: string;
   proposedTotalPrice: number;
   status: "PENDING" | "ACCEPTED" | "RENEGOCIATED" | "REJECTED";
-  document: Pick<Document, "id" | "documentNumber" | "type" | "clientName" | "clientEmail" | "clientAddress" | "clientCity" | "clientPostalCode" | "clientCountry" | "totalPrice" | "createdAt" | "paymentDueAt"> & {
+  document: Pick<Document, "id" | "documentNumber" | "type" | "clientName" | "clientEmail" | "clientAddress" | "clientCity" | "clientPostalCode" | "clientCountry" | "totalPrice" | "createdAt" | "sentAt" | "paymentDueAt"> & {
     totalPriceExcludingTax: number;
     services: DocumentService[];
     company: {

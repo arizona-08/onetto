@@ -84,7 +84,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
                   <p className="font-semibold text-zinc-500">
                     {isInvoice ? 'Date d’émission' : 'Date du devis'}
                   </p>
-                  <p>{formatDate(document.createdAt)}</p>
+                  <p>{formatDate(isInvoice ? (document.sentAt ?? new Date().toISOString()) : document.createdAt)}</p>
                 </div>
 
                 <div>
@@ -130,7 +130,40 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
         </header>
 
         <div className="px-7 py-6">
-          <div className="overflow-hidden">
+          <div className="space-y-3 sm:hidden">
+            {services.length > 0 ? services.map((serviceLine) => {
+              const { description, quantity, unitPrice, unit, taxRate } = getServiceValues(serviceLine)
+              const lineTotalHT = quantity * unitPrice
+              const lineTotalTTC = lineTotalHT * (1 + taxRate / 100)
+
+              return (
+                <article
+                  key={serviceLine.id}
+                  className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <p className="font-semibold text-zinc-900">{description}</p>
+                    <p className="shrink-0 font-title text-sm font-black text-primary">
+                      {currency(lineTotalTTC)}
+                    </p>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 border-t border-zinc-200 pt-3 text-[11px]">
+                    <ServiceDetail label="Quantité" value={`${quantity} ${unit}`} />
+                    <ServiceDetail label="Prix HT" value={currency(unitPrice)} align="right" />
+                    <ServiceDetail label="TVA" value={`${taxRate} %`} />
+                    <ServiceDetail label="Total HT" value={currency(lineTotalHT)} align="right" />
+                  </div>
+                </article>
+              )
+            }) : (
+              <div className="rounded-xl border border-dashed border-zinc-200 px-4 py-6 text-center text-xs text-zinc-500">
+                Aucune prestation.
+              </div>
+            )}
+          </div>
+
+          <div className="hidden overflow-hidden sm:block">
             <table className="w-full table-fixed border-collapse text-left text-[10px]">
               <colgroup>
                 <col className="w-[37%]" />
@@ -239,6 +272,19 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
       
      
     </>
+  )
+}
+
+function ServiceDetail({ label, value, align = 'left' }: {
+  label: string
+  value: string
+  align?: 'left' | 'right'
+}) {
+  return (
+    <div className={align === 'right' ? 'text-right' : undefined}>
+      <p className="text-zinc-500">{label}</p>
+      <p className="mt-0.5 font-semibold text-zinc-800">{value}</p>
+    </div>
   )
 }
 

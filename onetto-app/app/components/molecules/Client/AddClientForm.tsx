@@ -8,14 +8,16 @@ import ClientCard from './ClientCard';
 interface AddClientFormProps {
   isActive: boolean;
   setIsActive: (active: boolean) => void;
-  handleAddClient: (newClient: Client) => void;
+  onClose: () => void;
+  handleAddClient: (newClient: Client) => Promise<boolean>;
   clientToEdit: Client | null;
-  handleEditClient: (clientToEdit: Client) => void;
+  handleEditClient: (clientToEdit: Client) => Promise<boolean>;
 }
 
-function AddClientForm({ isActive, setIsActive, handleAddClient, clientToEdit, handleEditClient }: AddClientFormProps) {
+function AddClientForm({ isActive, setIsActive, onClose, handleAddClient, clientToEdit, handleEditClient }: AddClientFormProps) {
   function closeForm() {
     setIsActive(false);
+    onClose();
   }
 
   const [previewClient, setPreviewClient] = React.useState<Client>({
@@ -156,13 +158,16 @@ function AddClientForm({ isActive, setIsActive, handleAddClient, clientToEdit, h
             <div className="flex items-center justify-end mt-6">
               <button
                 className="bg-primary hover:bg-bg-secondary text-white py-2 px-4 rounded-md focus:outline-none"
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.preventDefault();
-                  if (clientToEdit) {
-                    handleEditClient(previewClient);
-                  } else {
-                    handleAddClient(previewClient);
+                  const isSaved = clientToEdit
+                    ? await handleEditClient(previewClient)
+                    : await handleAddClient(previewClient);
+
+                  if (!isSaved) {
+                    return;
                   }
+
                   resetForm();
                   closeForm();
                 }}

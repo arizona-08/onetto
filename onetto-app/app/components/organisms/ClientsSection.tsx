@@ -5,6 +5,12 @@ import React from 'react'
 import ClientCard from '../molecules/Client/ClientCard';
 import AddClientForm from '../molecules/Client/AddClientForm';
 import DeleteClientModal from '../molecules/Client/DeleteClientModal';
+import {
+  createActiveCompanyClient,
+  deleteActiveCompanyClient,
+  updateActiveCompanyClient,
+} from '@/lib/companies/catalog';
+import { useToast } from '../context/ToastContext';
 
 interface ClientSectionProps {
   clients: Client[]
@@ -17,9 +23,20 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
   const [masterClientList, setMasterClientList] = React.useState<Client[]>(clients);
   const [clientToEdit, setClientToEdit] = React.useState<Client | null>(null);
   const [clientToDelete, setClientToDelete] = React.useState<Client | null>(null);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const { showToast } = useToast();
 
-  function handleAddClient(newClient: Client) {
-    setMasterClientList(prevList => [...prevList, newClient]);
+  async function handleAddClient(newClient: Client) {
+    const response = await createActiveCompanyClient(newClient);
+
+    if (!response.ok) {
+      showToast('Impossible de créer ce client.', 'error');
+      return false;
+    }
+
+    setMasterClientList((clients) => [...clients, response.data]);
+    showToast('Client créé avec succès.', 'success');
+    return true;
   }
 
   function handleTriggerEdit(clientId: string) {
@@ -30,12 +47,19 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
     }
   }
 
-  function handleEditClient(clientToEdit: Client) {
-    setMasterClientList(prevList => prevList.map(client => client.id === clientToEdit.id ? clientToEdit : client));
-  }
+  async function handleEditClient(clientToEdit: Client) {
+    const response = await updateActiveCompanyClient(clientToEdit);
 
-  function handleDeleteClient(clientId: string) {
-    setMasterClientList(prevList => prevList.filter(client => client.id !== clientId));
+    if (!response.ok) {
+      showToast('Impossible de modifier ce client.', 'error');
+      return false;
+    }
+
+    setMasterClientList((clients) => clients.map((client) => (
+      client.id === clientToEdit.id ? response.data : client
+    )));
+    showToast('Client modifié avec succès.', 'success');
+    return true;
   }
 
   function handleTriggerDelete(clientId: string) {
@@ -45,11 +69,25 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
     }
   }
 
-  function handleConfirmDelete() {
-    if (clientToDelete) {
-      handleDeleteClient(clientToDelete.id);
-      setClientToDelete(null);
+  async function handleConfirmDelete() {
+    if (!clientToDelete) {
+      return;
     }
+
+    setIsDeleting(true);
+    const response = await deleteActiveCompanyClient(clientToDelete.id);
+    setIsDeleting(false);
+
+    if (!response.ok) {
+      showToast('Impossible de supprimer ce client.', 'error');
+      return;
+    }
+
+    setMasterClientList((clients) => clients.filter((client) => (
+      client.id !== clientToDelete.id
+    )));
+    setClientToDelete(null);
+    showToast('Client supprimé avec succès.', 'success');
   }
 
   return (
@@ -57,22 +95,32 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
       <AddClientForm
         isActive={isAddFormActive}
         setIsActive={setIsAddFormActive}
+        onClose={() => setClientToEdit(null)}
         handleAddClient={handleAddClient}
         clientToEdit={clientToEdit}
         handleEditClient={handleEditClient}
       />
       {clientToDelete && (
-        <div className="fixed inset-0 bg-black/45 backdrop-blur-xl z-40 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-client-title"
+        >
           <DeleteClientModal
             client={clientToDelete}
+            isDeleting={isDeleting}
             onCancel={() => setClientToDelete(null)}
-            onConfirm={handleConfirmDelete}
+            onConfirm={() => void handleConfirmDelete()}
           />
         </div>
       )}
       <div>
         <button 
-          onClick={() => setIsAddFormActive(true)}
+          onClick={() => {
+            setClientToEdit(null);
+            setIsAddFormActive(true);
+          }}
           disabled={!canCreate}
           title={canCreate ? undefined : 'L’entreprise active est fermée'}
           aria-disabled={!canCreate}

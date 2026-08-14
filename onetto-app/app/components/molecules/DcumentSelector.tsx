@@ -2,8 +2,23 @@
 import React from 'react'
 import { EstimateSelectStatus, InvoiceSelectStatus } from '../organisms/DocumentsTable';
 
-const INVOICES_STATUS = ['Toutes', 'En attente', 'Payées', 'Échues']
-const ESTIMATES_STATUS = ['Tout', 'Brouillons', 'Envoyés', 'Acceptés', 'Refusés']
+const INVOICES_STATUS: InvoiceSelectStatus[] = [
+  'Toutes',
+  'Brouillons',
+  'En attente',
+  'Paiement en cours',
+  'Payées',
+  'Échues',
+  'Refusées',
+];
+
+const ESTIMATES_STATUS: EstimateSelectStatus[] = [
+  'Tout',
+  'Brouillons',
+  'Envoyés',
+  'Acceptés',
+  'Refusés',
+];
 
 interface DocumentSelectorProps {
   type: 'invoices' | 'estimates';
@@ -11,7 +26,9 @@ interface DocumentSelectorProps {
   onSelectStatus: (status: InvoiceSelectStatus | EstimateSelectStatus) => void;
 }
 function DocumentSelector({ type, selectedStatus, onSelectStatus }: DocumentSelectorProps) {
-  const statusOptions = type === 'invoices' ? INVOICES_STATUS : ESTIMATES_STATUS;
+  const statusOptions = type === 'invoices'
+    ? INVOICES_STATUS
+    : ESTIMATES_STATUS;
 
   return (
     <div className="flex items-center gap-1 w-fit bg-gray-600/10 p-1 rounded-lg shadow-sm">
@@ -23,7 +40,7 @@ function DocumentSelector({ type, selectedStatus, onSelectStatus }: DocumentSele
               ? 'bg-white text-zinc-700'
               : 'text-zinc-700 hover:bg-gray-600/20'
           }`}
-          onClick={() => onSelectStatus(status as InvoiceSelectStatus | EstimateSelectStatus)}
+          onClick={() => onSelectStatus(status)}
         >
           {status}
         </button>

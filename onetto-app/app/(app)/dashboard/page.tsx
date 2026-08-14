@@ -10,7 +10,7 @@ import React from 'react'
 
 async function Dashboard() {
   return (
-    <div className="w-full p-4">
+    <div className="mx-auto w-full max-w-6xl p-4">
       <div>
         <div className="mb-8">
           <Greetings />

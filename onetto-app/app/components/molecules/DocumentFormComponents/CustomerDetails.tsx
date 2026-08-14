@@ -3,45 +3,19 @@ import { Client } from '@/app/types';
 import { DocumentClientError } from '@/shared/DocumentErrorsTypes';
 import { ChevronDown } from 'lucide-react'
 import React, { useEffect } from 'react'
+import { getActiveCompanyClients } from '@/lib/companies/catalog';
 
 
 interface CustomerDetailsProps {
   client?: Client | null;
   onClientChange: (client: Client | null) => void;
   documentClientErrors?: DocumentClientError
+  disabled?: boolean
 }
-const clients : Client[] = [
-  {
-    id: "CUST-001",
-    name: 'Société ABC',
-    email: 'contact@societe-abc.com',
-    address: '10 rue de la Paix',
-    city: 'Paris',
-    postalCode: '75002',
-    country: 'France'
-  },
-  {
-    id: "CUST-002",
-    name: 'Entreprise XYZ',
-    email: 'contact@entreprise-xyz.com',
-    address: '14 rue de la Joie',
-    city: 'Paris',
-    postalCode: '75012',
-    country: 'France'
-  },
-  {
-    id: "CUST-003",
-    name: 'Client 123',
-    email: 'contact@client-123.com',
-    address: '23 Boulevard de la Richesse',
-    city: 'Paris',
-    postalCode: '75014',
-    country: 'France'
-  }
-]
-
-function CustomerDetails({ client, onClientChange, documentClientErrors }: CustomerDetailsProps) {
+function CustomerDetails({ client, onClientChange, documentClientErrors, disabled = false }: CustomerDetailsProps) {
   const [selectedClient, setSelectedClient] = React.useState<Client | null>(null);
+  const [clients, setClients] = React.useState<Client[]>([]);
+  const [isLoadingClients, setIsLoadingClients] = React.useState(true);
   const [clientInfos, setClientInfos] = React.useState<Client>({
     id: "",
     name: "",
@@ -67,9 +41,34 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
     }
   }, [client])
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadClients() {
+      const response = await getActiveCompanyClients();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (response.ok) {
+        setClients(response.data);
+      }
+
+      setIsLoadingClients(false);
+    }
+
+    void loadClients();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (disabled) return;
     const { name, value } = e.target;
     setClientInfos(prev => ({
       ...prev,
@@ -88,7 +87,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
   }
 
   return (
-    <div className="border border-gray-200 rounded-md p-4 mb-6">
+    <div className={`border border-gray-200 rounded-md p-4 mb-6 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
       <header className="flex items-center gap-4 mb-6">
         <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold font-title">
           <span>01</span>
@@ -100,7 +99,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
         <div className="flex justify-end">
           <div className="flex flex-col items-end">
             {/* client selector */}
-            <div className='relative inline-block border border-gray-300 rounded-md px-2 py-1 cursor-pointer' onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
+            <div className='relative inline-block border border-gray-300 rounded-md px-2 py-1 cursor-pointer' onClick={() => !disabled && setIsDropdownOpen(!isDropdownOpen)}>
               <span className="flex items-center gap-2 text-sm font-medium  tracking-wider"> <ChevronDown className="w-4 h-4" />  {selectedClient ? selectedClient.name : 'Sélectionner un client'}</span>
 
               <ul className={`absolute right-0 mt-2 w-48 bg-white border border-gray-300 rounded-md shadow-lg z-10 ${isDropdownOpen ? 'block' : 'hidden'}`}>
@@ -120,6 +119,16 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
                 }}>
                   Sélectionner un client
                 </li>
+                {isLoadingClients && (
+                  <li className="px-3 py-2 text-sm text-gray-500">
+                    Chargement des clients…
+                  </li>
+                )}
+                {!isLoadingClients && clients.length === 0 && (
+                  <li className="px-3 py-2 text-sm text-gray-500">
+                    Aucun client enregistré
+                  </li>
+                )}
                 {clients.map(client => (
                   <li
                     key={client.id}
@@ -153,7 +162,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
 
             <div>
               <label htmlFor="customer-name" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Nom du client <span className="text-red-500">*</span></label>
-              <input
+              <input disabled={disabled}
                 type="text"
                 id="customer-name"
                 name="name"
@@ -174,7 +183,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
 
             <div>
               <label htmlFor="customer-email" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Email du client <span className="text-red-500">*</span></label>
-              <input
+              <input disabled={disabled}
                 type="email"
                 id="customer-email"
                 name="email"
@@ -197,7 +206,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
           {/* address */}
           <div>
             <label htmlFor="customer-address" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Adresse du client <span className="text-red-500">*</span></label>
-            <input
+            <input disabled={disabled}
               type="text"
               id="customer-address"
               name="address"
@@ -221,7 +230,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
 
             <div className="md:w-1/2">
               <label htmlFor="city" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Ville <span className="text-red-500">*</span></label>
-              <input
+              <input disabled={disabled}
                 type="text"
                 id="city"
                 name="city"
@@ -242,7 +251,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
 
             <div className="md:w-1/2">
               <label htmlFor="postal-code" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Code postal <span className="text-red-500">*</span></label>
-              <input
+              <input disabled={disabled}
                 type="text"
                 id="postal-code"
                 name="postalCode"
@@ -266,7 +275,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors }: Custo
           {/* Country */}
           <div>
             <label htmlFor="customer-country" className="inline-block text-sm font-medium text-gray-500 tracking-wider mb-1">Pays <span className="text-red-500">*</span></label>
-            <input
+            <input disabled={disabled}
               type="text"
               id="customer-country"
               name="country"

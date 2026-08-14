@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsArray, IsDate, IsDateString, IsDefined, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, IsUUID, Min, ValidateNested } from "class-validator";
+import { IsArray, IsDate, IsDateString, IsDefined, IsIn, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, IsUUID, Min, ValidateNested } from "class-validator";
 
 
 export class DocumentClientDto {
@@ -66,6 +66,10 @@ export class DocumentDateDto {
 }
 
 export class CreateDocumentDto {
+  @IsOptional()
+  @IsIn(['ESTIMATE', 'INVOICE'])
+  type?: 'ESTIMATE' | 'INVOICE';
+
   @IsDefined()
   @ValidateNested()
   @Type(() => DocumentClientDto)

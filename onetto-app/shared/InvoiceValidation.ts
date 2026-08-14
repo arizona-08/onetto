@@ -42,6 +42,8 @@ export function verifyClient(client: Client | null): Result<boolean, DocumentCli
   for(const key in client){
     const clientKey = key as keyof Client;
 
+    if(clientKey === "id") continue; // skip id field
+
     if(client[clientKey].length === 0 || client[clientKey] === ""){
       const errorKey = clientKey as keyof DocumentClientError;
       errors[errorKey] = [(`${clientKey} ne peut pas être vide.`)]

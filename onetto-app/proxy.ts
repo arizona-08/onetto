@@ -4,15 +4,21 @@ import { apiServer } from "./lib/api-server";
 
 const AUTH_ROUTE_PREFIX = "/auth";
 const NEGOCIATIONS_ROUTE = "/negociations";
+const PAYMENT_ROUTE_PREFIX = "/payment";
 const ME_ENDPOINT = "/api/auth/me";
 
 function isAuthRoute(pathname: string): boolean {
   return pathname === AUTH_ROUTE_PREFIX || pathname.startsWith(`${AUTH_ROUTE_PREFIX}/`);
 }
 
+function isPaymentRoute(pathname: string): boolean {
+  return pathname === PAYMENT_ROUTE_PREFIX || pathname.startsWith(`${PAYMENT_ROUTE_PREFIX}/`);
+}
+
 export async function proxy(request: NextRequest) {
   if (
     isAuthRoute(request.nextUrl.pathname) ||
+    isPaymentRoute(request.nextUrl.pathname) ||
     request.nextUrl.pathname === NEGOCIATIONS_ROUTE
   ) {
     return NextResponse.next();

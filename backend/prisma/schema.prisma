@@ -23,8 +23,6 @@ model User {
   lastConnectedCompany Company? @relation("LastConnectedCompany", fields: [lastConnectedCompanyId], references: [id])
   ownedCompanies Company[]
   companies CompanyUser[]
-  services UserService[]
-  clients UserClient[]
 }
 
 enum Role {
@@ -58,6 +56,10 @@ model Company {
   owner User @relation(fields: [ownerId], references: [id])
   companyUsers CompanyUser[]
   lastConnectedUsers User[] @relation("LastConnectedCompany")
+  invoicePaymentFees InvoicePaymentFee[]
+
+  services CompanyService[]
+  clients CompanyClient[]
 }
 
 enum CompanyStatus {
@@ -96,9 +98,11 @@ model Document {
   totalPriceExcludingTax Float
   totalPrice Float
   createdAt DateTime @default(now())
+  sentAt DateTime?
   documentNumber String?
   versionNumber Int @default(1)
   isLastVersion Boolean @default(true)
+  isFromEstimate Boolean? @default(true)
   sourceDocumentId String?
   sourceDocument Document? @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
 
@@ -113,6 +117,8 @@ model Document {
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   services DocumentService[]
   negociations EstimateNegociation[]
+  paymentLinkSessions BridgePaymentLinkSession[] // peut en créer plusieurs pour un même document, mais seulement un actif à la fois
+  invoicePaymentFee InvoicePaymentFee?
 }
 
 enum DocumentType {
@@ -123,8 +129,11 @@ enum DocumentType {
 enum InvoiceStatus {
   DRAFT
   PENDING
+  PAYMENT_IN_PROGRESS
   PAID
+  PAID_MANUALLY
   OVERDUE
+  REJECTED
 }
 
 enum EstimateStatus {
@@ -154,6 +163,69 @@ enum EstimateNegociationStatus {
   REJECTED
 }
 
+model InvoicePaymentFee {
+  id String @id @default(uuid())
+  documentId String @unique
+  companyId String
+  amountInCents Int
+  paymentMethod PaymentMethod? @default(BANK_TRANSFER)
+  createdAt DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  BANK_TRANSFER
+  CHECK
+  CASH
+  OTHER
+}
+
+model BridgePaymentLinkSession {
+  id String @id @default(uuid())
+  documentId String
+  bridgePaymentLinkId String @unique
+  paymentAccessToken String @unique
+  linkStatus BridgePaymentLinkStatus?
+  url String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expiresAt DateTime
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  bridgePaymentAttempts BridgePaymentAttempt[]
+}
+
+model BridgePaymentAttempt {
+  id String @id @default(uuid())
+  bridgePaymentLinkSessionId String
+  paymentRequestId String
+  paymentTransactionId String @unique
+  paymentTransactionStatus BridgePaymentTransactionStatus?
+  paymentTransactionStatusReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bridgePaymentLinkSession BridgePaymentLinkSession @relation(fields: [bridgePaymentLinkSessionId], references: [id], onDelete: Cascade)
+}
+
+enum BridgePaymentLinkStatus {
+  VALID
+  EXPIRED
+  REVOKED
+  COMPLETED
+}
+
+enum BridgePaymentTransactionStatus {
+  CREA
+  ACTC
+  PDNG
+  ACSC
+  RJCT
+}
+
 model DocumentService {
   id String @id @default(uuid())
   documentId String
@@ -168,21 +240,24 @@ model DocumentService {
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
-model UserService {
+model CompanyService {
   id String @id @default(uuid())
-  userId String
+  companyId String
+  name String
   description String
   unitPrice Float
+  unit String
   taxRate Float?
+  category String
   wtPrice Float
   totalPrice Float
 
-  user User @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
-model UserClient {
+model CompanyClient {
   id String @id @default(uuid())
-  authorId String
+  companyId String
   name String
   email String
   address String
@@ -190,5 +265,5 @@ model UserClient {
   postalCode String
   country String
 
-  author User @relation(fields: [authorId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }

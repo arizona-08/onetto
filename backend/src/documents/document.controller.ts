@@ -1,6 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+import type { Response } from 'express';
 import { DocumentService } from "./document.service";
 import { CreateDocumentDto } from "./dtos/create-document.dto";
+import { MarkInvoicePaidManuallyDto } from './dtos/mark-invoice-paid-manually.dto';
 import type { ExtendedRequest, User } from "src/types/extended-request.types";
 import { AuthGuard } from "src/auth/auth.guard";
 
@@ -12,13 +14,27 @@ export class DocumentController {
   ) {}
 
   @Get("mines")
-  async getMyDocuments(@Req() req: ExtendedRequest, @Query("with-services") withServices: boolean) {
+  async getMyDocuments(
+    @Req() req: ExtendedRequest,
+    @Query("with-services") withServices: boolean,
+    @Query('type') type?: 'INVOICE' | 'ESTIMATE',
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
     const user = req.user;
     if(!user){
       throw new UnauthorizedException("Non authentifié");
     }
 
-    return await this.documentService.getDocumentsByUser(user, withServices);
+    return await this.documentService.getDocumentsByUser(
+      user,
+      withServices,
+      type,
+      status,
+      Number(page) || 1,
+      Number(pageSize) || 5,
+    );
   }
 
   @Get(":documentId")
@@ -30,6 +46,23 @@ export class DocumentController {
 
     return await this.documentService.getDocumentById(documentId, user, withServices);
 
+  }
+
+  @Get(':documentId/download-pdf')
+  async downloadDocumentPdf(
+    @Param('documentId') documentId: string,
+    @Req() req: ExtendedRequest,
+    @Res() res: Response,
+  ) {
+    const user = req.user;
+    if (!user) {
+      throw new UnauthorizedException('Non authentifié');
+    }
+
+    const pdf = await this.documentService.generateDocumentPdf(documentId, user);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="document-${documentId}.pdf"`);
+    res.send(pdf);
   }
 
   @Get(":documentId/negociations")
@@ -84,6 +117,16 @@ export class DocumentController {
     return await this.documentService.sendDocumentToClient(documentId, user);
   }
 
+  @Post(":documentId/retry-payment")
+  async retryInvoicePayment(@Param("documentId") documentId: string, @Req() req: ExtendedRequest) {
+    const user = req.user;
+    if (!user) {
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.retryInvoicePayment(documentId, user);
+  }
+
   @Post(":documentId/create-version")
   async createDocumentVersion(@Param("documentId") documentId: string, @Req() req: ExtendedRequest) {
     const user = req.user;
@@ -93,4 +136,43 @@ export class DocumentController {
 
     return await this.documentService.createNewDocumentVersion(documentId, user);
   }
+
+  @Post(":estimateId/turn-into-invoice")
+  async turnEstimateIntoInvoice(@Param("estimateId") estimateId: string, @Req() req: ExtendedRequest) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.convertEstimateToInvoice(estimateId, user);
+  }
+
+  @Put(":invoiceId/mark-as-paid-manually")
+  async markAsPaidManually(
+    @Param("invoiceId") invoiceId: string,
+    @Body() body: MarkInvoicePaidManuallyDto,
+    @Req() req: ExtendedRequest,
+  ) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.manuallyMarkInvoiceAsPaid(
+      invoiceId,
+      user,
+      body.paymentMethod,
+    );
+  }
+
+  @Put(":invoiceId/mark-as-pending-manually")
+  async markAsPendingManually(@Param("invoiceId") invoiceId: string, @Req() req: ExtendedRequest) {
+    const user = req.user;
+    if(!user){
+      throw new UnauthorizedException("Non authentifié");
+    }
+
+    return await this.documentService.manuallyMarkInvoiceAsPending(invoiceId, user);
+  }
 }
+  

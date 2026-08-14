@@ -2,6 +2,7 @@
 import { Service, ServiceLineItem } from '@/app/types';
 import { ChevronDown } from 'lucide-react';
 import React from 'react'
+import { getActiveCompanyServices } from '@/lib/companies/catalog';
 
 interface AddLineItemModalProps {
   isVisible: boolean
@@ -13,36 +14,6 @@ interface AddLineItemModalProps {
   } | null;
   onEditLineItem: (lineItem: ServiceLineItem, index: number) => void;
 }
-
-const predefinedServices: Service[] = [
-  {
-    id: "SERV-1",
-    name: "Développement d'application",
-    description: "Développement d'une application web ou mobile sur mesure.",
-    unitPrice: 5000,
-    taxRate: 20,
-    unit: "application",
-    category: "Développement"
-  },
-  {
-    id: "SERV-2",
-    name: "Pose de carrelage",
-    description: "Pose de carrelage dans un espace donné.",
-    unitPrice: 12,
-    taxRate: 20,
-    unit: "m²",
-    category: "Rénovation"
-  },
-  {
-    id: "SERV-3",
-    name: "Pose de peinture",
-    description: "Pose de peinture dans un espace donné.",
-    unitPrice: 15,
-    taxRate: 20,
-    unit: "m²",
-    category: "Maison"
-  },
-]
 
 function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify, onEditLineItem }: AddLineItemModalProps) {
 
@@ -56,6 +27,8 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
 
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
   const [preSelectedService, setPreSelectedService] = React.useState<Service | null>(null);
+  const [predefinedServices, setPredefinedServices] = React.useState<Service[]>([]);
+  const [isLoadingServices, setIsLoadingServices] = React.useState(true);
 
   function handleServiceSelect(service: Service | null) {
     setPreSelectedService(service);
@@ -92,6 +65,33 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
       resetLineItemDetails()
     }
   }, [lineItemToModify])
+
+  React.useEffect(() => {
+    let isMounted = true;
+
+    async function loadServices() {
+      const response = await getActiveCompanyServices();
+
+      if (!isMounted) {
+        return;
+      }
+
+      if (response.ok) {
+        setPredefinedServices(response.data.map((service) => ({
+          ...service,
+          taxRate: service.taxRate ?? 0,
+        })));
+      }
+
+      setIsLoadingServices(false);
+    }
+
+    void loadServices();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   function resetLineItemDetails() {
     setLineItemDetails({
@@ -134,6 +134,16 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
                     >
                       Choisir un service
                     </li>
+                  {isLoadingServices && (
+                    <li className="px-3 py-1 text-gray-400">
+                      Chargement des services…
+                    </li>
+                  )}
+                  {!isLoadingServices && predefinedServices.length === 0 && (
+                    <li className="px-3 py-1 text-gray-400">
+                      Aucun service enregistré
+                    </li>
+                  )}
                   {predefinedServices.map(service => (
                     <li key={service.id} className=" px-3 py-1 hover:bg-gray-200" onClick={() => handleServiceSelect(service)}>
                       {service.name}

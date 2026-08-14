@@ -7,10 +7,15 @@ import { JwtModule } from "@nestjs/jwt";
 import { UserModule } from "src/user/user.module";
 import { MailModule } from "src/mail/mail.module";
 import { NegociationController } from "./negociation.controller";
+import { InvoicePdfService } from "./invoice-pdf.service";
+import { PublicPaymentController } from './public-payment.controller';
+import { BridgeApiModule } from "src/bridgeApi/bridgeApi.module";
+import { InvoicePaymentFeeService } from './invoice-payment-fee.service';
 
 @Module({
-  imports: [PrismaModule, UserModule, AuthModule, JwtModule, MailModule],
-  controllers: [DocumentController, NegociationController],
-  providers: [DocumentService],
+  imports: [PrismaModule, UserModule, AuthModule, JwtModule, MailModule, BridgeApiModule],
+  controllers: [DocumentController, NegociationController, PublicPaymentController],
+  providers: [DocumentService, InvoicePdfService, InvoicePaymentFeeService],
+  exports: [InvoicePaymentFeeService],
 })
 export class DocumentModule {}

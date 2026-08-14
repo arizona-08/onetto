@@ -6,12 +6,33 @@ export type CompaniesResponse = {
   activeCompanyId: string | null;
 };
 
+export type CompanyInvoiceFeeDetails = {
+  periodStart: string;
+  currentPeriodAmountInCents: number;
+  paidInvoicesCount: number;
+  history: Array<{
+    id: string;
+    amountInCents: number;
+    paymentMethod: 'CREDIT_CARD' | 'BANK_TRANSFER' | 'CHECK' | 'CASH' | 'OTHER' | null;
+    createdAt: string;
+    invoice: {
+      id: string;
+      documentNumber: string | null;
+      invoiceStatus: string;
+    };
+  }>;
+};
+
 export function getMyCompanies() {
   return apiClient<CompaniesResponse>("api/companies");
 }
 
 export function getCompany(companyId: string) {
   return apiClient<Company>(`api/companies/${companyId}`);
+}
+
+export function getCompanyInvoiceFeeDetails(companyId: string) {
+  return apiClient<CompanyInvoiceFeeDetails>(`api/companies/${companyId}/invoice-fees`);
 }
 
 export function getMyActiveCompany() {

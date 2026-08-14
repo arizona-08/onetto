@@ -1,11 +1,5 @@
-import DocumentDisplayComponent from '@/app/components/molecules/DocumentDisplayComponent/DocumentDisplayComponent';
 import ShowDocument from '@/app/components/organisms/ShowDocument';
-import { sendDocumentToClient } from '@/lib/documents/document';
 import { getDocumentByIdServer } from '@/lib/documents/document.server';
-import { Edit, Send, Trash } from 'lucide-react';
-import Link from 'next/link';
-
-import React from 'react'
 
 async function ShowDocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,8 +13,10 @@ async function ShowDocumentPage({ params }: { params: Promise<{ id: string }> })
   const document = documentResponse.data;
   
   return (
-    <ShowDocument document={document} />
-  )
+    <div className="mx-auto w-full max-w-6xl p-4">
+      <ShowDocument document={document} />
+    </div>
+  );
 }
 
 export default ShowDocumentPage

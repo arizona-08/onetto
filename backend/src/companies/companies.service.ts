@@ -3,6 +3,12 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateCompanyDto } from "./dtos/create-company.dto";
 import { UpdateCompanyDto } from "./dtos/update-company.dto";
+import { CreateCompanyClientDto } from './dtos/create-company-client.dto';
+import { CreateCompanyServiceDto } from './dtos/create-company-service.dto';
+import { UpdateCompanyClientDto } from './dtos/update-company-client.dto';
+import { UpdateCompanyServiceDto } from './dtos/update-company-service.dto';
+
+const PAID_INVOICE_STATUSES = ['PAID', 'PAID_MANUALLY'] as const;
 
 @Injectable()
 export class CompaniesService {
@@ -80,6 +86,102 @@ export class CompaniesService {
     return { companies, activeCompanyId: user?.lastConnectedCompanyId ?? null };
   }
 
+  async getCurrentInvoiceFeeSummary(userId: string) {
+    const periodStart = this.getStartOfCurrentMonth();
+    const companies = await this.prismaService.company.findMany({
+      where: { ownerId: userId },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        invoicePaymentFees: {
+          where: {
+            createdAt: { gte: periodStart },
+            document: {
+              invoiceStatus: { in: [...PAID_INVOICE_STATUSES] },
+            },
+          },
+          select: { amountInCents: true },
+        },
+      },
+    });
+
+    const details = companies.map((company) => {
+      const paidInvoicesCount = company.invoicePaymentFees.length;
+      const amountInCents = company.invoicePaymentFees.reduce(
+        (total, fee) => total + fee.amountInCents,
+        0,
+      );
+
+      return {
+        companyId: company.id,
+        companyName: company.name,
+        paidInvoicesCount,
+        amountInCents,
+      };
+    });
+
+    return {
+      periodStart,
+      totalAmountInCents: details.reduce(
+        (total, company) => total + company.amountInCents,
+        0,
+      ),
+      companies: details,
+    };
+  }
+
+  async getCompanyInvoiceFeeDetails(companyId: string, userId: string) {
+    await this.getOwnedCompany(companyId, userId);
+
+    const periodStart = this.getStartOfCurrentMonth();
+    const [currentPeriodFees, history] = await Promise.all([
+      this.prismaService.invoicePaymentFee.aggregate({
+        where: {
+          companyId,
+          createdAt: { gte: periodStart },
+          document: {
+            invoiceStatus: { in: [...PAID_INVOICE_STATUSES] },
+          },
+        },
+        _sum: { amountInCents: true },
+        _count: { id: true },
+      }),
+      this.prismaService.invoicePaymentFee.findMany({
+        where: { companyId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          document: {
+            select: {
+              id: true,
+              documentNumber: true,
+              invoiceStatus: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      periodStart,
+      currentPeriodAmountInCents: currentPeriodFees._sum.amountInCents ?? 0,
+      paidInvoicesCount: currentPeriodFees._count.id,
+      history: history.map((fee) => ({
+        id: fee.id,
+        amountInCents: fee.amountInCents,
+        paymentMethod: fee.paymentMethod,
+        createdAt: fee.createdAt,
+        invoice: fee.document,
+      })),
+    };
+  }
+
+  private getStartOfCurrentMonth() {
+    const now = new Date();
+
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
   async getCompany(companyId: string, userId: string) {
     return this.getOwnedCompany(companyId, userId);
   }
@@ -101,6 +203,177 @@ export class CompaniesService {
     } catch (error) {
       this.handleDatabaseError(error, "récupération de l'entreprise active.");
     }
+  }
+
+  async getActiveCompanyServices(userId: string) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+
+    return this.prismaService.companyService.findMany({
+      where: { companyId },
+      orderBy: { description: 'asc' },
+    });
+  }
+
+  async getActiveCompanyClients(userId: string) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+
+    return this.prismaService.companyClient.findMany({
+      where: { companyId },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async createActiveCompanyService(userId: string, data: CreateCompanyServiceDto) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+
+    return this.prismaService.companyService.create({
+      data: {
+        ...data,
+        companyId,
+        taxRate: data.taxRate ?? 0,
+        wtPrice: data.unitPrice,
+        totalPrice: this.getServiceTotalPrice(data.unitPrice, data.taxRate),
+      },
+    });
+  }
+
+  async updateActiveCompanyService(
+    userId: string,
+    serviceId: string,
+    data: UpdateCompanyServiceDto,
+  ) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+    const existingService = await this.prismaService.companyService.findFirst({
+      where: { id: serviceId, companyId },
+    });
+
+    if (!existingService) {
+      throw new NotFoundException('Service introuvable.');
+    }
+
+    const unitPrice = data.unitPrice ?? existingService.unitPrice;
+    const taxRate = data.taxRate ?? existingService.taxRate ?? 0;
+
+    return this.prismaService.companyService.update({
+      where: { id: serviceId },
+      data: {
+        ...data,
+        wtPrice: unitPrice,
+        totalPrice: this.getServiceTotalPrice(unitPrice, taxRate),
+      },
+    });
+  }
+
+  async deleteActiveCompanyService(userId: string, serviceId: string) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+    const existingService = await this.prismaService.companyService.findFirst({
+      where: { id: serviceId, companyId },
+      select: { id: true },
+    });
+
+    if (!existingService) {
+      throw new NotFoundException('Service introuvable.');
+    }
+
+    await this.prismaService.companyService.delete({
+      where: { id: serviceId },
+    });
+
+    return { success: true };
+  }
+
+  async createActiveCompanyClient(userId: string, data: CreateCompanyClientDto) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+
+    return this.prismaService.companyClient.create({
+      data: { ...data, companyId },
+    });
+  }
+
+  async updateActiveCompanyClient(
+    userId: string,
+    clientId: string,
+    data: UpdateCompanyClientDto,
+  ) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+    const existingClient = await this.prismaService.companyClient.findFirst({
+      where: { id: clientId, companyId },
+      select: { id: true },
+    });
+
+    if (!existingClient) {
+      throw new NotFoundException('Client introuvable.');
+    }
+
+    return this.prismaService.companyClient.update({
+      where: { id: clientId },
+      data,
+    });
+  }
+
+  async deleteActiveCompanyClient(userId: string, clientId: string) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    await this.ensureCompanyCatalogIsEditable(companyId);
+    const existingClient = await this.prismaService.companyClient.findFirst({
+      where: { id: clientId, companyId },
+      select: { id: true },
+    });
+
+    if (!existingClient) {
+      throw new NotFoundException('Client introuvable.');
+    }
+
+    await this.prismaService.companyClient.delete({
+      where: { id: clientId },
+    });
+
+    return { success: true };
+  }
+
+  private async getActiveCompanyIdForUser(userId: string) {
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+      select: { lastConnectedCompanyId: true },
+    });
+
+    if (!user?.lastConnectedCompanyId) {
+      throw new NotFoundException('Aucune entreprise active sélectionnée.');
+    }
+
+    const companyUser = await this.prismaService.companyUser.findFirst({
+      where: {
+        companyId: user.lastConnectedCompanyId,
+        userId,
+        isHidden: false,
+      },
+      select: { companyId: true },
+    });
+
+    if (!companyUser) {
+      throw new NotFoundException('Entreprise active introuvable ou accès non autorisé.');
+    }
+
+    return companyUser.companyId;
+  }
+
+  private async ensureCompanyCatalogIsEditable(companyId: string) {
+    const company = await this.prismaService.company.findUnique({
+      where: { id: companyId },
+      select: { status: true },
+    });
+
+    if (!company || company.status === 'CLOSED') {
+      throw new BadRequestException('Le catalogue d’une entreprise fermée ne peut pas être modifié.');
+    }
+  }
+
+  private getServiceTotalPrice(unitPrice: number, taxRate?: number) {
+    return unitPrice * (1 + (taxRate ?? 0) / 100);
   }
 
   async updateCompany(companyId: string, data: UpdateCompanyDto, userId: string) {

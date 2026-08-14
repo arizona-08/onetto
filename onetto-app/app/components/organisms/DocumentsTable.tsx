@@ -1,43 +1,106 @@
 'use client';
 import React from 'react'
 
-import { CirclePlusIcon, Trash } from 'lucide-react';
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  CirclePlusIcon,
+  FileChartColumnIncreasing,
+  RotateCcw,
+  Trash,
+} from 'lucide-react';
 import Link from 'next/link';
 import { Document, InvoiceStatus } from '@/app/types';
 import { formatDate } from '@/shared/utils';
 import DocumentSelector from '../molecules/DcumentSelector';
 import DocumentSorter from '../molecules/DocumentSorter';
-import { massDeleteDocuments } from '@/lib/documents/document';
+import {
+  convertEstimateToInvoice,
+  getDocumentsPage,
+  markInvoiceAsPaidManually,
+  markInvoiceAsPendingManually,
+  massDeleteDocuments,
+  retryInvoicePayment,
+} from '@/lib/documents/document';
 import { useToast } from '@/app/components/context/ToastContext';
+import { useRouter } from 'next/navigation';
 
-const invoiceStatusStyles: Record<string, string> = {
-  OVERDUE: 'bg-rose-100 text-rose-700',
-  PAID: 'bg-indigo-100 text-indigo-700',
-  PENDING: 'bg-orange-200 text-orange-700',
-  DRAFT: 'bg-gray-200 text-gray-700 md:bg-gray-100',
+const statusMatcher: Record<string, { label: string; dotClassName: string }> = {
+  DRAFT: { label: 'Brouillon', dotClassName: 'bg-zinc-400' },
+  SENT: { label: 'Envoyé', dotClassName: 'bg-blue-500' },
+  PENDING: { label: 'En attente', dotClassName: 'bg-amber-500' },
+  PAYMENT_IN_PROGRESS: { label: 'Paiement en cours', dotClassName: 'bg-blue-500' },
+  PAID: { label: 'Payé', dotClassName: 'bg-emerald-500' },
+  PAID_MANUALLY: { label: 'Payée manuellement', dotClassName: 'bg-emerald-500' },
+  OVERDUE: { label: 'En retard', dotClassName: 'bg-orange-500' },
+  REJECTED: { label: 'Refusé', dotClassName: 'bg-red-600' },
+  ACCEPTED: { label: 'Accepté', dotClassName: 'bg-emerald-500' },
+  SUPERSEDED: { label: 'Remplacé', dotClassName: 'bg-violet-500' },
+};
+
+function getStatusPresentation(status: string) {
+  return statusMatcher[status] ?? {
+    label: `${status.slice(0, 1)}${status.slice(1).toLowerCase()}`,
+    dotClassName: 'bg-zinc-400',
+  };
 }
 
-const estimateStatusStyles: Record<string, string> = {
-  DRAFT: 'bg-gray-200 text-gray-700 md:bg-gray-100',
-  SENT: 'bg-rose-100 text-rose-700',
-  ACCEPTED: 'bg-indigo-100 text-indigo-700',
-  REJECTED: 'bg-gray-200 text-gray-700 md:bg-gray-100',
-}
+const invoiceStatusFilterMatcher: Partial<Record<InvoiceSelectStatus, string>> = {
+  'En attente': 'PENDING',
+  'Paiement en cours': 'PAYMENT_IN_PROGRESS',
+  Payées: 'PAID',
+  Échues: 'OVERDUE',
+  Refusées: 'REJECTED',
+  Brouillons: 'DRAFT',
+};
 
-  export type InvoiceSelectStatus = 'Toutes' | 'En attente' | 'Payées' | 'Échues';
-  export type EstimateSelectStatus = 'Tout' | 'Brouillons' | 'Envoyés' | 'Acceptés' | 'Refusés';
+const estimateStatusFilterMatcher: Partial<Record<EstimateSelectStatus, string>> = {
+  Brouillons: 'DRAFT',
+  Envoyés: 'SENT',
+  Acceptés: 'ACCEPTED',
+  Refusés: 'REJECTED',
+};
+
+const paymentMethodOptions = [
+  { value: 'CREDIT_CARD', label: 'Carte bancaire' },
+  { value: 'BANK_TRANSFER', label: 'Virement bancaire' },
+  { value: 'CHECK', label: 'Chèque' },
+  { value: 'CASH', label: 'Espèces' },
+  { value: 'OTHER', label: 'Autre' },
+] as const;
+
+type PaymentMethod = (typeof paymentMethodOptions)[number]['value'];
+
+export type InvoiceSelectStatus =
+  | 'Toutes'
+  | 'Brouillons'
+  | 'En attente'
+  | 'Paiement en cours'
+  | 'Payées'
+  | 'Échues'
+  | 'Refusées';
+
+export type EstimateSelectStatus =
+  | 'Tout'
+  | 'Brouillons'
+  | 'Envoyés'
+  | 'Acceptés'
+  | 'Refusés';
 
 interface DocumentsTableProps {
   type: 'invoices' | 'estimates'
   documents: Document[]
   currentDate: string
   canCreate: boolean
+  initialPagination?: { page: number; pageSize: number; total: number; totalPages: number }
 }
 
-function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTableProps) {
+function DocumentsTable({ type, documents, currentDate, canCreate, initialPagination }: DocumentsTableProps) {
 
   const isInvoiceType = type === 'invoices';
   const { showToast } = useToast();
+  const router = useRouter();
 
   const [selectedStatus, setSelectedStatus] = React.useState<InvoiceSelectStatus | EstimateSelectStatus>(isInvoiceType ? 'Toutes' : 'Tout');
   const [sortMethod, setSortMethod] = React.useState<'date' | 'amount'>('date')
@@ -45,6 +108,17 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
   const [checkedDocuments, setCheckedDocuments] = React.useState<string[]>([]);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [retryingDocumentIds, setRetryingDocumentIds] = React.useState<string[]>([]);
+  const [updatingManualPaymentIds, setUpdatingManualPaymentIds] = React.useState<string[]>([]);
+  const [manualPaymentDocument, setManualPaymentDocument] = React.useState<Document | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = React.useState<
+    PaymentMethod | ''
+  >('');
+  const [convertingDocumentIds, setConvertingDocumentIds] = React.useState<string[]>([]);
+  const [currentPage, setCurrentPage] = React.useState(initialPagination?.page ?? 1);
+  const [totalPages, setTotalPages] = React.useState(initialPagination?.totalPages ?? 1);
+  const [totalDocuments, setTotalDocuments] = React.useState(initialPagination?.total ?? documents.length);
+  const [isLoadingPage, setIsLoadingPage] = React.useState(false);
   
 
   const [masterDocumentsList, setMasterDocumentsList] = React.useState<Document[]>(documents.map((document) => ({
@@ -91,11 +165,43 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
       return;
     }
 
-    setCheckedDocuments([]);
-    setMasterDocumentsList((prevDocuments) => prevDocuments.filter((document) => !checked.includes(document.id)));
     setIsDeleteModalOpen(false);
 
+    const nextTotal = Math.max(0, totalDocuments - checked.length);
+    const nextTotalPages = Math.max(1, Math.ceil(nextTotal / 5));
+    const nextPage = Math.min(currentPage, nextTotalPages);
+
+    setCheckedDocuments([]);
+    setTotalDocuments(nextTotal);
+    setTotalPages(nextTotalPages);
+    await loadDocumentsPage(nextPage);
+
     showToast(response.data.message, 'success');
+  }
+
+  function openManualPaymentModal(document: Document) {
+    setManualPaymentDocument(document);
+    setSelectedPaymentMethod('');
+  }
+
+  function closeManualPaymentModal() {
+    setManualPaymentDocument(null);
+    setSelectedPaymentMethod('');
+  }
+
+  async function confirmManualPayment() {
+    if (!manualPaymentDocument || !selectedPaymentMethod) {
+      return;
+    }
+
+    const hasBeenMarkedAsPaid = await handleManualPaymentStatus(
+      manualPaymentDocument,
+      selectedPaymentMethod,
+    );
+
+    if (hasBeenMarkedAsPaid) {
+      closeManualPaymentModal();
+    }
   }
 
   function createPaymentNote(paymentDueAt: string, invoiceStatus: InvoiceStatus): string | undefined{
@@ -109,13 +215,192 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
     return
   }
 
+  async function handleRetryInvoicePayment(documentId: string) {
+    setRetryingDocumentIds((ids) => [...ids, documentId]);
+    const response = await retryInvoicePayment(documentId);
+    setRetryingDocumentIds((ids) => ids.filter((id) => id !== documentId));
+
+    if (!response.ok) {
+      showToast('Impossible de générer un nouveau lien de paiement.', 'error');
+      return;
+    }
+
+    setMasterDocumentsList((documents) => documents.map((document) => (
+      document.id === documentId
+        ? { ...document, invoiceStatus: 'PENDING' }
+        : document
+    )));
+    showToast('Un nouveau lien de paiement a été envoyé au client.', 'success');
+  }
+
+  async function handleManualPaymentStatus(
+    document: Document,
+    paymentMethod?: PaymentMethod,
+  ): Promise<boolean> {
+    const isPending = document.invoiceStatus === 'PENDING';
+    const nextStatus: InvoiceStatus = isPending ? 'PAID_MANUALLY' : 'PENDING';
+
+    setUpdatingManualPaymentIds((ids) => [...ids, document.id]);
+
+    const response = isPending
+      ? await markInvoiceAsPaidManually(document.id, paymentMethod!)
+      : await markInvoiceAsPendingManually(document.id);
+
+    setUpdatingManualPaymentIds((ids) => ids.filter((id) => id !== document.id));
+
+    if (!response.ok) {
+      const message = isPending
+        ? 'Impossible de marquer cette facture comme payée manuellement.'
+        : 'Impossible de remettre cette facture en attente.';
+      showToast(message, 'error');
+      return false;
+    }
+
+    setMasterDocumentsList((documents) => documents.map((item) => (
+      item.id === document.id
+        ? { ...item, invoiceStatus: nextStatus }
+        : item
+    )));
+    showToast(response.data.message, 'success');
+    return true;
+  }
+
+  function canUpdateManualPaymentStatus(document: Document): boolean {
+    return isInvoiceType && (
+      document.invoiceStatus === 'PENDING'
+      || document.invoiceStatus === 'PAID_MANUALLY'
+    );
+  }
+
+  function renderManualPaymentStatusButton(document: Document) {
+    if (!canUpdateManualPaymentStatus(document)) {
+      return null;
+    }
+
+    const isPending = document.invoiceStatus === 'PENDING';
+    const isUpdating = updatingManualPaymentIds.includes(document.id);
+    const title = isPending
+      ? 'Marquer comme payée manuellement'
+      : 'Remettre la facture en attente';
+
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          if (isPending) {
+            openManualPaymentModal(document);
+            return;
+          }
+
+          void handleManualPaymentStatus(document);
+        }}
+        disabled={isUpdating}
+        className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+          isPending
+            ? 'bg-emerald-600 hover:bg-emerald-700'
+            : 'bg-orange-400 hover:bg-orange-500'
+        }`}
+        title={title}
+        aria-label={title}
+      >
+        {isPending ? (
+          <Check className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+        )}
+      </button>
+    );
+  }
+
+  async function handleConvertEstimateToInvoice(documentId: string) {
+    setConvertingDocumentIds((ids) => [...ids, documentId]);
+    const response = await convertEstimateToInvoice(documentId);
+    setConvertingDocumentIds((ids) => ids.filter((id) => id !== documentId));
+
+    if (!response.ok) {
+      showToast('Impossible de transformer ce devis en facture.', 'error');
+      return;
+    }
+
+    router.push(`/documents/${response.data.document.id}/update-invoice`);
+  }
+
+  async function loadDocumentsPage(page: number) {
+    setIsLoadingPage(true);
+    const status = isInvoiceType
+      ? invoiceStatusFilterMatcher[selectedStatus as InvoiceSelectStatus]
+      : estimateStatusFilterMatcher[selectedStatus as EstimateSelectStatus];
+    const response = await getDocumentsPage(isInvoiceType ? 'INVOICE' : 'ESTIMATE', page, status);
+    setIsLoadingPage(false);
+
+    if (!response.ok) {
+      showToast('Impossible de charger cette page de documents.', 'error');
+      return;
+    }
+
+    setMasterDocumentsList(response.data.documents.map((document) => ({ ...document, isChecked: false })));
+    setCheckedDocuments([]);
+    setCurrentPage(response.data.pagination.page);
+    setTotalPages(response.data.pagination.totalPages);
+    setTotalDocuments(response.data.pagination.total);
+  }
+
+  async function handlePageChange(nextPage: number) {
+    if (nextPage === currentPage || nextPage < 1 || nextPage > totalPages) return;
+    await loadDocumentsPage(nextPage);
+  }
+
+  async function handleStatusChange(status: InvoiceSelectStatus | EstimateSelectStatus) {
+    setSelectedStatus(status);
+    const technicalStatus = isInvoiceType
+      ? invoiceStatusFilterMatcher[status as InvoiceSelectStatus]
+      : estimateStatusFilterMatcher[status as EstimateSelectStatus];
+
+    setIsLoadingPage(true);
+    const response = await getDocumentsPage(isInvoiceType ? 'INVOICE' : 'ESTIMATE', 1, technicalStatus);
+    setIsLoadingPage(false);
+
+    if (!response.ok) {
+      showToast('Impossible de filtrer les documents.', 'error');
+      return;
+    }
+
+    setMasterDocumentsList(response.data.documents.map((document) => ({ ...document, isChecked: false })));
+    setCheckedDocuments([]);
+    setCurrentPage(response.data.pagination.page);
+    setTotalPages(response.data.pagination.totalPages);
+    setTotalDocuments(response.data.pagination.total);
+  }
+
+  function canConvertEstimate(document: Document): boolean {
+    return !isInvoiceType
+      && document.estimateStatus === 'ACCEPTED'
+      && !document.convertedDocuments?.length;
+  }
+
+  function getPaginationPages(): Array<number | 'ellipsis'> {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    if (currentPage <= 4) {
+      return [1, 2, 3, 4, 'ellipsis', totalPages];
+    }
+
+    if (currentPage >= totalPages - 3) {
+      return [1, 'ellipsis', totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+
+    return [1, 'ellipsis', currentPage - 1, currentPage, currentPage + 1, 'ellipsis', totalPages];
+  }
+
 
   return (
     <div className="mt-3">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          {!isInvoiceType && canCreate && (
-            <Link href="/documents/create" className="shadow-md flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
+          {canCreate && (
+            <Link href={isInvoiceType ? '/documents/create?type=invoice' : '/documents/create'} className="shadow-md flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
               <CirclePlusIcon />
               <span className="text-sm font-medium">{isInvoiceType ? 'Créer une facture' : 'Créer un devis'}</span>
             </Link>
@@ -134,7 +419,7 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
           </div>
 
           <div className="flex items-center justify-start flex-wrap gap-5">
-            <DocumentSelector type={isInvoiceType ? "invoices" : "estimates"} selectedStatus={selectedStatus} onSelectStatus={setSelectedStatus} />
+            <DocumentSelector type={isInvoiceType ? "invoices" : "estimates"} selectedStatus={selectedStatus} onSelectStatus={handleStatusChange} />
             <DocumentSorter type={isInvoiceType ? "invoices" : "estimates"} sortMethod={sortMethod} setSortMethod={setSortMethod} isOpen={isSortOpen} setIsOpen={setIsSortOpen} />
           </div>
         </div>
@@ -160,9 +445,35 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
                   {/* right part */}
                   <div className="flex flex-col items-end gap-1">
                     <p className="text-sm font-semibold">{document.totalPrice.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</p>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isInvoiceType ? invoiceStatusStyles[document.invoiceStatus] : estimateStatusStyles[document.estimateStatus]}`}>
-                      {isInvoiceType ? document.invoiceStatus : document.estimateStatus}
+                    <span className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-700">
+                      <span className={`h-2 w-2 rounded-full ${getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).dotClassName}`} />
+                      {getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).label}
                     </span>
+                    {isInvoiceType && document.invoiceStatus === 'REJECTED' && (
+                      <button
+                        type="button"
+                        onClick={() => void handleRetryInvoicePayment(document.id)}
+                        disabled={retryingDocumentIds.includes(document.id)}
+                        className="mt-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Générer et envoyer un nouveau lien de paiement"
+                        aria-label="Relancer le paiement"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    )}
+                    {renderManualPaymentStatusButton(document)}
+                    {canConvertEstimate(document) && (
+                      <button
+                        type="button"
+                        onClick={() => void handleConvertEstimateToInvoice(document.id)}
+                        disabled={convertingDocumentIds.includes(document.id)}
+                        className="mt-2 inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                        title="Transformer en facture"
+                        aria-label="Transformer en facture"
+                      >
+                        <FileChartColumnIncreasing className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </li>
@@ -204,7 +515,7 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
 
             {masterDocumentsList.length > 0 && masterDocumentsList.map((document) => (
               <tr key={document.id} className="border-t border-zinc-100">
-                <td className="px-5 py-5 align-top">
+                <td className="px-5 py-5 align-center">
                   <input
                     type="checkbox"
                     checked={isChecked(document.id)}
@@ -212,13 +523,13 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
                     className="h-4 w-4 rounded border-zinc-300"
                   />
                 </td>
-                <td className="px-5 py-5 align-top">
+                <td className="px-5 py-5 align-center">
                   <Link href={`/documents/${document.id}`} className="underline text-zinc-900 hover:text-primary">
                     <p className="font-semibold ">{document.documentNumber}</p>
                   </Link>
-                  <p className="text-xs text-zinc-500">Type {isInvoiceType ? "de la facture" : "du devis"}</p>
+                  {/* <p className="text-xs text-zinc-500">Type {isInvoiceType ? "de la facture" : "du devis"}</p> */}
                 </td>
-                <td className="px-5 py-5 align-top">
+                <td className="px-5 py-5 align-center">
                   <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
                       {document.clientName.split(' ').map((n) => n[0]).join('')}
@@ -226,10 +537,10 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
                     <div className="font-medium text-zinc-900">{document.clientName}</div>
                   </div>
                 </td>
-                <td className="px-5 py-5 align-top">
+                <td className="px-5 py-5 align-center">
                   <div className="font-medium text-zinc-900">{formatDate(document.createdAt)}</div>
                 </td>
-                <td className="px-5 py-5 align-top">
+                <td className="px-5 py-5 align-center">
                   <div className="font-medium text-zinc-900">{formatDate(document.paymentDueAt)}</div>
                   {
                     createPaymentNote(document.paymentDueAt, document.invoiceStatus) && (
@@ -239,21 +550,158 @@ function DocumentsTable({ type, documents, currentDate, canCreate }: DocumentsTa
                     )
                   }
                 </td>
-                <td className="px-5 py-5 align-top font-semibold text-zinc-900">
+                <td className="px-5 py-5 align-center font-semibold text-zinc-900">
                   {document.totalPrice.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}
                 </td>
-                <td className="px-5 py-5 align-top">
-                  <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${isInvoiceType ? invoiceStatusStyles[document.invoiceStatus] : estimateStatusStyles[document.estimateStatus]}`}
-                  >
-                    {isInvoiceType ? document.invoiceStatus : document.estimateStatus}
+                <td className="px-5 py-5 align-center">
+                  <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-500">
+                    <span className={`h-2 w-2 rounded-full ${getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).dotClassName}`} />
+                    {getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).label}
                   </span>
+                  {isInvoiceType && document.invoiceStatus === 'REJECTED' && (
+                    <button
+                      type="button"
+                      onClick={() => void handleRetryInvoicePayment(document.id)}
+                      disabled={retryingDocumentIds.includes(document.id)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      title="Générer et envoyer un nouveau lien de paiement"
+                      aria-label="Relancer le paiement"
+                    >
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )}
+                  {renderManualPaymentStatusButton(document)}
+                  {canConvertEstimate(document) && (
+                    <button
+                      type="button"
+                      onClick={() => void handleConvertEstimateToInvoice(document.id)}
+                      disabled={convertingDocumentIds.includes(document.id)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                      title="Transformer en facture"
+                      aria-label="Transformer en facture"
+                    >
+                      <FileChartColumnIncreasing className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )}
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <nav className="mt-6 flex justify-center" aria-label="Pagination des documents">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => void handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1 || isLoadingPage}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-600 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Page précédente"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+            {getPaginationPages().map((page, index) => page === 'ellipsis' ? (
+              <span key={`ellipsis-${index}`} className="inline-flex h-9 w-8 items-center justify-center text-sm text-zinc-500">…</span>
+            ) : (
+              <button
+                key={page}
+                type="button"
+                onClick={() => void handlePageChange(page)}
+                disabled={isLoadingPage}
+                aria-current={page === currentPage ? 'page' : undefined}
+                className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium transition-colors disabled:cursor-not-allowed ${page === currentPage ? 'bg-zinc-100 text-zinc-900' : 'text-zinc-600 hover:bg-zinc-100'}`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => void handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages || isLoadingPage}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-600 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Page suivante"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </nav>
+      )}
+
+      {manualPaymentDocument && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="manual-payment-title"
+        >
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h2
+              id="manual-payment-title"
+              className="font-title text-xl font-black text-zinc-900"
+            >
+              Confirmer le paiement manuel
+            </h2>
+            <p className="mt-3 text-sm text-zinc-600">
+              Indiquez le moyen de paiement utilisé pour la facture{' '}
+              <span className="font-semibold text-zinc-800">
+                {manualPaymentDocument.documentNumber}
+              </span>
+              .
+            </p>
+            <label
+              htmlFor="manual-payment-method"
+              className="mt-5 block text-sm font-semibold text-zinc-800"
+            >
+              Moyen de paiement
+            </label>
+            <select
+              id="manual-payment-method"
+              value={selectedPaymentMethod}
+              onChange={(event) => {
+                setSelectedPaymentMethod(event.target.value as PaymentMethod);
+              }}
+              className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            >
+              <option value="" disabled>
+                Sélectionnez un moyen de paiement
+              </option>
+              {paymentMethodOptions.map((method) => (
+                <option key={method.value} value={method.value}>
+                  {method.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-zinc-500">
+              Ce choix sera enregistré ultérieurement.
+            </p>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={closeManualPaymentModal}
+                disabled={updatingManualPaymentIds.includes(manualPaymentDocument.id)}
+                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmManualPayment()}
+                disabled={
+                  !selectedPaymentMethod
+                  || updatingManualPaymentIds.includes(manualPaymentDocument.id)
+                }
+                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Confirmer le paiement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4" role="dialog" aria-modal="true" aria-labelledby="delete-documents-title">
