@@ -131,6 +131,51 @@ export class CompaniesService {
     };
   }
 
+  async getCompanyInvoiceFeeDetails(companyId: string, userId: string) {
+    await this.getOwnedCompany(companyId, userId);
+
+    const periodStart = this.getStartOfCurrentMonth();
+    const [currentPeriodFees, history] = await Promise.all([
+      this.prismaService.invoicePaymentFee.aggregate({
+        where: {
+          companyId,
+          createdAt: { gte: periodStart },
+          document: {
+            invoiceStatus: { in: [...PAID_INVOICE_STATUSES] },
+          },
+        },
+        _sum: { amountInCents: true },
+        _count: { id: true },
+      }),
+      this.prismaService.invoicePaymentFee.findMany({
+        where: { companyId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          document: {
+            select: {
+              id: true,
+              documentNumber: true,
+              invoiceStatus: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      periodStart,
+      currentPeriodAmountInCents: currentPeriodFees._sum.amountInCents ?? 0,
+      paidInvoicesCount: currentPeriodFees._count.id,
+      history: history.map((fee) => ({
+        id: fee.id,
+        amountInCents: fee.amountInCents,
+        paymentMethod: fee.paymentMethod,
+        createdAt: fee.createdAt,
+        invoice: fee.document,
+      })),
+    };
+  }
+
   private getStartOfCurrentMonth() {
     const now = new Date();
 

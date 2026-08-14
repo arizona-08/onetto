@@ -23,6 +23,7 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
   const [masterClientList, setMasterClientList] = React.useState<Client[]>(clients);
   const [clientToEdit, setClientToEdit] = React.useState<Client | null>(null);
   const [clientToDelete, setClientToDelete] = React.useState<Client | null>(null);
+  const [isDeleting, setIsDeleting] = React.useState(false);
   const { showToast } = useToast();
 
   async function handleAddClient(newClient: Client) {
@@ -73,7 +74,9 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
       return;
     }
 
+    setIsDeleting(true);
     const response = await deleteActiveCompanyClient(clientToDelete.id);
+    setIsDeleting(false);
 
     if (!response.ok) {
       showToast('Impossible de supprimer ce client.', 'error');
@@ -98,9 +101,15 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
         handleEditClient={handleEditClient}
       />
       {clientToDelete && (
-        <div className="fixed inset-0 bg-black/45 backdrop-blur-xl z-40 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-client-title"
+        >
           <DeleteClientModal
             client={clientToDelete}
+            isDeleting={isDeleting}
             onCancel={() => setClientToDelete(null)}
             onConfirm={() => void handleConfirmDelete()}
           />

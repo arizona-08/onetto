@@ -16,8 +16,13 @@ async function services() {
   const canCreate = activeCompany?.status !== 'CLOSED';
   const services = servicesResponse.ok
     ? servicesResponse.data.map((service) => ({
-        ...service,
+        id: service.id,
+        name: service.name,
+        description: service.description,
+        unitPrice: service.unitPrice,
+        unit: service.unit,
         taxRate: service.taxRate ?? 0,
+        category: service.category,
       }))
     : [];
 

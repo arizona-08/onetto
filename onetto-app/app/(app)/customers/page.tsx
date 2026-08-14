@@ -13,7 +13,17 @@ async function clients() {
     ? companiesResponse.data.companies.find((company) => company.id === companiesResponse.data.activeCompanyId)
     : undefined;
   const canCreate = activeCompany?.status !== 'CLOSED';
-  const clientsData = clientsResponse.ok ? clientsResponse.data : [];
+  const clientsData = clientsResponse.ok
+    ? clientsResponse.data.map((client) => ({
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        address: client.address,
+        city: client.city,
+        postalCode: client.postalCode,
+        country: client.country,
+      }))
+    : [];
 
   return (
     <div className="w-full p-4">

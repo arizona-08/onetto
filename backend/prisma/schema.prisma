@@ -167,7 +167,7 @@ model InvoicePaymentFee {
   documentId String @unique
   companyId String
   amountInCents Int
-  paymentMethod PaymentMethod?
+  paymentMethod PaymentMethod? @default(BANK_TRANSFER)
   createdAt DateTime @default(now())
 
   document Document @relation(fields: [documentId], references: [id])

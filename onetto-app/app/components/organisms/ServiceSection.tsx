@@ -23,6 +23,7 @@ function ServiceSection({ services, canCreate }: ServiceSectionProps) {
 
   const [serviceToEdit, setServiceToEdit] = React.useState<Service | null>(null);
   const [serviceToDelete, setServiceToDelete] = React.useState<Service | null>(null);
+  const [isDeleting, setIsDeleting] = React.useState(false);
   const { showToast } = useToast();
 
   async function handleAddService(newService: Service) {
@@ -73,7 +74,9 @@ function ServiceSection({ services, canCreate }: ServiceSectionProps) {
       return;
     }
 
+    setIsDeleting(true);
     const response = await deleteActiveCompanyService(serviceToDelete.id);
+    setIsDeleting(false);
 
     if (!response.ok) {
       showToast('Impossible de supprimer ce service.', 'error');
@@ -99,9 +102,15 @@ function ServiceSection({ services, canCreate }: ServiceSectionProps) {
         handleEditService={handleEditService}
       />
       {serviceToDelete && (
-        <div className="fixed inset-0 bg-black/45 backdrop-blur-xl z-40 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 p-4 backdrop-blur-xl"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-service-title"
+        >
           <DeleteServiceModal
             service={serviceToDelete}
+            isDeleting={isDeleting}
             onCancel={() => setServiceToDelete(null)}
             onConfirm={() => void handleConfirmDelete()}
           />

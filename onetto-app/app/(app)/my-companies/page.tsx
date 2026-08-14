@@ -3,7 +3,7 @@
 import { Company } from '@/lib/companies/dtos/create-company.dto';
 import { deleteCompany, getMyCompanies, performOwnedCompanyAction, performUserCompanyAction, selectCompany } from '@/lib/companies/companies';
 import { COMPANY_UPDATED_EVENT, notifyCompanyUpdated } from '@/lib/companies/company-events';
-import { Building2, Check, ChevronDown, ChevronRight, EllipsisVertical, Eye, EyeOff, Pencil, Plus, Power, RotateCcw, Trash2 } from 'lucide-react';
+import { Building2, Check, ChevronDown, ChevronRight, EllipsisVertical, Eye, EyeOff, Plus, Power, RotateCcw, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React from 'react';
@@ -214,7 +214,7 @@ function MyCompanies() {
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2 border-t border-zinc-100 pt-4">
                   <button onClick={() => void handleSelect(company.id)} disabled={isActive || company.isHidden} className="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white disabled:cursor-default disabled:opacity-50">{isActive ? 'Entreprise active' : 'Utiliser cette entreprise'}</button>
-                  {!isClosed && isOwner && <Link href={`/my-companies/${company.id}`} className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700"><Pencil className="h-4 w-4" /> Modifier</Link>}
+                  {isOwner && <Link href={`/my-companies/${company.id}`} className="inline-flex items-center gap-1 rounded-md border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"><Eye className="h-4 w-4" /> Voir</Link>}
                   {!isClosed && isOwner && <button onClick={() => setCompanyToDelete(company)} className="inline-flex items-center gap-1 rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600"><Trash2 className="h-4 w-4" /> Supprimer</button>}
                 </div>
               </li>

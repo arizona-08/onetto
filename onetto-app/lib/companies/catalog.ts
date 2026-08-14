@@ -1,11 +1,26 @@
 import { Client, Service } from '@/app/types';
 import { apiClient } from '@/lib/api';
 
-function withoutId<T extends { id: string }>(resource: T) {
-  const { id, ...data } = resource;
-  void id;
+function getServicePayload(service: Service) {
+  return {
+    name: service.name,
+    description: service.description ?? '',
+    unitPrice: service.unitPrice,
+    unit: service.unit,
+    taxRate: service.taxRate,
+    category: service.category,
+  };
+}
 
-  return data;
+function getClientPayload(client: Client) {
+  return {
+    name: client.name,
+    email: client.email,
+    address: client.address,
+    city: client.city,
+    postalCode: client.postalCode,
+    country: client.country,
+  };
 }
 
 export function getActiveCompanyClients() {
@@ -21,7 +36,7 @@ export function getActiveCompanyServices() {
 }
 
 export function createActiveCompanyService(service: Service) {
-  const data = withoutId(service);
+  const data = getServicePayload(service);
 
   return apiClient<Service>('api/companies/active/services', {
     method: 'POST',
@@ -30,7 +45,7 @@ export function createActiveCompanyService(service: Service) {
 }
 
 export function updateActiveCompanyService(service: Service) {
-  const data = withoutId(service);
+  const data = getServicePayload(service);
 
   return apiClient<Service>(`api/companies/active/services/${service.id}`, {
     method: 'PATCH',
@@ -45,7 +60,7 @@ export function deleteActiveCompanyService(serviceId: string) {
 }
 
 export function createActiveCompanyClient(client: Client) {
-  const data = withoutId(client);
+  const data = getClientPayload(client);
 
   return apiClient<Client>('api/companies/active/clients', {
     method: 'POST',
@@ -54,7 +69,7 @@ export function createActiveCompanyClient(client: Client) {
 }
 
 export function updateActiveCompanyClient(client: Client) {
-  const data = withoutId(client);
+  const data = getClientPayload(client);
 
   return apiClient<Client>(`api/companies/active/clients/${client.id}`, {
     method: 'PATCH',

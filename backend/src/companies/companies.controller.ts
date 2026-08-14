@@ -82,6 +82,11 @@ export class CompaniesController {
     return this.companiesService.getCurrentInvoiceFeeSummary(this.getUserId(req));
   }
 
+  @Get(":companyId/invoice-fees")
+  getCompanyInvoiceFeeDetails(@Param("companyId") companyId: string, @Req() req: ExtendedRequest) {
+    return this.companiesService.getCompanyInvoiceFeeDetails(companyId, this.getUserId(req));
+  }
+
   @Get(":companyId")
   getCompany(@Param("companyId") companyId: string, @Req() req: ExtendedRequest) {
     return this.companiesService.getCompany(companyId, this.getUserId(req));
