@@ -27,7 +27,7 @@ async function DocumentsPage() {
   const currentDate = new Date().toISOString();
   
   return (
-    <div className="w-full p-4">
+    <div className="mx-auto w-full max-w-6xl p-4">
       <h1 className="text-2xl font-black font-title">Gérer mes factures et devis</h1>
 
       {(!estimatesResponse.ok || !invoicesResponse.ok) && (

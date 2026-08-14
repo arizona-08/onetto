@@ -9,9 +9,7 @@ function SettingsLayout({ children }: SettingsLayoutProps) {
     <div className="flex flex-col">
       <SettingsNavigation />
 
-      <div className="p-4">
-        {children}
-      </div>
+      {children}
     </div>
   )
 }

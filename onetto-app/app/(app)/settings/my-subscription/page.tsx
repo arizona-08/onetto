@@ -27,7 +27,7 @@ async function SubscriptionPage() {
       };
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-4">
       <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-medium text-zinc-500">Mon abonnement</p>
         <h1 className="mt-1 font-title text-2xl font-black text-zinc-900">

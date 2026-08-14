@@ -138,7 +138,7 @@ function MyCompanies() {
   const hiddenCompanies = companies.filter((company) => company.isHidden);
 
   return (
-    <div className="w-full p-4">
+    <div className="mx-auto w-full max-w-6xl p-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="mb-1 text-2xl font-title font-black">Mes entreprises</h1>

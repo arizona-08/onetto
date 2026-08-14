@@ -15,8 +15,10 @@ async function UpdateDraftPage({ params } : { params : Promise<{id: string}>}) {
 
   const document = documentResult.data;
   return (
-    <DocumentCreator mode="update" document={document} />
-  )
+    <div className="mx-auto w-full max-w-6xl p-4">
+      <DocumentCreator mode="update" document={document} />
+    </div>
+  );
 }
 
 export default UpdateDraftPage

@@ -13,8 +13,10 @@ async function ShowDocumentPage({ params }: { params: Promise<{ id: string }> })
   const document = documentResponse.data;
   
   return (
-    <ShowDocument document={document} />
-  )
+    <div className="mx-auto w-full max-w-6xl p-4">
+      <ShowDocument document={document} />
+    </div>
+  );
 }
 
 export default ShowDocumentPage

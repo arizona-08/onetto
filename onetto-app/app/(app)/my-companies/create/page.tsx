@@ -9,7 +9,7 @@ function CreateCompanyPage() {
   const router = useRouter();
 
   return (
-    <div className="w-full p-4">
+    <div className="mx-auto w-full max-w-6xl p-4">
       <Link href="/my-companies" className="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-primary">
         <ArrowLeft className="h-4 w-4" /> Retour aux entreprises
       </Link>

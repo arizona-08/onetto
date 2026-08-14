@@ -17,8 +17,10 @@ async function UpdateInvoice({ params } : { params: Promise<{id: string}> }) {
   const invoice = invoiceResponse.data;
 
   return (
-    <DocumentCreator mode="update" document={invoice} />
-  )
+    <div className="mx-auto w-full max-w-6xl p-4">
+      <DocumentCreator mode="update" document={invoice} />
+    </div>
+  );
 }
 
 export default UpdateInvoice
