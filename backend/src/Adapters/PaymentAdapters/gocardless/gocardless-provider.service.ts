@@ -1,13 +1,17 @@
 import { Injectable } from "@nestjs/common";
-import { PaymentProviderInterface } from "../Interfaces/PaymentProvider.interface";
+import { BasePaymentProviderInterface, CanCreateRecurringPaymentLinkInterface, CanCreateSubscriptionLinkInterface } from "../Interfaces/PaymentProvider.interface";
 import { CreateRecurringPaymentLinkInput } from "../Types/InputTypes/CreateRecurringPaymentLinkInput.types";
 import { PaymentLinkResponse } from "../Types/ResponseTypes/CreatePaymentLinkResponse.types";
 import { CreatePaymentLinkInput } from "../Types/InputTypes/CreatePaymentLinkInput.types";
-import { CreateVariablePaymentLinkInput } from "../Types/InputTypes/CreateVariablePaymentLinkInput.types";
 import { PaymentStatus } from "../PaymentStatus/PaymentStatus.types";
+import { CreateSubscriptionLinkInput } from "../Types/InputTypes/CreateSubscriptionLinkInput.types";
 
 @Injectable()
-export class GoCardlessProviderService implements PaymentProviderInterface  {
+export class GoCardlessProviderService
+implements
+  BasePaymentProviderInterface,
+  CanCreateRecurringPaymentLinkInterface,
+  CanCreateSubscriptionLinkInterface  {
   constructor() {}
 
   async createPaymentLink(input: CreatePaymentLinkInput, paymentAccessToken: string): Promise<PaymentLinkResponse> {
@@ -18,7 +22,7 @@ export class GoCardlessProviderService implements PaymentProviderInterface  {
     return { url: "", paymentLinkId: "" };
   }
 
-  async createVariablePaymentLink(input: CreateVariablePaymentLinkInput, paymentAccessToken: string): Promise<PaymentLinkResponse> {
+  async createSubscriptionLink(input: CreateSubscriptionLinkInput, paymentAccessToken: string): Promise<PaymentLinkResponse> {
     return { url: "", paymentLinkId: "" };
   }
 
@@ -37,7 +41,5 @@ export class GoCardlessProviderService implements PaymentProviderInterface  {
   async handleWebhook(webhook: any): Promise<void> {
     return;
   }
-
-
 
 }

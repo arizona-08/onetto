@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { PaymentProviderInterface } from "./Interfaces/PaymentProvider.interface";
+import { BasePaymentProviderInterface } from "./Interfaces/PaymentProvider.interface";
 import { BridgeProviderService } from "./bridge/bridge-provider.service";
 import { GoCardlessProviderService } from "./gocardless/gocardless-provider.service";
 
@@ -15,7 +15,7 @@ export class PaymentProviderFactory {
     private readonly goCardlessProviderService: GoCardlessProviderService
   ) {}
 
-  getProvider(providerType: PaymentProviderType): PaymentProviderInterface{
+  getProvider(providerType: PaymentProviderType): BasePaymentProviderInterface{
     switch (providerType) {
       case "BRIDGE":
         return this.bridgeProviderService;

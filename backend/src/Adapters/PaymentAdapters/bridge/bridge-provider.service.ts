@@ -1,5 +1,5 @@
 import { Injectable, InternalServerErrorException } from "@nestjs/common";
-import { PaymentProviderInterface } from "../Interfaces/PaymentProvider.interface";
+import { BasePaymentProviderInterface } from "../Interfaces/PaymentProvider.interface";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "src/prisma/prisma.service";
 import { PaymentLinkResponse } from "../Types/ResponseTypes/CreatePaymentLinkResponse.types";
@@ -13,7 +13,7 @@ type BridgeHeaders = {
 }
 
 @Injectable()
-export class BridgeProviderService implements PaymentProviderInterface {
+export class BridgeProviderService implements BasePaymentProviderInterface {
   private baseUrl: string;
   private authCredentials: { clientId: string; clientSecret: string };
   private bridgeVersion: string;
