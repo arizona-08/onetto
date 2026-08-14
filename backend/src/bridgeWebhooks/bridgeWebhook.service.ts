@@ -72,6 +72,7 @@ export class BridgeWebhookService {
   async handleTransactionUpdated(webhook: WebhookTransactionDto) {
     try {
       const webhookContent = webhook.content;
+      console.log("webhook update fired", webhookContent);
 
       const sessionResult = await this.getPaymentSession(webhookContent.payment_link_id);
       if (!sessionResult.ok) {
@@ -130,6 +131,10 @@ export class BridgeWebhookService {
             paymentTransactionStatus: true
           }
         });
+
+        if(existingDocument.invoiceStatus === 'PAID_MANUALLY'){
+          return;
+        }
 
         if(allDocumentTransactionAttempts.some(attempt => attempt.paymentTransactionStatus === 'ACSC')){
           await this.markDocumentAs('PAID', existingDocument.id, prisma);
