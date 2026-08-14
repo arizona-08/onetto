@@ -37,6 +37,17 @@ export class DocumentController {
     );
   }
 
+  @Get('invoice-stats')
+  async getInvoiceStats(@Req() req: ExtendedRequest) {
+    const user = req.user;
+
+    if (!user) {
+      throw new UnauthorizedException('Non authentifié');
+    }
+
+    return this.documentService.getInvoiceStats(user);
+  }
+
   @Get(":documentId")
   async getDocumentById(@Param("documentId") documentId: string, @Query("with-services") withServices: boolean, @Req() req: ExtendedRequest) {
     const user = req.user;
