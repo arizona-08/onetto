@@ -155,7 +155,10 @@ function ShowDocument({ document }: ShowDocumentProps) {
 
             {(isDraftEstimate || isDraftInvoice) && (
               <Link
-                href={`/documents/${document.id}/update-draft`} className="px-4 py-2 text-primary border border-primary hover:bg-primary hover:text-white  rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
+                href={isDraftInvoice
+                  ? `/documents/${document.id}/update-invoice`
+                  : `/documents/${document.id}/update-draft`}
+                className="px-4 py-2 text-primary border border-primary hover:bg-primary hover:text-white rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
               >
                 Modifier
                 <Edit className="w-4 h-4" />

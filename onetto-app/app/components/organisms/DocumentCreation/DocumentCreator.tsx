@@ -11,11 +11,12 @@ import { useToast } from '../../context/ToastContext';
 import DocumentVersionSelector from '../../molecules/DocumentVersionSelector';
 
 interface DocumentCreateProps {
-  document?: Document,
-  mode: 'create' | 'update'
+  document?: Document;
+  mode: 'create' | 'update';
+  documentType?: 'ESTIMATE' | 'INVOICE';
 }
 
-function DocumentCreator({ document, mode }: DocumentCreateProps) {
+function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: DocumentCreateProps) {
   const [client, setClient] = React.useState<Client | null>(null);
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
   const [documentDates, setDocumentDates] = React.useState<DocumentDates>(() =>{
@@ -68,17 +69,25 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
   const { showToast } = useToast();
 
   const isLineItemsEmpty = lineItems.length === 0;
-  const isInCreationEstimate = document && document?.type === "ESTIMATE" || mode === 'create';
+  const isCreatingInvoice = mode === 'create' && documentType === 'INVOICE';
+  const isInCreationEstimate = mode === 'create'
+    ? documentType === 'ESTIMATE'
+    : document?.type === 'ESTIMATE';
   const isDraftEstimate = document && document?.type === "ESTIMATE" && document?.estimateStatus === "DRAFT";
   const isDraftInvoice = document && document?.type === "INVOICE" && document?.invoiceStatus === "DRAFT";
   const isInvoice = document?.type === "INVOICE";
+  const isDirectDraftInvoice = Boolean(isDraftInvoice && document?.isFromEstimate === false);
   const isEditable = document?.isEditable ?? true;
-  const isInvoiceContentLocked = Boolean(isInvoice);
+  const isInvoiceContentLocked = Boolean(isInvoice && !isDirectDraftInvoice);
   // `isEditable` originated from estimate-version handling. A draft invoice is
   // editable only for its due date, independently of that estimate-only flag.
   const canEditInvoiceDueDate = Boolean(isDraftInvoice);
-  const canEditDocument = isInvoice ? canEditInvoiceDueDate : isEditable;
-  const issuanceDate = isInvoice ? (document?.sentAt ?? new Date().toISOString()) : (document?.createdAt ?? new Date().toISOString());
+  const canEditDocument = isInvoice
+    ? isDirectDraftInvoice || canEditInvoiceDueDate
+    : isEditable;
+  const issuanceDate = isInvoice || isCreatingInvoice
+    ? (document?.sentAt ?? new Date().toISOString())
+    : (document?.createdAt ?? new Date().toISOString());
   
 
   React.useEffect(() => {
@@ -125,6 +134,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
 
     if(mode === 'create') {
       response = await createDocument({
+        type: documentType,
         client: clientData,
         lineItems,
         documentDates
@@ -209,7 +219,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
       </fieldset>
 
       <DocumentPreview
-        type={document?.type.toLocaleLowerCase() as "estimate" | "invoice" ?? "estimate"}
+        type={(document?.type ?? documentType).toLocaleLowerCase() as "estimate" | "invoice"}
         client={client}
         lineItems={lineItems}
         documentDates={documentDates}
@@ -224,7 +234,7 @@ function DocumentCreator({ document, mode }: DocumentCreateProps) {
           className="disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-white disabled:opacity-45"
         >
          {(isInCreationEstimate || isDraftEstimate) && (isSent ? 'Devis envoyé' : isSending ? 'Envoi du devis…' : 'Confirmer et envoyer le devis')}
-         {isDraftInvoice && 'Confirmer et envoyer la facture'}
+         {(isDraftInvoice || isCreatingInvoice) && 'Confirmer et envoyer la facture'}
          
           <Send className="h-4 w-4" aria-hidden="true" />
         </button>

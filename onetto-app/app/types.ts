@@ -38,6 +38,7 @@ export type Document = {
   versionNumber: number;
   isLastVersion: boolean;
   type: "INVOICE" | "ESTIMATE";
+  isFromEstimate?: boolean | null;
   sourceDocumentId?: string;
   convertedDocuments?: Array<{ id: string }>;
   clientName: string;

@@ -21,9 +21,9 @@ export class DocumentService {
 
   async createDocument(data: CreateDocumentDto, user: User) {
     try {
-      const {lineItems, ...documentData} = data;
+      const { lineItems, type = 'ESTIMATE', ...documentData } = data;
       const companyId = await this.getActiveCompanyId(user, true);
-      const documentNumber = await this.createDocumentNumber("ESTIMATE", companyId);
+      const documentNumber = await this.createDocumentNumber(type, companyId);
 
       const totalPriceExludingTax = lineItems.reduce((acc, item) => {
         const basePrice = item.unitPrice * item.quantity;
@@ -49,6 +49,8 @@ export class DocumentService {
           totalPriceExcludingTax: totalPriceExludingTax,
           totalPrice: totalDocumentPrice,
           documentNumber,
+          type,
+          isFromEstimate: type === 'ESTIMATE',
           estimateStatus: "DRAFT",
           invoiceStatus: "DRAFT",
           companyId,
@@ -77,7 +79,7 @@ export class DocumentService {
       });
 
       return {
-        message: "Facture créée avec succès.",
+        message: `${type === 'INVOICE' ? 'Facture' : 'Devis'} créé avec succès.`,
         document
       };
     } catch (error: unknown) {
@@ -108,7 +110,7 @@ export class DocumentService {
         throw new BadRequestException("Document introuvable ou vous n'avez pas la permission d'y accéder.");
       }
 
-      if (document.type === "INVOICE") {
+      if (document.type === "INVOICE" && document.isFromEstimate !== false) {
         if (document.invoiceStatus !== "DRAFT") {
           throw new BadRequestException("Une facture envoyée ne peut plus être modifiée.");
         }
@@ -262,6 +264,7 @@ export class DocumentService {
           totalPrice: document.totalPrice,
           documentNumber: invoiceNumber,
           type: "INVOICE",
+          isFromEstimate: true,
           sourceDocumentId: document.id,
           estimateStatus: "ACCEPTED",
           invoiceStatus: "DRAFT",
@@ -1008,7 +1011,11 @@ export class DocumentService {
     });
   }
 
-  async manuallyMarkInvoiceAsPaid(documentId: string, user: User) {
+  async manuallyMarkInvoiceAsPaid(
+    documentId: string,
+    user: User,
+    paymentMethod: $Enums.PaymentMethod,
+  ) {
     try {
       const activeCompanyId = await this.getActiveCompanyId(user, true);
       const isCompanyUser = await this.isCompanyUser(user.id, activeCompanyId);
@@ -1032,7 +1039,11 @@ export class DocumentService {
         throw new BadRequestException("Seule une facture en attente peut être marquée comme payée manuellement.");
       }
 
-      await this.manuallyMarkInvoiceAs("PAID_MANUALLY", documentId);
+      await this.manuallyMarkInvoiceAs(
+        "PAID_MANUALLY",
+        documentId,
+        paymentMethod,
+      );
 
       return {
         success: true,
@@ -1094,7 +1105,11 @@ export class DocumentService {
     }
   }
 
-  private async manuallyMarkInvoiceAs(status: $Enums.InvoiceStatus, documentId: string){
+  private async manuallyMarkInvoiceAs(
+    status: $Enums.InvoiceStatus,
+    documentId: string,
+    paymentMethod?: $Enums.PaymentMethod,
+  ){
     try {
       await this.prismaService.$transaction(async (prisma) => {
         const document = await prisma.document.findUnique({
@@ -1124,6 +1139,7 @@ export class DocumentService {
             documentId,
             document.companyId,
             prisma,
+            paymentMethod,
           );
         }
 

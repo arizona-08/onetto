@@ -55,11 +55,15 @@ export async function retryInvoicePayment(documentId: string) {
   });
 }
 
-export async function markInvoiceAsPaidManually(documentId: string) {
+export async function markInvoiceAsPaidManually(
+  documentId: string,
+  paymentMethod: string,
+) {
   return apiClient<{ success: true; message: string }>(
     `api/documents/${documentId}/mark-as-paid-manually`,
     {
       method: 'PUT',
+      body: JSON.stringify({ paymentMethod }),
     },
   );
 }

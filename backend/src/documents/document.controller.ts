@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, Res, Unaut
 import type { Response } from 'express';
 import { DocumentService } from "./document.service";
 import { CreateDocumentDto } from "./dtos/create-document.dto";
+import { MarkInvoicePaidManuallyDto } from './dtos/mark-invoice-paid-manually.dto';
 import type { ExtendedRequest, User } from "src/types/extended-request.types";
 import { AuthGuard } from "src/auth/auth.guard";
 
@@ -147,13 +148,21 @@ export class DocumentController {
   }
 
   @Put(":invoiceId/mark-as-paid-manually")
-  async markAsPaidManually(@Param("invoiceId") invoiceId: string, @Req() req: ExtendedRequest) {
+  async markAsPaidManually(
+    @Param("invoiceId") invoiceId: string,
+    @Body() body: MarkInvoicePaidManuallyDto,
+    @Req() req: ExtendedRequest,
+  ) {
     const user = req.user;
     if(!user){
       throw new UnauthorizedException("Non authentifié");
     }
 
-    return await this.documentService.manuallyMarkInvoiceAsPaid(invoiceId, user);
+    return await this.documentService.manuallyMarkInvoiceAsPaid(
+      invoiceId,
+      user,
+      body.paymentMethod,
+    );
   }
 
   @Put(":invoiceId/mark-as-pending-manually")

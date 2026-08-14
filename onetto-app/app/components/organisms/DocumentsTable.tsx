@@ -70,6 +70,8 @@ const paymentMethodOptions = [
   { value: 'OTHER', label: 'Autre' },
 ] as const;
 
+type PaymentMethod = (typeof paymentMethodOptions)[number]['value'];
+
 export type InvoiceSelectStatus =
   | 'Toutes'
   | 'Brouillons'
@@ -109,7 +111,9 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
   const [retryingDocumentIds, setRetryingDocumentIds] = React.useState<string[]>([]);
   const [updatingManualPaymentIds, setUpdatingManualPaymentIds] = React.useState<string[]>([]);
   const [manualPaymentDocument, setManualPaymentDocument] = React.useState<Document | null>(null);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = React.useState('');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = React.useState<
+    PaymentMethod | ''
+  >('');
   const [convertingDocumentIds, setConvertingDocumentIds] = React.useState<string[]>([]);
   const [currentPage, setCurrentPage] = React.useState(initialPagination?.page ?? 1);
   const [totalPages, setTotalPages] = React.useState(initialPagination?.totalPages ?? 1);
@@ -190,7 +194,10 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
       return;
     }
 
-    const hasBeenMarkedAsPaid = await handleManualPaymentStatus(manualPaymentDocument);
+    const hasBeenMarkedAsPaid = await handleManualPaymentStatus(
+      manualPaymentDocument,
+      selectedPaymentMethod,
+    );
 
     if (hasBeenMarkedAsPaid) {
       closeManualPaymentModal();
@@ -226,14 +233,17 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
     showToast('Un nouveau lien de paiement a été envoyé au client.', 'success');
   }
 
-  async function handleManualPaymentStatus(document: Document): Promise<boolean> {
+  async function handleManualPaymentStatus(
+    document: Document,
+    paymentMethod?: PaymentMethod,
+  ): Promise<boolean> {
     const isPending = document.invoiceStatus === 'PENDING';
     const nextStatus: InvoiceStatus = isPending ? 'PAID_MANUALLY' : 'PENDING';
 
     setUpdatingManualPaymentIds((ids) => [...ids, document.id]);
 
     const response = isPending
-      ? await markInvoiceAsPaidManually(document.id)
+      ? await markInvoiceAsPaidManually(document.id, paymentMethod!)
       : await markInvoiceAsPendingManually(document.id);
 
     setUpdatingManualPaymentIds((ids) => ids.filter((id) => id !== document.id));
@@ -389,8 +399,8 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
     <div className="mt-3">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          {!isInvoiceType && canCreate && (
-            <Link href="/documents/create" className="shadow-md flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
+          {canCreate && (
+            <Link href={isInvoiceType ? '/documents/create?type=invoice' : '/documents/create'} className="shadow-md flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer">
               <CirclePlusIcon />
               <span className="text-sm font-medium">{isInvoiceType ? 'Créer une facture' : 'Créer un devis'}</span>
             </Link>
@@ -651,7 +661,9 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
             <select
               id="manual-payment-method"
               value={selectedPaymentMethod}
-              onChange={(event) => setSelectedPaymentMethod(event.target.value)}
+              onChange={(event) => {
+                setSelectedPaymentMethod(event.target.value as PaymentMethod);
+              }}
               className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
             >
               <option value="" disabled>

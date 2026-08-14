@@ -48,6 +48,27 @@ describe('InvoicePaymentFeeService', () => {
     );
   });
 
+  it('enregistre le moyen de paiement d’une facture réglée manuellement', async () => {
+    prisma.invoicePaymentFee.findUnique.mockResolvedValue(null);
+    prisma.invoicePaymentFee.aggregate.mockResolvedValue({
+      _sum: { amountInCents: 0 },
+    });
+
+    await service.createForPaidInvoice(
+      'invoice-1',
+      'company-1',
+      prisma,
+      'CHECK',
+    );
+
+    expect(prisma.invoicePaymentFee.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ paymentMethod: 'CHECK' }),
+        update: expect.objectContaining({ paymentMethod: 'CHECK' }),
+      }),
+    );
+  });
+
   it('remet les frais à zéro quand la facture repasse en attente', async () => {
     await service.resetForPendingInvoice('invoice-1', prisma);
 

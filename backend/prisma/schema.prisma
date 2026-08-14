@@ -102,6 +102,7 @@ model Document {
   documentNumber String?
   versionNumber Int @default(1)
   isLastVersion Boolean @default(true)
+  isFromEstimate Boolean? @default(true)
   sourceDocumentId String?
   sourceDocument Document? @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
 

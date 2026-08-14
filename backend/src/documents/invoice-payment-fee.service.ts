@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { $Enums, Prisma } from '@prisma/client';
 
 const DEFAULT_FEE_IN_CENTS = 100;
 const MONTHLY_FEE_LIMIT_IN_CENTS = 5000;
@@ -10,6 +10,7 @@ export class InvoicePaymentFeeService {
     documentId: string,
     companyId: string,
     prisma: Prisma.TransactionClient,
+    paymentMethod?: $Enums.PaymentMethod,
   ) {
     const existingFee = await prisma.invoicePaymentFee.findUnique({
       where: { documentId },
@@ -17,6 +18,13 @@ export class InvoicePaymentFeeService {
     });
 
     if (existingFee && existingFee.amountInCents > 0) {
+      if (paymentMethod) {
+        return prisma.invoicePaymentFee.update({
+          where: { documentId },
+          data: { paymentMethod },
+        });
+      }
+
       return existingFee;
     }
 
@@ -35,6 +43,7 @@ export class InvoicePaymentFeeService {
       MONTHLY_FEE_LIMIT_IN_CENTS - accumulatedAmount,
     );
     const amountInCents = Math.min(DEFAULT_FEE_IN_CENTS, remainingAmount);
+    const paymentMethodData = paymentMethod ? { paymentMethod } : {};
 
     return prisma.invoicePaymentFee.upsert({
       where: { documentId },
@@ -42,8 +51,12 @@ export class InvoicePaymentFeeService {
         documentId,
         companyId,
         amountInCents,
+        ...paymentMethodData,
       },
-      update: { amountInCents },
+      update: {
+        amountInCents,
+        ...paymentMethodData,
+      },
     });
   }
 

@@ -13,7 +13,7 @@ const dto = {
   documentDates: { dueDate: '2026-09-15' },
 };
 const invoice = {
-  id: 'invoice-1', companyId: 'company-1', type: 'INVOICE', invoiceStatus: 'DRAFT', estimateStatus: 'DRAFT', documentNumber: '#FACT-2026-0001',
+  id: 'invoice-1', companyId: 'company-1', type: 'INVOICE', isFromEstimate: true, invoiceStatus: 'DRAFT', estimateStatus: 'DRAFT', documentNumber: '#FACT-2026-0001',
   clientName: 'Client initial', clientEmail: 'client@example.test', clientAddress: '1 rue du Test', clientCity: 'Paris', clientPostalCode: '75001', clientCountry: 'France', totalPrice: 120, totalPriceExcludingTax: 100,
   paymentDueAt: new Date('2026-09-01'), sentAt: null, services: [{ id: 'line-1', description: 'Prestation', quantity: 1, taxRate: 20, unitPrice: 100, unit: 'jour', totalPrice: 120, wtPrice: 100, documentId: 'invoice-1' }],
 };
@@ -75,6 +75,20 @@ describe('DocumentService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
+  it('modifie entièrement une facture brouillon créée sans devis', async () => {
+    const directInvoice = { ...invoice, isFromEstimate: false };
+    (prisma.document.findFirst as jest.Mock).mockResolvedValue(directInvoice);
+    (prisma.document.update as jest.Mock).mockResolvedValue(directInvoice);
+    (prisma.$transaction as jest.Mock).mockImplementation(async (callback) => callback({
+      document: { update: jest.fn() },
+      documentService: { deleteMany: jest.fn(), update: jest.fn(), create: jest.fn() },
+    }));
+
+    await service.updateDraftDocument(invoice.id, dto, user);
+
+    expect(prisma.$transaction).toHaveBeenCalled();
+  });
+
   it('refuse de modifier une facture déjà envoyée', async () => {
     (prisma.document.findFirst as jest.Mock).mockResolvedValue({ ...invoice, invoiceStatus: 'PENDING' });
 
@@ -100,7 +114,10 @@ describe('DocumentService', () => {
     await service.convertEstimateToInvoice(acceptedEstimate.id, user);
 
     expect(prisma.document.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ sourceDocumentId: acceptedEstimate.id }),
+      data: expect.objectContaining({
+        sourceDocumentId: acceptedEstimate.id,
+        isFromEstimate: true,
+      }),
     }));
   });
 
@@ -179,7 +196,11 @@ describe('DocumentService', () => {
     });
     (prisma.document.update as jest.Mock).mockResolvedValue(invoice);
 
-    await service.manuallyMarkInvoiceAsPaid(invoice.id, user);
+    await service.manuallyMarkInvoiceAsPaid(
+      invoice.id,
+      user,
+      'BANK_TRANSFER',
+    );
 
     expect(prisma.document.update).toHaveBeenCalledWith({
       where: { id: invoice.id },
@@ -189,6 +210,7 @@ describe('DocumentService', () => {
       invoice.id,
       'company-1',
       prisma,
+      'BANK_TRANSFER',
     );
   });
 
