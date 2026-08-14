@@ -27,6 +27,7 @@ describe('DocumentService', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      groupBy: jest.fn(),
     },
     invoicePaymentFee: {
       findUnique: jest.fn(),
@@ -94,6 +95,43 @@ describe('DocumentService', () => {
 
     await expect(service.updateDraftDocument(invoice.id, dto, user)).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.document.update).not.toHaveBeenCalled();
+  });
+
+  it('agrège les statistiques des factures de l’entreprise active', async () => {
+    (prisma.document.groupBy as jest.Mock).mockResolvedValue([
+      {
+        invoiceStatus: 'PAID',
+        _count: { _all: 2 },
+        _sum: { totalPrice: 240 },
+      },
+      {
+        invoiceStatus: 'PAID_MANUALLY',
+        _count: { _all: 1 },
+        _sum: { totalPrice: 60 },
+      },
+      {
+        invoiceStatus: 'OVERDUE',
+        _count: { _all: 1 },
+        _sum: { totalPrice: 90 },
+      },
+    ]);
+
+    const stats = await service.getInvoiceStats(user);
+
+    expect(stats).toEqual({
+      paid: { count: 3, totalAmount: 300 },
+      pending: { count: 0, totalAmount: 0 },
+      overdue: { count: 1, totalAmount: 90 },
+      draft: { count: 0, totalAmount: 0 },
+    });
+    expect(prisma.document.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: 'company-1',
+          type: 'INVOICE',
+        }),
+      }),
+    );
   });
 
   it('lie une facture créée au devis source avec sourceDocumentId', async () => {

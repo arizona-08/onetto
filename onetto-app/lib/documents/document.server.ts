@@ -11,6 +11,18 @@ export type PaginatedDocuments = {
   pagination: { page: number; pageSize: number; total: number; totalPages: number };
 };
 
+export type InvoiceStats = {
+  paid: InvoiceStat;
+  pending: InvoiceStat;
+  overdue: InvoiceStat;
+  draft: InvoiceStat;
+};
+
+type InvoiceStat = {
+  count: number;
+  totalAmount: number;
+};
+
 export async function getMyDocumentsServer(withServices: boolean = true) {
   return apiServer<EstimatesAndInvoicesType>(`api/documents/mines?with-services=${withServices}`, {
     method: "GET",
@@ -23,6 +35,13 @@ export async function getMyDocumentsServer(withServices: boolean = true) {
 export async function getDocumentsPageServer(type: 'INVOICE' | 'ESTIMATE', page = 1, status?: string) {
   const statusQuery = status ? `&status=${encodeURIComponent(status)}` : '';
   return apiServer<PaginatedDocuments>(`api/documents/mines?with-services=false&type=${type}&page=${page}&pageSize=5${statusQuery}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+export async function getInvoiceStatsServer() {
+  return apiServer<InvoiceStats>('api/documents/invoice-stats', {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
   });

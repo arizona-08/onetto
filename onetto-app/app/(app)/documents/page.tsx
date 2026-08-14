@@ -1,15 +1,39 @@
-import { getDocumentsPageServer } from '@/lib/documents/document.server';
+import {
+  getDocumentsPageServer,
+  getInvoiceStatsServer,
+  InvoiceStats,
+} from '@/lib/documents/document.server';
 import { getMyCompaniesServer } from '@/lib/companies/companies.server';
-import { AlertTriangle, ChartLine, Check, CirclePlusIcon, File } from 'lucide-react';
-import React from 'react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  FileText,
+} from 'lucide-react';
+import type { ReactNode } from 'react';
 import DocumentsTable from '@/app/components/organisms/DocumentsTable';
 
 export const dynamic = 'force-dynamic'
 
+const emptyStats: InvoiceStats = {
+  paid: { count: 0, totalAmount: 0 },
+  pending: { count: 0, totalAmount: 0 },
+  overdue: { count: 0, totalAmount: 0 },
+  draft: { count: 0, totalAmount: 0 },
+};
+
+function formatCurrency(amount: number) {
+  return amount.toLocaleString('fr-FR', {
+    style: 'currency',
+    currency: 'EUR',
+  });
+}
+
 async function DocumentsPage() {
-  const [estimatesResponse, invoicesResponse] = await Promise.all([
+  const [estimatesResponse, invoicesResponse, invoiceStatsResponse] = await Promise.all([
     getDocumentsPageServer('ESTIMATE'),
     getDocumentsPageServer('INVOICE'),
+    getInvoiceStatsServer(),
   ]);
 
   if (!estimatesResponse.ok || !invoicesResponse.ok) {
@@ -19,6 +43,9 @@ async function DocumentsPage() {
 
   const estimates = estimatesResponse.ok ? estimatesResponse.data.documents : [];
   const invoices = invoicesResponse.ok ? invoicesResponse.data.documents : [];
+  const invoiceStats = invoiceStatsResponse.ok
+    ? invoiceStatsResponse.data
+    : emptyStats;
 
   const companiesResponse = await getMyCompaniesServer();
   const activeCompany = companiesResponse.ok
@@ -37,53 +64,31 @@ async function DocumentsPage() {
         </div>
       )}
 
-      <div className="mt-8 w-full overflow-x-auto pb-4">
-        <div className="flex items-center gap-3 flex-nowrap min-w-max">
-          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-white rounded-lg shadow-md ">
-            <div className="flex items-center gap-1">
-              <Check className="w-4 h-4 text-green-800" />
-              <span className="text-xs uppercase text-gray-500">Payées</span>
-            </div>
-            <p className="text-3xl text-zinc-700 font-bold font-title">500€ </p>
-            <p className="text-sm text-zinc-500">(5 factures payées)</p>
-          </div>
-
-          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-white rounded-lg shadow-md">
-            <div className="flex items-center gap-1">
-              <CirclePlusIcon className="w-4 h-4 text-yellow-800" />
-              <span className="text-xs uppercase text-gray-500">En attente</span>
-            </div>
-            <p className="text-3xl text-zinc-700 font-bold font-title">500€ </p>
-            <p className="text-sm text-zinc-500">(5 factures impayées)</p>
-          </div>
-
-          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-white rounded-lg shadow-md">
-            <div className="flex items-center gap-1">
-              <AlertTriangle className="w-4 h-4 text-red-800" />
-              <span className="text-xs uppercase text-gray-500">En retard</span>
-            </div>
-            <p className="text-3xl text-zinc-700 font-bold font-title">500€ </p>
-            <p className="text-sm text-zinc-500">(5 factures en retard)</p>
-          </div>
-
-          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-white rounded-lg shadow-md">
-            <div className="flex items-center gap-1">
-              <File className="w-4 h-4 text-gray-500" />
-              <span className="text-xs uppercase text-gray-500">Brouillons</span>
-            </div>
-            <p className="text-3xl text-zinc-700 font-bold font-title">500€ </p>
-            <p className="text-sm text-zinc-500">(5 factures brouillons)</p>
-          </div>
-
-          <div className="min-w-45 flex flex-col items-start gap-2 p-8 bg-white rounded-lg shadow-md">
-            <div className="flex items-center gap-1">
-              <ChartLine className="w-4 h-4 text-indigo-800" />
-              <span className="text-xs uppercase text-gray-500">Économies</span>
-            </div>
-            <p className="text-3xl text-zinc-700 font-bold font-title">145€</p>
-            <p className="text-sm text-zinc-500">(Ce mois-ci)</p>
-          </div>
-        </div>
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <InvoiceStatCard
+          label="Payées"
+          stat={invoiceStats.paid}
+          icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
+          iconClassName="bg-emerald-50 text-emerald-600"
+        />
+        <InvoiceStatCard
+          label="En attente"
+          stat={invoiceStats.pending}
+          icon={<Clock3 className="h-5 w-5" aria-hidden="true" />}
+          iconClassName="bg-amber-50 text-amber-600"
+        />
+        <InvoiceStatCard
+          label="En retard"
+          stat={invoiceStats.overdue}
+          icon={<AlertTriangle className="h-5 w-5" aria-hidden="true" />}
+          iconClassName="bg-red-50 text-red-600"
+        />
+        <InvoiceStatCard
+          label="Brouillons"
+          stat={invoiceStats.draft}
+          icon={<FileText className="h-5 w-5" aria-hidden="true" />}
+          iconClassName="bg-zinc-100 text-zinc-600"
+        />
       </div>
       {activeCompany?.status === 'CLOSED' && (
         <div className="mt-4 rounded-lg border border-red-100 bg-red-50/70 p-4 text-sm text-zinc-700">
@@ -104,6 +109,41 @@ async function DocumentsPage() {
       </div>
     </div>
   )
+}
+
+interface InvoiceStatCardProps {
+  label: string;
+  stat: { count: number; totalAmount: number };
+  icon: ReactNode;
+  iconClassName: string;
+}
+
+function InvoiceStatCard({
+  label,
+  stat,
+  icon,
+  iconClassName,
+}: InvoiceStatCardProps) {
+  const invoiceLabel = stat.count > 1 ? 'factures' : 'facture';
+
+  return (
+    <article className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-zinc-500">{label}</p>
+          <p className="mt-2 font-title text-3xl font-black text-zinc-900">
+            {formatCurrency(stat.totalAmount)}
+          </p>
+        </div>
+        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconClassName}`}>
+          {icon}
+        </div>
+      </div>
+      <p className="mt-5 text-sm text-zinc-500">
+        {stat.count} {invoiceLabel}
+      </p>
+    </article>
+  );
 }
 
 export default DocumentsPage

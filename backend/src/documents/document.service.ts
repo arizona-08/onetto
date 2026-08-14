@@ -410,6 +410,51 @@ export class DocumentService {
     }
   }
 
+  async getInvoiceStats(user: User) {
+    const companyId = await this.getActiveCompanyId(user);
+    const groupedStats = await this.prismaService.document.groupBy({
+      by: ['invoiceStatus'],
+      where: {
+        companyId,
+        type: 'INVOICE',
+        invoiceStatus: {
+          in: ['PAID', 'PAID_MANUALLY', 'PENDING', 'OVERDUE', 'DRAFT'],
+        },
+      },
+      _count: { _all: true },
+      _sum: { totalPrice: true },
+    });
+
+    const statsByStatus = new Map(
+      groupedStats.map((stat) => [
+        stat.invoiceStatus,
+        {
+          count: stat._count._all,
+          totalAmount: stat._sum.totalPrice ?? 0,
+        },
+      ]),
+    );
+
+    const getStat = (...statuses: $Enums.InvoiceStatus[]) => statuses.reduce(
+      (total, status) => {
+        const stat = statsByStatus.get(status);
+
+        return {
+          count: total.count + (stat?.count ?? 0),
+          totalAmount: total.totalAmount + (stat?.totalAmount ?? 0),
+        };
+      },
+      { count: 0, totalAmount: 0 },
+    );
+
+    return {
+      paid: getStat('PAID', 'PAID_MANUALLY'),
+      pending: getStat('PENDING'),
+      overdue: getStat('OVERDUE'),
+      draft: getStat('DRAFT'),
+    };
+  }
+
   async getDocumentById(documentId: string, user: User, withServices: boolean = true){
     try {
       const companyId = await this.getActiveCompanyId(user);
