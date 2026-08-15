@@ -25,14 +25,14 @@ class WebhookTransactionContentDto {
 
   @IsOptional()
   @IsString()
-  status?: WebhookTransactionStatus;
+  status?: BridgeWebhookTransactionStatus;
 
   @IsOptional()
   @IsString()
   status_reason?: string
 }
 
-type WebhookTransactionStatus = 'CREA' | 'ACTC' | 'PDNG' | 'ACSC' | 'RJCT';
+export type BridgeWebhookTransactionStatus = 'CREA' | 'ACTC' | 'PDNG' | 'ACSC' | 'RJCT';
 
 
 type WebhookTransactionType = 'payment.transaction.created' | 'payment.transaction.updated' | 'payment.link.updated' | 'TEST_EVENT';

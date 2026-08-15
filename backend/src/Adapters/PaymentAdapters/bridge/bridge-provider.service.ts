@@ -5,6 +5,8 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { PaymentLinkResponse } from "../Types/ResponseTypes/CreatePaymentLinkResponse.types";
 import { PaymentStatus } from "../PaymentStatus/PaymentStatus.types";
 import { BridgeCreatePaymentLinkInput } from "./input.types";
+import { BridgeWebhookTransactionStatus } from "./webhook-handlers/dtos/transaction.dto";
+import { $Enums } from "@prisma/client";
 
 type BridgeHeaders = {
   "Bridge-Version": string;
@@ -71,13 +73,14 @@ export class BridgeProviderService implements BasePaymentProviderInterface {
 
       await this.prismaService.$transaction(async (prisma) => {
         for (const transaction of input.transactions) {
-          await prisma.bridgePaymentLinkSession.create({
+          await prisma.invoicePaymentLinkSession.create({
             data: {
-              bridgePaymentLinkId: data.id,
+              paymentLinkId: data.id,
               paymentAccessToken,
-              documentId: transaction.client_reference, // id de la facture
+              invoiceId: transaction.client_reference, // id de la facture
               url: data.url,
               expiresAt: new Date(input.expired_date),
+              paymentStatus: 'PENDING',
             }
           });
         }
@@ -104,4 +107,20 @@ export class BridgeProviderService implements BasePaymentProviderInterface {
   }
 
   async handleWebhook(webhook: any): Promise<void> {}
+
+  transactionStatusMatcher(status: BridgeWebhookTransactionStatus): $Enums.InvoiceStatus {
+    switch (status) {
+      case 'CREA':
+      case 'ACTC':
+        return 'PENDING';
+      case 'PDNG':
+        return 'PAYMENT_IN_PROGRESS';
+      case 'ACSC':
+        return 'PAID';
+      case 'RJCT':
+        return 'REJECTED';
+      default:
+        return 'PENDING';
+    }
+  }
 }

@@ -981,10 +981,10 @@ export class DocumentService {
   }
 
   async getPublicPaymentByToken(paymentAccessToken: string) {
-    const paymentSession = await this.prismaService.bridgePaymentLinkSession.findUnique({
+    const paymentSession = await this.prismaService.invoicePaymentLinkSession.findUnique({
       where: { paymentAccessToken },
       include: {
-        document: {
+        invoice: {
           include: {
             services: true,
             company: {
@@ -1009,7 +1009,7 @@ export class DocumentService {
     return {
       paymentLink: paymentSession.url,
       expiresAt: paymentSession.expiresAt,
-      document: paymentSession.document,
+      document: paymentSession.invoice,
     };
   }
 

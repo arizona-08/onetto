@@ -117,7 +117,8 @@ model Document {
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   services DocumentService[]
   negociations EstimateNegociation[]
-  paymentLinkSessions BridgePaymentLinkSession[] // peut en créer plusieurs pour un même document, mais seulement un actif à la fois
+  invoicePaymentLinkSessions InvoicePaymentLinkSession[] // peut en créer plusieurs pour un même document, mais seulement un actif à la fois
+  invoicePaymentPlan InvoicePaymentPlan?
   invoicePaymentFee InvoicePaymentFee?
 }
 
@@ -131,6 +132,7 @@ enum InvoiceStatus {
   PENDING
   PAYMENT_IN_PROGRESS
   PAID
+  PARTIALLY_PAID
   PAID_MANUALLY
   OVERDUE
   REJECTED
@@ -183,47 +185,86 @@ enum PaymentMethod {
   OTHER
 }
 
-model BridgePaymentLinkSession {
+model InvoicePaymentLinkSession {
   id String @id @default(uuid())
-  documentId String
-  bridgePaymentLinkId String @unique
+  invoiceId String
+  paymentLinkId String @unique
   paymentAccessToken String @unique
-  linkStatus BridgePaymentLinkStatus?
+  linkStatus InvoicePaymentLinkStatus?
+  paymentStatus InvoicePaymentStatus
   url String
+  invoicePaymentInstallmentId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   expiresAt DateTime
 
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  bridgePaymentAttempts BridgePaymentAttempt[]
+  invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoicePaymentAttempts InvoicePaymentAttempt[]
+  invoicePaymentInstallment InvoicePaymentInstallment? @relation(fields: [invoicePaymentInstallmentId], references: [id], onDelete: Cascade)
 }
 
-model BridgePaymentAttempt {
+enum InvoicePaymentLinkStatus {
+  VALID
+  COMPLETED
+  EXPIRED
+  REVOKED
+}
+
+enum InvoicePaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model InvoicePaymentAttempt {
   id String @id @default(uuid())
-  bridgePaymentLinkSessionId String
-  paymentRequestId String
+  invoicePaymentLinkSessionId String
+  paymentRequestId String?
   paymentTransactionId String @unique
-  paymentTransactionStatus BridgePaymentTransactionStatus?
-  paymentTransactionStatusReason String?
+  paymentTransactionStatus InvoicePaymentAttemptStatus?
+  paymentTransactionErrorStatusReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  bridgePaymentLinkSession BridgePaymentLinkSession @relation(fields: [bridgePaymentLinkSessionId], references: [id], onDelete: Cascade)
+  invoicePaymentLinkSession InvoicePaymentLinkSession @relation(fields: [invoicePaymentLinkSessionId], references: [id], onDelete: Cascade)
 }
 
-enum BridgePaymentLinkStatus {
-  VALID
-  EXPIRED
-  REVOKED
-  COMPLETED
+enum InvoicePaymentAttemptStatus {
+  PENDING
+  SUCCESS
+  FAILED
 }
 
-enum BridgePaymentTransactionStatus {
-  CREA
-  ACTC
-  PDNG
-  ACSC
-  RJCT
+// Pour paiement en plusieurs échéances
+model InvoicePaymentPlan {
+  id String @id @default(uuid())
+  invoiceId String @unique
+  totalAmountInCents Int
+  numberOfInstallments Int
+  amountPerInstallmentInCents Int
+  isCompleted Boolean @default(false)
+
+  invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoicePaymentInstallments InvoicePaymentInstallment[]
+}
+
+model InvoicePaymentInstallment {
+  id String @id @default(uuid())
+  invoicePaymentPlanId String
+  installmentNumber Int
+  amountInCents Int
+  dueDate DateTime
+  installmentStatus InvoicePaymentInstallmentStatus @default(PENDING)
+  paidAt DateTime?
+
+  invoicePaymentPlan InvoicePaymentPlan @relation(fields: [invoicePaymentPlanId], references: [id], onDelete: Cascade)
+  invoicePaymentLinkSessions InvoicePaymentLinkSession[] // peut en créer plusieurs pour un même échéancier, mais seulement un actif à la fois
+}
+
+enum InvoicePaymentInstallmentStatus {
+  PENDING
+  PAID
+  OVERDUE
 }
 
 model DocumentService {

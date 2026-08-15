@@ -1,7 +1,2 @@
 -- AlterTable
-ALTER TABLE "CompanyService" ALTER COLUMN "name" DROP DEFAULT,
-ALTER COLUMN "unit" DROP DEFAULT,
-ALTER COLUMN "category" DROP DEFAULT;
-
--- AlterTable
 ALTER TABLE "InvoicePaymentFee" ALTER COLUMN "paymentMethod" SET DEFAULT 'BANK_TRANSFER';
