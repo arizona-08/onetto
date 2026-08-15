@@ -6,11 +6,12 @@ import { BridgeWebhookController } from "./bridge-webhook.controller";
 import { BridgeProviderService } from "./bridge-provider.service";
 import { BridgeWebhookHandler } from "./webhook-handlers/webhook.handler";
 import { InvoicePaymentFeeModule } from "src/payment-fee/invoice-payment-fee.module";
+import { BridgeStatusMatcherService } from "./bridge-status-matcher.service";
 
 @Module({
   imports: [PrismaModule, InvoicePaymentFeeModule, MailModule],
   controllers: [BridgeWebhookController],
-  providers: [BridgeProviderService, BridgeWebhookHandler],
+  providers: [BridgeProviderService, BridgeWebhookHandler, BridgeStatusMatcherService],
   exports: [BridgeProviderService],
 })
 export class BridgeModule {}

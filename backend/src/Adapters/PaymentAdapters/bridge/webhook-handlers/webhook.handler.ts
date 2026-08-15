@@ -3,8 +3,9 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { $Enums, InvoicePaymentLinkSession, Prisma } from "@prisma/client";
 import { MailService } from 'src/mail/mail.service';
 import { InvoicePaymentFeeService } from 'src/payment-fee/invoice-payment-fee.service';
-import { BridgeWebhookTransactionStatus, WebhookTransactionDto } from "./dtos/transaction.dto";
+import { BridgeWebhookLinkStatus, BridgeWebhookTransactionStatus, WebhookTransactionDto } from "./dtos/transaction.dto";
 import { BridgeProviderService } from "../bridge-provider.service";
+import { BridgeStatusMatcherService } from "../bridge-status-matcher.service";
 
 type GetPaymentSessionResult =
   | {
@@ -22,7 +23,7 @@ export class BridgeWebhookHandler {
     private readonly prismaService: PrismaService,
     private readonly mailService: MailService,
     private readonly invoicePaymentFeeService: InvoicePaymentFeeService,
-    private readonly bridgeProviderService: BridgeProviderService,
+    private readonly bridgeStatusMatcherService: BridgeStatusMatcherService,
   ) {}
 
 
@@ -91,14 +92,14 @@ export class BridgeWebhookHandler {
             paymentTransactionId: webhookContent.payment_transaction_id,
           },
           update: {
-            paymentTransactionStatus: (webhookContent.status as $Enums.InvoicePaymentAttemptStatus), // Cast to any to match the enum type
+            paymentTransactionStatus: this.bridgeStatusMatcherService.transactionAttemptStatusMatcher(webhookContent.status as BridgeWebhookTransactionStatus),
             paymentTransactionErrorStatusReason: webhookContent.status_reason,
           },
           create: {
             invoicePaymentLinkSessionId: session.id,
             paymentRequestId: webhookContent.payment_request_id,
             paymentTransactionId: webhookContent.payment_transaction_id,
-            paymentTransactionStatus: (webhookContent.status as $Enums.InvoicePaymentAttemptStatus), // Cast to any to match the enum type
+            paymentTransactionStatus: this.bridgeStatusMatcherService.transactionAttemptStatusMatcher(webhookContent.status as BridgeWebhookTransactionStatus),
             paymentTransactionErrorStatusReason: webhookContent.status_reason,
           }
         })
@@ -122,11 +123,9 @@ export class BridgeWebhookHandler {
           return null;
         }
 
-        const allDocumentTransactionAttempts = await prisma.invoicePaymentAttempt.findMany({
+        const allDocumentSessionTransactionAttempts = await prisma.invoicePaymentAttempt.findMany({
           where: {
-            invoicePaymentLinkSession: {
-              invoiceId: existingDocument.id
-            }
+            invoicePaymentLinkSessionId: session.id,
           },
 
           select: {
@@ -138,7 +137,16 @@ export class BridgeWebhookHandler {
           return;
         }
 
-        if(allDocumentTransactionAttempts.some(attempt => attempt.paymentTransactionStatus === 'SUCCESS')){
+        if(allDocumentSessionTransactionAttempts.some(attempt => attempt.paymentTransactionStatus === 'SUCCESS')){
+          await this.prismaService.invoicePaymentLinkSession.update({
+            where: {
+              paymentLinkId: webhookContent.payment_link_id
+            },
+            data: {
+              paymentStatus: 'SUCCESS',
+            }
+          });
+
           await this.markDocumentAs('PAID', existingDocument.id, prisma);
           await this.invoicePaymentFeeService.createForPaidInvoice(
             existingDocument.id,
@@ -148,24 +156,16 @@ export class BridgeWebhookHandler {
           return webhookContent.status === 'ACSC' && existingDocument.invoiceStatus !== 'PAID'
             ? existingDocument
             : null;
-        } else if(allDocumentTransactionAttempts.every(attempt => attempt.paymentTransactionStatus === 'FAILED')){
+        } else if(allDocumentSessionTransactionAttempts.every(attempt => attempt.paymentTransactionStatus === 'FAILED')){
+          await this.prismaService.invoicePaymentLinkSession.update({
+            where: {
+              paymentLinkId: webhookContent.payment_link_id
+            },
+            data: {
+              paymentStatus: 'FAILED',
+            }
+          });
           await this.markDocumentAs('REJECTED', existingDocument.id, prisma);
-        } else {
-          const nextStatus = this.bridgeProviderService.transactionStatusMatcher(
-            webhookContent.status as BridgeWebhookTransactionStatus,
-          );
-          await this.markDocumentAs(
-            nextStatus,
-            existingDocument.id,
-            prisma
-          );
-
-          if (nextStatus === 'PENDING') {
-            await this.invoicePaymentFeeService.resetForPendingInvoice(
-              existingDocument.id,
-              prisma,
-            );
-          }
         }
         return null;
       })
@@ -188,7 +188,7 @@ export class BridgeWebhookHandler {
           paymentLinkId: webhookContent.payment_link_id
         },
         data: {
-          linkStatus: (webhookContent.payment_link_status as $Enums.InvoicePaymentLinkStatus) || 'VALID',
+          linkStatus: this.bridgeStatusMatcherService.linkStatusMatcher(webhookContent.payment_link_status as BridgeWebhookLinkStatus) || 'VALID',
         }
       })
     } catch (error) {

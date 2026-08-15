@@ -1,12 +1,12 @@
 import { Injectable } from "@nestjs/common";
-import { BridgeWebhookTransactionStatus } from "./webhook-handlers/dtos/transaction.dto";
+import { BridgeWebhookLinkStatus, BridgeWebhookTransactionStatus } from "./webhook-handlers/dtos/transaction.dto";
 import { $Enums } from "@prisma/client";
 
 @Injectable()
 export class BridgeStatusMatcherService {
   constructor() {}
 
-  invoicePaymentStatusMatcher(status: string): $Enums.InvoiceStatus {
+  transactionAttemptStatusMatcher(status: BridgeWebhookTransactionStatus): $Enums.InvoicePaymentAttemptStatus {
     switch (status) {
       case 'CREA':
       case 'ACTC':
@@ -14,27 +14,26 @@ export class BridgeStatusMatcherService {
       case 'PDNG':
         return 'PAYMENT_IN_PROGRESS';
       case 'ACSC':
-        return 'PAID';
+        return 'SUCCESS';
       case 'RJCT':
-        return 'REJECTED';
+        return 'FAILED';
       default:
         return 'PENDING';
     }
   }
 
-  transactionAttemptStatusMatcher(status: BridgeWebhookTransactionStatus): $Enums.InvoiceStatus {
+  linkStatusMatcher(status: BridgeWebhookLinkStatus): $Enums.InvoicePaymentLinkStatus {
     switch (status) {
-      case 'CREA':
-      case 'ACTC':
-        return 'PENDING';
-      case 'PDNG':
-        return 'PAYMENT_IN_PROGRESS';
-      case 'ACSC':
-        return 'PAID';
-      case 'RJCT':
-        return 'REJECTED';
+      case 'valid':
+        return 'VALID';
+      case 'expired':
+        return 'EXPIRED';
+      case 'revoked':
+        return 'REVOKED';
+      case 'completed':
+        return 'COMPLETED';
       default:
-        return 'PENDING';
+        return 'VALID';
     }
   }
 

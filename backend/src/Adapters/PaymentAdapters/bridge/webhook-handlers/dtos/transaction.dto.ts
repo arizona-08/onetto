@@ -33,6 +33,7 @@ class WebhookTransactionContentDto {
 }
 
 export type BridgeWebhookTransactionStatus = 'CREA' | 'ACTC' | 'PDNG' | 'ACSC' | 'RJCT';
+export type BridgeWebhookLinkStatus = 'valid' | 'expired' | 'revoked' | 'completed';
 
 
 type WebhookTransactionType = 'payment.transaction.created' | 'payment.transaction.updated' | 'payment.link.updated' | 'TEST_EVENT';

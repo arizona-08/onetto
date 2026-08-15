@@ -212,6 +212,7 @@ enum InvoicePaymentLinkStatus {
 
 enum InvoicePaymentStatus {
   PENDING
+  PAYMENT_IN_PROGRESS
   SUCCESS
   FAILED
 }
@@ -231,6 +232,7 @@ model InvoicePaymentAttempt {
 
 enum InvoicePaymentAttemptStatus {
   PENDING
+  PAYMENT_IN_PROGRESS
   SUCCESS
   FAILED
 }
@@ -263,7 +265,9 @@ model InvoicePaymentInstallment {
 
 enum InvoicePaymentInstallmentStatus {
   PENDING
-  PAID
+  PAYMENT_IN_PROGRESS
+  SUCCESS
+  FAILED
   OVERDUE
 }
 
