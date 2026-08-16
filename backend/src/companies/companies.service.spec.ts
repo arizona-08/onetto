@@ -61,7 +61,7 @@ describe('CompaniesService', () => {
     ]);
   });
 
-  it('retourne le cumul et l’historique des frais d’une entreprise détenue', async () => {
+  it('retourne le cumul et l’historique des frais d’une entreprise accessible à l’utilisateur', async () => {
     (prisma.company.findFirst as jest.Mock).mockResolvedValue({ id: 'company-1' });
     (prisma.invoicePaymentFee.aggregate as jest.Mock).mockResolvedValue({
       _sum: { amountInCents: 125 },
@@ -84,7 +84,13 @@ describe('CompaniesService', () => {
     const details = await service.getCompanyInvoiceFeeDetails('company-1', 'user-1');
 
     expect(prisma.company.findFirst).toHaveBeenCalledWith({
-      where: { id: 'company-1', ownerId: 'user-1' },
+      where: {
+        id: 'company-1',
+        OR: [
+          { ownerId: 'user-1' },
+          { companyUsers: { some: { userId: 'user-1' } } },
+        ],
+      },
     });
     expect(details.currentPeriodAmountInCents).toBe(125);
     expect(details.paidInvoicesCount).toBe(2);

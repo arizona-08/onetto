@@ -51,6 +51,7 @@ model Company {
   status CompanyStatus @default(ACTIVE)
   closingReason String?
   closedAt DateTime?
+  isPaymentAccountConnected Boolean @default(false)
 
   documents Document[]
   owner User @relation(fields: [ownerId], references: [id])
@@ -60,11 +61,32 @@ model Company {
 
   services CompanyService[]
   clients CompanyClient[]
+  companyPaymentAccounts CompanyPaymentAccount[]
+  companyPaymentOAuthStates CompanyPaymentOAuthState[]
 }
 
 enum CompanyStatus {
   ACTIVE
   CLOSED
+}
+
+model CompanyPaymentAccount {
+  id String @id @default(uuid())
+  companyId String
+  provider PaymentProvider
+  providerAccountId String
+  accessToken String
+
+  company Company @relation(fields: [companyId], references: [id])
+}
+
+model CompanyPaymentOAuthState {
+  id String @id @default(uuid())
+  companyId String
+  state String @unique
+  expiresAt DateTime
+
+  company Company @relation(fields: [companyId], references: [id])
 }
 model CompanyUser {
   id String @id @default(uuid())
@@ -183,6 +205,11 @@ enum PaymentMethod {
   CHECK
   CASH
   OTHER
+}
+
+enum PaymentProvider {
+  BRIDGE
+  GOCARDLESS
 }
 
 model InvoicePaymentLinkSession {

@@ -6,12 +6,14 @@ import { CreatePaymentLinkInput } from "../Types/InputTypes/CreatePaymentLinkInp
 import { PaymentStatus } from "../PaymentStatus/PaymentStatus.types";
 import { CreateSubscriptionLinkInput } from "../Types/InputTypes/CreateSubscriptionLinkInput.types";
 
+
 @Injectable()
 export class GoCardlessProviderService
 implements
   BasePaymentProviderInterface,
   CanCreateRecurringPaymentLinkInterface,
   CanCreateSubscriptionLinkInterface  {
+
   constructor() {}
 
   async createPaymentLink(input: CreatePaymentLinkInput, paymentAccessToken: string): Promise<PaymentLinkResponse> {
@@ -41,5 +43,4 @@ implements
   async handleWebhook(webhook: any): Promise<void> {
     return;
   }
-
 }

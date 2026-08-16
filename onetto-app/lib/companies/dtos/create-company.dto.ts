@@ -22,4 +22,5 @@ export type Company = CreateCompanyDto & {
   isHidden: boolean;
   closingReason?: string | null;
   closedAt?: string | null;
+  isPaymentAccountConnected: boolean;
 }

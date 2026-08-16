@@ -5,6 +5,7 @@ import {
   CompanyInvoiceFeeDetails,
   getCompany,
   getCompanyInvoiceFeeDetails,
+  getGoCardlessAuthorizationUrl,
 } from '@/lib/companies/companies';
 import { Company } from '@/lib/companies/dtos/create-company.dto';
 import {
@@ -45,7 +46,7 @@ function InformationItem({ label, value }: { label: string; value: string | null
   return (
     <div>
       <dt className="text-xs font-semibold uppercase tracking-wide text-zinc-400">{label}</dt>
-      <dd className="mt-1 break-words text-sm font-medium text-zinc-800">
+      <dd className="mt-1 wrap-break-words text-sm font-medium text-zinc-800">
         {value || 'Non renseigné'}
       </dd>
     </div>
@@ -58,6 +59,8 @@ function MyCompanyPage() {
   const [company, setCompany] = React.useState<Company | null>(null);
   const [feeDetails, setFeeDetails] = React.useState<CompanyInvoiceFeeDetails | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [isGoCardlessAuthorizationPending, setIsGoCardlessAuthorizationPending] = React.useState(false);
+  const [goCardlessAuthorizationError, setGoCardlessAuthorizationError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     async function loadCompanyDetails() {
@@ -80,6 +83,25 @@ function MyCompanyPage() {
 
     void loadCompanyDetails();
   }, [params.id]);
+
+  async function startGoCardlessAuthorization() {
+    if (!company) return;
+
+    setIsGoCardlessAuthorizationPending(true);
+    setGoCardlessAuthorizationError(null);
+
+    const response = await getGoCardlessAuthorizationUrl(company.id, company.email);
+
+    if (!response.ok) {
+      setGoCardlessAuthorizationError('Impossible de démarrer la connexion à GoCardless. Réessayez dans quelques instants.');
+      setIsGoCardlessAuthorizationPending(false);
+      return;
+    }
+
+    // console.log(response.data);
+
+    window.location.assign(response.data.url);
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl p-4">
@@ -208,6 +230,39 @@ function MyCompanyPage() {
                 </tbody>
               </table>
             </div>
+          </section>
+
+          <section>
+            {company.isPaymentAccountConnected === false && (
+              <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                    <Landmark className="h-5 w-5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h2 className="font-title text-lg font-bold text-zinc-900">
+                      Connectez votre compte GoCardless
+                    </h2>
+                    <p className="mt-1 text-sm leading-6 text-zinc-700">
+                      Créez puis connectez un compte GoCardless pour permettre à vos clients de vous régler et recevoir vos paiements.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void startGoCardlessAuthorization()}
+                      disabled={isGoCardlessAuthorizationPending}
+                      className="mt-4 inline-flex items-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isGoCardlessAuthorizationPending ? 'Redirection en cours…' : 'Créer ou connecter mon compte GoCardless'}
+                    </button>
+                    {goCardlessAuthorizationError && (
+                      <p role="alert" className="mt-3 text-sm font-medium text-red-700">
+                        {goCardlessAuthorizationError}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
 
           {company.status === 'CLOSED' && (

@@ -8,16 +8,19 @@ import { GoCardlessSubscriptionWebhookHandler } from "./webhook-handlers/gocardl
 import { PrismaModule } from "src/prisma/prisma.module";
 import { MailModule } from "src/mail/mail.module";
 import { InvoicePaymentFeeModule } from "src/payment-fee/invoice-payment-fee.module";
+import { GoCardlessOAuthController } from "./gocardless-oauth.controller";
+import { GoCardlessOAuthService } from "./gocardless-oauth.service";
 
 @Module({
   imports: [PrismaModule, MailModule, InvoicePaymentFeeModule],
-  controllers: [GoCardlessWebhookController],
+  controllers: [GoCardlessWebhookController, GoCardlessOAuthController],
   providers: [
     GoCardlessProviderService,
     GoCardlessMandateWebhookHandler,
     GoCardlessPaymentWebhookHandler,
     GoCardlessPayoutWebhookHandler,
-    GoCardlessSubscriptionWebhookHandler
+    GoCardlessSubscriptionWebhookHandler,
+    GoCardlessOAuthService
   ],
   exports: [GoCardlessProviderService],
 })

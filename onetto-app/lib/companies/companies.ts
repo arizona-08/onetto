@@ -35,6 +35,14 @@ export function getCompanyInvoiceFeeDetails(companyId: string) {
   return apiClient<CompanyInvoiceFeeDetails>(`api/companies/${companyId}/invoice-fees`);
 }
 
+export function getGoCardlessAuthorizationUrl(companyId: string, email: string) {
+  // const query = new URLSearchParams({ companyId, email });
+
+  console.log(`api/gocardless/oauth/authorize?companyId=${companyId}&email=${email}`);
+
+  return apiClient<{ url: string }>(`api/gocardless/oauth/authorize?companyId=${companyId}&email=${email}`);
+}
+
 export function getMyActiveCompany() {
   return apiClient<Company | null>("api/companies/active");
 }
