@@ -3,6 +3,8 @@ import { ConfigService } from "@nestjs/config";
 import { randomBytes } from "crypto";
 import { Environments, GoCardlessClient } from "gocardless-nodejs";
 import { PrismaService } from "src/prisma/prisma.service";
+import { GoCardlessStatusMatcherService } from "./gocardless-status-matcher.service";
+import { $Enums } from "@prisma/client";
 
 type GetAccessTokenResponse = {
   scope: string,
@@ -20,7 +22,8 @@ type GetAccessTokenResponse = {
 export class GoCardlessOAuthService {
   constructor(
     private readonly configService: ConfigService,
-    private readonly prismaService: PrismaService
+    private readonly prismaService: PrismaService,
+    private readonly gocardlessStatusMatcherService: GoCardlessStatusMatcherService
   ){}
 
   async buildAuthorizationUrl(input: {
@@ -108,6 +111,12 @@ export class GoCardlessOAuthService {
     return response.json();
   }
 
+  getOnBoardingFlowUrl(): string {
+    const isDevelopment = this.configService.getOrThrow('ENVIRONMENT') === 'development';
+    const baseUrl = isDevelopment ? 'https://verify-sandbox.gocardless.com' : 'https://verify.gocardless.com';
+    return `${baseUrl}/onboarding`;
+  }
+
   async connectCompanyWithGoCardless(authorizationCode: string, state: string): Promise<void> {
     const companyPaymentOAuthState = await this.prismaService.companyPaymentOAuthState.findUnique({
       where: { state },
@@ -153,10 +162,48 @@ export class GoCardlessOAuthService {
     });
   }
 
+  async getClientForCompany(companyId: string): Promise<GoCardlessClient> {
+    const companyPaymentAccount = await this.prismaService.companyPaymentAccount.findFirst({
+      where: { companyId, provider: 'GOCARDLESS' }
+    });
+
+    if (!companyPaymentAccount) {
+      throw new BadGatewayException(`No GoCardless account found for company with ID ${companyId}.`);
+    }
+
+    return this.createClient(companyPaymentAccount.accessToken);
+  }
+
   private createClient(accessToken: string): GoCardlessClient {
     const environment = this.configService.getOrThrow('ENVIRONMENT');
     const goCardlessEnvironment = environment === "development" ? Environments.Sandbox : Environments.Live
     return new GoCardlessClient(accessToken, goCardlessEnvironment);
+  }
+
+  async verifyCompanyPaymentAccountStatus(companyPaymentAccountId: string): Promise<$Enums.CompanyPaymentAccountVerificationStatus> {
+    const companyPaymentAccount = await this.prismaService.companyPaymentAccount.findUnique({
+      where: { id: companyPaymentAccountId }
+    });
+
+    if(!companyPaymentAccount){
+      throw new BadGatewayException(`Aucun compte de paiment trouvé avec l'identifiant: ${companyPaymentAccountId}. Veuillez vous créer un compte Gocardless et le connecter à votre entreprise.`);
+    }
+
+    const accessToken = companyPaymentAccount.accessToken;
+    const gocardlessClient = this.createClient(accessToken);
+    const creditorsResponse = await gocardlessClient.creditors.list({ limit: '1' });
+    const creditor = creditorsResponse.creditors[0];
+    const verificationStatus = this.gocardlessStatusMatcherService.matchPaymentAccountVerificationStatus(creditor.verification_status);
+
+    await this.prismaService.companyPaymentAccount.update({
+      where: { id: companyPaymentAccountId },
+      data: {
+        creditorId: creditor.id,
+        verificationStatus
+      }
+    })
+
+    return verificationStatus;
   }
 
 }

@@ -77,8 +77,15 @@ model CompanyPaymentAccount {
   providerAccountId String
   accessToken String
   creditorId String?
+  verificationStatus CompanyPaymentAccountVerificationStatus @default(NOT_VERIFIED)
 
   company Company @relation(fields: [companyId], references: [id])
+}
+
+enum CompanyPaymentAccountVerificationStatus {
+  NOT_VERIFIED
+  IN_REVIEW
+  VERIFIED
 }
 
 model CompanyPaymentOAuthState {
