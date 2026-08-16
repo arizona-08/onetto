@@ -1,24 +1,18 @@
 import { BadGatewayException, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomBytes } from "crypto";
+import { Environments, GoCardlessClient } from "gocardless-nodejs";
 import { PrismaService } from "src/prisma/prisma.service";
 
 type GetAccessTokenResponse = {
-    scope: string,
-
-    authorising_user_scope: string,
-
-    token_type: string,
-
-    organisation_id: string,
-
-    email: string,
-
-    active: boolean,
-
-    access_token: string,
-
-    user_id: string
+  scope: string,
+  authorising_user_scope: string,
+  token_type: string,
+  organisation_id: string,
+  email: string,
+  active: boolean,
+  access_token: string,
+  user_id: string
 
 }
 
@@ -157,6 +151,12 @@ export class GoCardlessOAuthService {
         isPaymentAccountConnected: true,
       }
     });
+  }
+
+  private createClient(accessToken: string): GoCardlessClient {
+    const environment = this.configService.getOrThrow('ENVIRONMENT');
+    const goCardlessEnvironment = environment === "development" ? Environments.Sandbox : Environments.Live
+    return new GoCardlessClient(accessToken, goCardlessEnvironment);
   }
 
 }

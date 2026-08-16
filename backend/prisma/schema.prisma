@@ -76,6 +76,7 @@ model CompanyPaymentAccount {
   provider PaymentProvider
   providerAccountId String
   accessToken String
+  creditorId String?
 
   company Company @relation(fields: [companyId], references: [id])
 }
