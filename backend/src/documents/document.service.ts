@@ -948,33 +948,26 @@ export class DocumentService {
 
   private async createInvoicePaymentLink(
     document: { id: string; totalPrice: number; clientName: string; clientEmail: string; paymentDueAt: Date },
-    company: { name: string; email: string; IBAN: string },
+    company: { id: string; name: string; email: string; IBAN: string },
     user: User,
   ): Promise<string> {
     const paymentAccessToken = randomBytes(32).toString('hex');
     const paymentLinkData: CreatePaymentLinkInput = {
-      user: { // client qui paye
-        company_name: document.clientName,
-        email: document.clientEmail,
-        external_reference: document.id,
-      },
-      expired_date: document.paymentDueAt.toISOString(),
-      client_reference: document.id,
-      transactions: [{
-        amount: document.totalPrice,
-        currency: 'EUR',
-        // beneficiary: {
-        //   company_name: "Your Company", // company.name
-        //   email: company.email, // company.email
-        //   iban: "FR05 3000 3000 4029 1646 5922 J55", // company.IBAN
-        // },
-        client_reference: document.id,
-        execution_date: document.paymentDueAt.toISOString(),
-      }],
-      callback_url: this.callbackUrl,
+      invoiceId: document.id,
+      amount: document.totalPrice,
+      currency: 'EUR',
+      companyId: company.id,
+      customer: {
+        email: document.clientEmail
+      }
     };
 
-    await this.paymentService.createPaymentLink('BRIDGE', paymentLinkData, paymentAccessToken);
+    const paymentProvider = this.configService.get<"BRIDGE" | "GOCARDLESS">('PAYMENT_PROVIDER');
+    if (!paymentProvider) {
+      throw new InternalServerErrorException("Le fournisseur de paiement n'est pas configuré.");
+    }
+
+    await this.paymentService.createPaymentLink(paymentProvider, paymentLinkData, paymentAccessToken);
 
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
     return `${frontendUrl}/payment?token=${paymentAccessToken}`;
@@ -1017,6 +1010,7 @@ export class DocumentService {
     const company = await this.prismaService.company.findUnique({
       where: { id: companyId },
       select: {
+        id: true,
         name: true,
         email: true,
         phoneNumber: true,

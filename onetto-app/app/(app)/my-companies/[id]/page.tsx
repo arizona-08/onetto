@@ -6,6 +6,7 @@ import {
   getCompany,
   getCompanyInvoiceFeeDetails,
   getGoCardlessAuthorizationUrl,
+  getGoCardlessVerificationStatusUrl,
 } from '@/lib/companies/companies';
 import { Company } from '@/lib/companies/dtos/create-company.dto';
 import {
@@ -61,6 +62,7 @@ function MyCompanyPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [isGoCardlessAuthorizationPending, setIsGoCardlessAuthorizationPending] = React.useState(false);
   const [goCardlessAuthorizationError, setGoCardlessAuthorizationError] = React.useState<string | null>(null);
+  const [isGoCardlessVerificationPending, setIsGoCardlessVerificationPending] = React.useState(false);
 
   React.useEffect(() => {
     async function loadCompanyDetails() {
@@ -101,6 +103,14 @@ function MyCompanyPage() {
     // console.log(response.data);
 
     window.location.assign(response.data.url);
+  }
+
+  function verifyGoCardlessAccount() {
+    const companyPaymentAccountId = company?.companyPaymentAccount?.id;
+    if (!companyPaymentAccountId) return;
+
+    setIsGoCardlessVerificationPending(true);
+    window.location.assign(getGoCardlessVerificationStatusUrl(companyPaymentAccountId));
   }
 
   return (
@@ -261,6 +271,41 @@ function MyCompanyPage() {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+
+            {(company.isPaymentAccountConnected && company.companyPaymentAccount?.verificationStatus === 'NOT_VERIFIED') && (
+              <div className="mt-6 rounded-lg border border-orange-100 bg-orange-50/70 p-5">
+                <h2 className="font-title text-lg font-bold text-zinc-900">Compte GoCardless non vérifié</h2>
+                <p className="mt-2 text-sm text-zinc-600">
+                  Veuillez vérifier votre compte GoCardless pour commencer à recevoir vos paiements.
+                </p>
+                  <button
+                    type="button"
+                    onClick={verifyGoCardlessAccount}
+                    disabled={isGoCardlessVerificationPending}
+                    className="mt-4 rounded-md bg-orange-300 p-3 text-sm hover:bg-orange-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isGoCardlessVerificationPending ? 'Vérification en cours…' : 'Vérifier mon compte GoCardless'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void startGoCardlessAuthorization()}
+                    disabled={isGoCardlessAuthorizationPending}
+                    className="ml-3 rounded-md border border-orange-300 px-3 py-3 text-sm text-orange-900 hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isGoCardlessAuthorizationPending ? 'Redirection en cours…' : 'Reconnecter mon compte'}
+                  </button>
+              </div>
+            )}
+
+            {company.isPaymentAccountConnected && company.companyPaymentAccount?.verificationStatus === 'IN_REVIEW' && (
+              <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50/70 p-5">
+                <h2 className="font-title text-lg font-bold text-zinc-900">Vérification GoCardless en cours</h2>
+                <p className="mt-2 text-sm text-zinc-600">
+                  GoCardless examine les informations de votre compte. Vous serez averti dès que la vérification sera terminée.
+                </p>
               </div>
             )}
           </section>

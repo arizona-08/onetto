@@ -185,6 +185,12 @@ function MyCompanies() {
                             <TriangleAlert className="w-4 h-4 text-red-500"/>
                           </div>
                         ) }
+
+                        {(company?.companyPaymentAccount && company.companyPaymentAccount.verificationStatus === 'NOT_VERIFIED') && (
+                          <div title="Compte de paiment GoCardless non vérifié">
+                            <TriangleAlert className="w-4 h-4 text-orange-500"/>
+                          </div>
+                        )}
                       </div>
                       <p className="truncate text-sm text-zinc-500">{company.email}</p>
                       <p className="mt-1 text-sm text-zinc-500">{company.city}, {company.country}</p>

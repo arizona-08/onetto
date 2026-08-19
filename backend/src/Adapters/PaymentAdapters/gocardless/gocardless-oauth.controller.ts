@@ -15,15 +15,19 @@ export class GoCardlessOAuthController {
 
   @Get('callback')
   async callback(@Query('code') code: string, @Query('state') state: string, @Res() res: Response) {
-    await this.gocardlessOAuthService.connectCompanyWithGoCardless(code, state);
-    return res.redirect(`http://localhost:3000/my-companies/${state}`);
+    const companyId = await this.gocardlessOAuthService.connectCompanyWithGoCardless(code, state);
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+    return res.redirect(`${frontendUrl}/my-companies/${companyId}`);
   }
 
-  @Get('companyPaymentAccountId:verification-status')
+  @Get(':companyPaymentAccountId/verification-status')
   async verifyStatus(@Param('companyPaymentAccountId') companyPaymentAccountId: string, @Res() res: Response) {
-    const status = await this.gocardlessOAuthService.verifyCompanyPaymentAccountStatus(companyPaymentAccountId);
-    if(status === 'NOT_VERIFIED'){
+    const { companyId, status } = await this.gocardlessOAuthService.verifyCompanyPaymentAccountStatus(companyPaymentAccountId);
+    if (status === 'NOT_VERIFIED') {
       return res.redirect(this.gocardlessOAuthService.getOnBoardingFlowUrl());
     }
+
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+    return res.redirect(`${frontendUrl}/my-companies/${companyId}`);
   }
 }

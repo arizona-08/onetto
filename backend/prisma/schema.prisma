@@ -61,7 +61,7 @@ model Company {
 
   services CompanyService[]
   clients CompanyClient[]
-  companyPaymentAccounts CompanyPaymentAccount[]
+  companyPaymentAccount CompanyPaymentAccount?
   companyPaymentOAuthStates CompanyPaymentOAuthState[]
 }
 
@@ -72,7 +72,7 @@ enum CompanyStatus {
 
 model CompanyPaymentAccount {
   id String @id @default(uuid())
-  companyId String
+  companyId String @unique
   provider PaymentProvider
   providerAccountId String
   accessToken String
@@ -232,6 +232,7 @@ model InvoicePaymentLinkSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   expiresAt DateTime
+  provider PaymentProvider @default(BRIDGE)
 
   invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   invoicePaymentAttempts InvoicePaymentAttempt[]

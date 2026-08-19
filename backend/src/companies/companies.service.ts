@@ -37,6 +37,16 @@ export class CompaniesService {
           { companyUsers: { some: { userId } } },
         ],
       },
+      include: {
+        companyPaymentAccount: {
+          select: {
+            id: true,
+            companyId: true,
+            creditorId: true,
+            verificationStatus: true
+          }
+        }
+      }
     });
 
     if (!company) {
@@ -76,6 +86,14 @@ export class CompaniesService {
     const [ownedCompanies, companyUsers, user] = await Promise.all([
       this.prismaService.company.findMany({
         where: { ownerId: userId },
+        include: { companyPaymentAccount: {
+          select: {
+            id: true,
+            companyId: true,
+            creditorId: true,
+            verificationStatus: true
+          }
+        }},
         orderBy: { name: "asc" },
       }),
       this.prismaService.companyUser.findMany({
@@ -96,6 +114,7 @@ export class CompaniesService {
       companiesById.set(companyUser.companyId, {
         ...companyUser.company,
         isHidden: companyUser.isHidden,
+        companyPaymentAccount: ownedCompanies.find((c) => c.id === companyUser.companyId)?.companyPaymentAccount ?? null,
       });
     }
 
@@ -208,7 +227,18 @@ export class CompaniesService {
     try{
       const user = await this.prismaService.user.findUnique({
         where: { id: userId },
-        select: { lastConnectedCompany: true },
+        include: { lastConnectedCompany: {
+          include: {
+            companyPaymentAccount: {
+              select: {
+                id: true,
+                companyId: true,
+                creditorId: true,
+                verificationStatus: true
+              }
+            }
+          }
+        } },
       });
 
       if (!user?.lastConnectedCompany) {

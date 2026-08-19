@@ -23,4 +23,12 @@ export type Company = CreateCompanyDto & {
   closingReason?: string | null;
   closedAt?: string | null;
   isPaymentAccountConnected: boolean;
+  companyPaymentAccount?: {
+    id: string;
+    provider: 'GO_CARDLESS' | 'STRIPE' | 'PAYPAL';
+    providerAccountId: string;
+    // accessToken: string;
+    creditorId: string;
+    verificationStatus: 'NOT_VERIFIED' | 'VERIFIED' | 'IN_REVIEW';
+  } | null;
 }

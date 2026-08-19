@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, Injectable, InternalServerErrorException } from "@nestjs/common";
 import { BasePaymentProviderInterface } from "../Interfaces/PaymentProvider.interface";
 import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "src/prisma/prisma.service";
@@ -7,12 +7,14 @@ import { PaymentStatus } from "../PaymentStatus/PaymentStatus.types";
 import { BridgeCreatePaymentLinkInput } from "./input.types";
 import { BridgeWebhookTransactionStatus } from "./webhook-handlers/dtos/transaction.dto";
 import { $Enums } from "@prisma/client";
+import { CreatePaymentLinkInput } from "../Types/InputTypes/CreatePaymentLinkInput.types";
 
 type BridgeHeaders = {
   "Bridge-Version": string;
   "Client-Id": string;
   "Client-Secret": string;
 }
+
 
 @Injectable()
 export class BridgeProviderService implements BasePaymentProviderInterface {
@@ -21,14 +23,14 @@ export class BridgeProviderService implements BasePaymentProviderInterface {
   private bridgeVersion: string;
 
   constructor(
-    configService: ConfigService,
+    private readonly configService: ConfigService,
     private readonly prismaService: PrismaService
   ) {
-    this.baseUrl = configService.getOrThrow("BRIDGE_API_BASE_URL") || "https://api.bridgeapi.io./v3";
-    this.bridgeVersion = configService.getOrThrow("BRIDGE_API_VERSION") || "2025-01-15";
+    this.baseUrl = this.configService.getOrThrow("BRIDGE_API_BASE_URL") || "https://api.bridgeapi.io./v3";
+    this.bridgeVersion = this.configService.getOrThrow("BRIDGE_API_VERSION") || "2025-01-15";
     this.authCredentials = {
-      clientId: configService.getOrThrow("CLIENT_ID"),
-      clientSecret: configService.getOrThrow("CLIENT_SECRET")
+      clientId: this.configService.getOrThrow("CLIENT_ID"),
+      clientSecret: this.configService.getOrThrow("CLIENT_SECRET")
     };
   }
 
@@ -46,10 +48,53 @@ export class BridgeProviderService implements BasePaymentProviderInterface {
 
   // enregistrer le payment link en bdd
   async createPaymentLink(
-    input: BridgeCreatePaymentLinkInput,
-    paymentAccessToken: string,
+    input: CreatePaymentLinkInput,
+    paymentAccessToken: string
   ): Promise<PaymentLinkResponse> {
     try {
+
+      const invoice = await this.prismaService.document.findUnique({
+      where: {id: input.invoiceId},
+      include: {
+        company: {
+          select: {
+            id: true,
+            name: true,
+            IBAN: true,
+            email: true,
+          }
+        }
+      }
+    });
+
+    if(!invoice) {
+      throw new BadRequestException(`Invoice with ID ${input.invoiceId} not found`);
+    }
+
+    const callbackUrl = this.configService.getOrThrow("BRIDGE_WEBHOOK_CALLBACK_URL");
+
+    const bridgeDataInput: BridgeCreatePaymentLinkInput = {
+      user: {
+        company_name: invoice.clientName,
+        email: invoice.clientEmail,
+        external_reference: invoice.id,
+      },
+      client_reference: invoice.id,
+      expired_date: invoice.paymentDueAt.toISOString(),
+      transactions: [{
+        amount: input.amount,
+        currency: input.currency,
+        client_reference: invoice.id,
+        execution_date: invoice.paymentDueAt.toISOString(),
+        // beneficiary: {                 // À autoriser avec les dynamic beneficiaries
+        //   company_name: invoice.company.name,
+        //   iban: invoice.company.IBAN,
+        //   email: invoice.company.email,
+        // }
+      }],
+      callback_url: callbackUrl
+    }
+
       const response = await fetch(
         this.buildUrl("/payment/payment-links"),
         {
@@ -58,28 +103,28 @@ export class BridgeProviderService implements BasePaymentProviderInterface {
             "Content-Type": "application/json",
             ...this.getBridgeHeaders(),
           },
-          body: JSON.stringify(input),
+          body: JSON.stringify(bridgeDataInput),
         }
       );
 
       if(!response.ok) {
         const errorResponse = await response.json();
         console.error("Error response from Bridge API:", errorResponse);
-        console.error("beneficiary", input.transactions[0].beneficiary)
+        console.error("beneficiary", bridgeDataInput.transactions[0].beneficiary)
         throw new InternalServerErrorException("Erreur lors de la création du lien de paiement", errorResponse.message);
       }
 
-      const data = await response.json();
+      const responseData = await response.json();
 
       await this.prismaService.$transaction(async (prisma) => {
-        for (const transaction of input.transactions) {
+        for (const transaction of bridgeDataInput.transactions) {
           await prisma.invoicePaymentLinkSession.create({
             data: {
-              paymentLinkId: data.id,
-              paymentAccessToken,
+              paymentLinkId: responseData.id,
+              paymentAccessToken: paymentAccessToken,
               invoiceId: transaction.client_reference, // id de la facture
-              url: data.url,
-              expiresAt: new Date(input.expired_date),
+              url: responseData.url,
+              expiresAt: new Date(bridgeDataInput.expired_date),
               paymentStatus: 'PENDING',
             }
           });
@@ -87,8 +132,8 @@ export class BridgeProviderService implements BasePaymentProviderInterface {
       } )
 
       return {
-        paymentLinkId: data.id,
-        url: data.url
+        paymentLinkId: responseData.id,
+        url: responseData.url
       } as PaymentLinkResponse;
     } catch (error) {
       console.error("Error creating payment link:", error);
