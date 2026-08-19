@@ -11,6 +11,8 @@ import { InvoicePaymentFeeModule } from "src/payment-fee/invoice-payment-fee.mod
 import { GoCardlessOAuthController } from "./gocardless-oauth.controller";
 import { GoCardlessOAuthService } from "./gocardless-oauth.service";
 import { GoCardlessStatusMatcherService } from "./gocardless-status-matcher.service";
+import { GoCardlessInstalmentSchedulesWebhookHandler } from "./webhook-handlers/gocardless-instalment-schedules-webhook.handler";
+import { GoCardlessWebhookService } from "./gocardless-webhook.service";
 
 @Module({
   imports: [PrismaModule, MailModule, InvoicePaymentFeeModule],
@@ -19,8 +21,10 @@ import { GoCardlessStatusMatcherService } from "./gocardless-status-matcher.serv
     GoCardlessProviderService,
     GoCardlessMandateWebhookHandler,
     GoCardlessPaymentWebhookHandler,
+    GoCardlessInstalmentSchedulesWebhookHandler,
     GoCardlessPayoutWebhookHandler,
     GoCardlessSubscriptionWebhookHandler,
+    GoCardlessWebhookService,
     GoCardlessOAuthService,
     GoCardlessStatusMatcherService
   ],
