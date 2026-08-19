@@ -947,12 +947,13 @@ export class DocumentService {
   }
 
   private async createInvoicePaymentLink(
-    document: { id: string; totalPrice: number; clientName: string; clientEmail: string; paymentDueAt: Date },
+    document: { id: string; documentNumber: string | null; totalPrice: number; clientName: string; clientEmail: string; paymentDueAt: Date },
     company: { id: string; name: string; email: string; IBAN: string },
     user: User,
   ): Promise<string> {
     const paymentAccessToken = randomBytes(32).toString('hex');
     const paymentLinkData: CreatePaymentLinkInput = {
+      description: `Paiement de la facture ${document.documentNumber} pour ${document.clientName}`,
       invoiceId: document.id,
       amount: document.totalPrice,
       currency: 'EUR',

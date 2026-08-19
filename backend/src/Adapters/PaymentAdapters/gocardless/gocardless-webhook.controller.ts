@@ -1,12 +1,18 @@
-import { Controller, Post } from "@nestjs/common";
+import { Body, Controller, Post } from "@nestjs/common";
 
-@Controller("api/webhooks/gocardless")
+@Controller("api/gocardless/webhooks")
 export class GoCardlessWebhookController{
   constructor() {}
 
   @Post()
-  async handleWebhook(webhook: any): Promise<void> {
-    console.log("Received GoCardless webhook:", webhook);
+  async handleWebhook(@Body() webhook: any): Promise<void> {
+    console.log("Received GoCardless webhook / :", webhook);
+    // redirect to the correct webhook handle depending on the event type 'mandate' | 'payment' | 'payout' | 'subscription'
+  }
+
+  @Post('test')
+  async handleWebhookTest(@Body() webhook: any): Promise<void> {
+    console.log("Received GoCardless webhook test:", webhook.events);
     // redirect to the correct webhook handle depending on the event type 'mandate' | 'payment' | 'payout' | 'subscription'
   }
 }
