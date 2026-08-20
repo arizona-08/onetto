@@ -105,11 +105,17 @@ implements
     });
 
     const client = await this.gocardlessOAuthService.getClientForCompany(input.companyId);
-    const frontendUrl = this.configService.get<string>('GOCARDLESS_REDIRECT_URI') || "";
+
+    const redirectUri = this.configService.get<string>('GOCARDLESS_REDIRECT_URI') || "";
 
     const billingRequestFlow = await client.billingRequestFlows.create({
-      redirect_uri: `${frontendUrl}/payment/callback`,
-      exit_uri: `${frontendUrl}/payment/callback`,
+      redirect_uri: redirectUri,
+      exit_uri: redirectUri,
+      prefilled_customer: {
+        email: input.customer.email,
+        given_name: input.customer.firstName,
+        family_name: input.customer.lastName,
+      },
       links: {
         billing_request: billingRequestId
       }

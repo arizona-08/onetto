@@ -1,11 +1,13 @@
-import { Injectable } from "@nestjs/common";
-import { PrismaService } from "src/prisma/prisma.service";
-import { $Enums, InvoicePaymentLinkSession, Prisma } from "@prisma/client";
-import { MailService } from 'src/mail/mail.service';
-import { InvoicePaymentFeeService } from 'src/payment-fee/invoice-payment-fee.service';
-import { BridgeWebhookLinkStatus, BridgeWebhookTransactionStatus, WebhookTransactionDto } from "./dtos/transaction.dto";
-import { BridgeProviderService } from "../bridge-provider.service";
-import { BridgeStatusMatcherService } from "../bridge-status-matcher.service";
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { InvoicePaymentLinkSession } from '@prisma/client';
+import {
+  BridgeWebhookLinkStatus,
+  BridgeWebhookTransactionStatus,
+  WebhookTransactionDto,
+} from './dtos/transaction.dto';
+import { BridgeStatusMatcherService } from '../bridge-status-matcher.service';
+import { InvoicePaymentStatusService } from 'src/invoice-payments/invoice-payment-status.service';
 
 type GetPaymentSessionResult =
   | {
@@ -21,14 +23,12 @@ type GetPaymentSessionResult =
 export class BridgeWebhookHandler {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly mailService: MailService,
-    private readonly invoicePaymentFeeService: InvoicePaymentFeeService,
     private readonly bridgeStatusMatcherService: BridgeStatusMatcherService,
+    private readonly invoicePaymentStatusService: InvoicePaymentStatusService,
   ) {}
 
-
   async handleWebhook(webhook: WebhookTransactionDto) {
-    switch (webhook.type){
+    switch (webhook.type) {
       case 'payment.transaction.created':
       case 'TEST_EVENT':
         await this.handleTransactionCreated(webhook);
@@ -40,7 +40,7 @@ export class BridgeWebhookHandler {
         await this.handleLinkUpdated(webhook);
         break;
       default:
-        console.log("Received webhook:", webhook);
+        console.log('Received webhook:', webhook);
         break;
     }
   }
@@ -48,9 +48,11 @@ export class BridgeWebhookHandler {
   async handleTransactionCreated(webhook: WebhookTransactionDto) {
     try {
       const webhookContent = webhook.content;
-      console.log("webhookContent", webhookContent);
+      console.log('webhookContent', webhookContent);
 
-      const sessionResult = await this.getPaymentSession(webhookContent.payment_link_id);
+      const sessionResult = await this.getPaymentSession(
+        webhookContent.payment_link_id,
+      );
       if (!sessionResult.ok) {
         console.error(sessionResult.message);
         return;
@@ -61,13 +63,12 @@ export class BridgeWebhookHandler {
       await this.prismaService.invoicePaymentAttempt.create({
         data: {
           invoicePaymentLinkSessionId: session?.id,
-          paymentRequestId: webhookContent.payment_request_id,
-          paymentTransactionId: webhookContent.payment_transaction_id,
-        }
+          providerRequestId: webhookContent.payment_request_id,
+          providerPaymentId: webhookContent.payment_transaction_id,
+        },
       });
-
     } catch (error) {
-      console.error("Error handling transaction created webhook:", error);
+      console.error('Error handling transaction created webhook:', error);
       return;
     }
   }
@@ -75,9 +76,11 @@ export class BridgeWebhookHandler {
   async handleTransactionUpdated(webhook: WebhookTransactionDto) {
     try {
       const webhookContent = webhook.content;
-      console.log("webhook update fired", webhookContent);
+      console.log('webhook update fired', webhookContent);
 
-      const sessionResult = await this.getPaymentSession(webhookContent.payment_link_id);
+      const sessionResult = await this.getPaymentSession(
+        webhookContent.payment_link_id,
+      );
       if (!sessionResult.ok) {
         console.error(sessionResult.message);
         return;
@@ -85,96 +88,48 @@ export class BridgeWebhookHandler {
 
       const session = sessionResult.session;
 
-      const paidDocument = await this.prismaService.$transaction(async (prisma) => {
-        await prisma.invoicePaymentAttempt.upsert({
+      const mappedStatus =
+        this.bridgeStatusMatcherService.transactionAttemptStatusMatcher(
+          webhookContent.status as BridgeWebhookTransactionStatus,
+        );
+      const existingAttempt =
+        await this.prismaService.invoicePaymentAttempt.findUnique({
           where: {
-            paymentRequestId: webhookContent.payment_request_id,
-            paymentTransactionId: webhookContent.payment_transaction_id,
-          },
-          update: {
-            paymentTransactionStatus: this.bridgeStatusMatcherService.transactionAttemptStatusMatcher(webhookContent.status as BridgeWebhookTransactionStatus),
-            paymentTransactionErrorStatusReason: webhookContent.status_reason,
-          },
-          create: {
-            invoicePaymentLinkSessionId: session.id,
-            paymentRequestId: webhookContent.payment_request_id,
-            paymentTransactionId: webhookContent.payment_transaction_id,
-            paymentTransactionStatus: this.bridgeStatusMatcherService.transactionAttemptStatusMatcher(webhookContent.status as BridgeWebhookTransactionStatus),
-            paymentTransactionErrorStatusReason: webhookContent.status_reason,
-          }
-        })
-
-        const existingDocument = await prisma.document.findUnique({
-          where: {
-            id: session.invoiceId,
-          },
-          include: {
-            company: {
-              select: {
-                name: true,
-                email: true,
-              },
+            provider_providerPaymentId: {
+              provider: 'BRIDGE',
+              providerPaymentId: webhookContent.payment_transaction_id,
             },
           },
+          select: { paymentStatus: true },
         });
 
-        if(!existingDocument){
-          console.error(`Document with id ${session.invoiceId} not found.`);
-          return null;
-        }
-
-        const allDocumentSessionTransactionAttempts = await prisma.invoicePaymentAttempt.findMany({
-          where: {
-            invoicePaymentLinkSessionId: session.id,
+      await this.prismaService.invoicePaymentAttempt.upsert({
+        where: {
+          provider_providerPaymentId: {
+            provider: 'BRIDGE',
+            providerPaymentId: webhookContent.payment_transaction_id,
           },
+        },
+        update: {
+          paymentStatus: mappedStatus,
+          failureReason: webhookContent.status_reason,
+        },
+        create: {
+          invoicePaymentLinkSessionId: session.id,
+          providerRequestId: webhookContent.payment_request_id,
+          providerPaymentId: webhookContent.payment_transaction_id,
+          paymentStatus: mappedStatus,
+          failureReason: webhookContent.status_reason,
+        },
+      });
 
-          select: {
-            paymentTransactionStatus: true
-          }
-        });
-
-        if(existingDocument.invoiceStatus === 'PAID_MANUALLY'){
-          return;
-        }
-
-        if(allDocumentSessionTransactionAttempts.some(attempt => attempt.paymentTransactionStatus === 'SUCCESS')){
-          await this.prismaService.invoicePaymentLinkSession.update({
-            where: {
-              paymentLinkId: webhookContent.payment_link_id
-            },
-            data: {
-              paymentStatus: 'SUCCESS',
-            }
-          });
-
-          await this.markDocumentAs('PAID', existingDocument.id, prisma);
-          await this.invoicePaymentFeeService.createForPaidInvoice(
-            existingDocument.id,
-            existingDocument.companyId,
-            prisma,
-          );
-          return webhookContent.status === 'ACSC' && existingDocument.invoiceStatus !== 'PAID'
-            ? existingDocument
-            : null;
-        } else if(allDocumentSessionTransactionAttempts.every(attempt => attempt.paymentTransactionStatus === 'FAILED')){
-          await this.prismaService.invoicePaymentLinkSession.update({
-            where: {
-              paymentLinkId: webhookContent.payment_link_id
-            },
-            data: {
-              paymentStatus: 'FAILED',
-            }
-          });
-          await this.markDocumentAs('REJECTED', existingDocument.id, prisma);
-        }
-        return null;
-      })
-
-      if (paidDocument) {
-        await this.sendPaymentConfirmationEmail(paidDocument);
-      }
+      await this.invoicePaymentStatusService.refreshFromPaymentAttempt(
+        session.id,
+        mappedStatus === 'SUCCESS' &&
+          existingAttempt?.paymentStatus !== 'SUCCESS',
+      );
     } catch (error) {
-      console.error("Error handling transaction updated webhook:", error);
+      console.error('Error handling transaction updated webhook:', error);
       return;
     }
   }
@@ -185,66 +140,39 @@ export class BridgeWebhookHandler {
 
       await this.prismaService.invoicePaymentLinkSession.update({
         where: {
-          paymentLinkId: webhookContent.payment_link_id
+          paymentLinkId: webhookContent.payment_link_id,
         },
         data: {
-          linkStatus: this.bridgeStatusMatcherService.linkStatusMatcher(webhookContent.payment_link_status as BridgeWebhookLinkStatus) || 'VALID',
-        }
-      })
+          linkStatus:
+            this.bridgeStatusMatcherService.linkStatusMatcher(
+              webhookContent.payment_link_status as BridgeWebhookLinkStatus,
+            ) || 'VALID',
+        },
+      });
     } catch (error) {
-      console.error("Error handling link updated webhook:", error);
+      console.error('Error handling link updated webhook:', error);
       return;
     }
   }
 
-  async getPaymentSession(paymentLinkId: string): Promise<GetPaymentSessionResult> {
-    const session = await this.prismaService.invoicePaymentLinkSession.findUnique({
-      where: {
-        paymentLinkId: paymentLinkId,
-      },
-    });
+  async getPaymentSession(
+    paymentLinkId: string,
+  ): Promise<GetPaymentSessionResult> {
+    const session =
+      await this.prismaService.invoicePaymentLinkSession.findUnique({
+        where: {
+          paymentLinkId: paymentLinkId,
+        },
+      });
 
     if (!session) {
       console.error(`No session found for payment_link_id: ${paymentLinkId}`);
-      return {ok: false, message: `No session found for payment_link_id: ${paymentLinkId}`};
+      return {
+        ok: false,
+        message: `No session found for payment_link_id: ${paymentLinkId}`,
+      };
     }
 
-    return {ok: true, session: session};
-  }
-
-  async markDocumentAs(status: $Enums.InvoiceStatus, documentId: string, prisma: Prisma.TransactionClient) {
-    await prisma.document.update({
-      where: {
-        id: documentId
-      },
-      data: {
-        invoiceStatus: status,
-      }
-    })
-  }
-
-  private async sendPaymentConfirmationEmail(document: {
-    clientName: string;
-    clientEmail: string;
-    documentNumber: string | null;
-    totalPrice: number;
-    company: { name: string; email: string };
-  }) {
-    const mailContent = this.mailService.createPaymentConfirmationMail({
-      clientName: document.clientName,
-      documentNumber: document.documentNumber,
-      totalPrice: document.totalPrice,
-      companyName: document.company.name,
-      companyEmail: document.company.email,
-    });
-
-    try {
-      await this.mailService.sendMail({
-        to: document.clientEmail,
-        ...mailContent,
-      });
-    } catch (error) {
-      console.error('Unable to send payment confirmation email:', error);
-    }
+    return { ok: true, session: session };
   }
 }

@@ -193,6 +193,22 @@ export class GoCardlessOAuthService {
     }
   }
 
+  async getClientForProviderAccount(providerAccountId: string): Promise<GoCardlessClient> {
+    try {
+      const companyPaymentAccount = await this.prismaService.companyPaymentAccount.findFirst({
+        where: { providerAccountId, provider: 'GOCARDLESS' }
+      });
+
+      if (!companyPaymentAccount) {
+        throw new BadGatewayException(`No GoCardless account found for provider account ID ${providerAccountId}.`);
+      }
+
+      return this.createClient(companyPaymentAccount.accessToken);
+    } catch (error) {
+      throw new BadGatewayException(`Failed to get GoCardless client for provider account ID ${providerAccountId}: ${(error as Error).message}`);
+    }
+  }
+
   private createClient(accessToken: string): GoCardlessClient {
     const environment = this.configService.getOrThrow('ENVIRONMENT');
     const goCardlessEnvironment = environment === "development" ? Environments.Sandbox : Environments.Live

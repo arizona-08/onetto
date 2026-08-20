@@ -42,6 +42,14 @@ type PaymentConfirmationMailInput = {
   companyEmail: string;
 };
 
+type PaymentReceiptMailInput = {
+  clientName: string;
+  documentNumber: string | null;
+  amount: number;
+  companyName: string;
+  companyEmail: string;
+};
+
 const formatAmount = (amount: number) => `${amount.toFixed(2)} €`;
 const formatDate = (date: Date) => date.toLocaleDateString('fr-FR');
 
@@ -59,7 +67,9 @@ export class MailService {
     });
   }
 
-  createInvoiceMail(input: InvoiceMailInput): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+  createInvoiceMail(
+    input: InvoiceMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
     return {
       subject: `Votre facture ${input.documentNumber}`,
       text: this.createInvoiceText(input),
@@ -67,7 +77,9 @@ export class MailService {
     };
   }
 
-  createEstimateMail(input: EstimateMailInput): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+  createEstimateMail(
+    input: EstimateMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
     return {
       subject: `Votre devis ${input.documentNumber}`,
       text: this.createEstimateText(input),
@@ -75,7 +87,9 @@ export class MailService {
     };
   }
 
-  createInvoicePaymentRetryMail(input: InvoiceMailInput): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+  createInvoicePaymentRetryMail(
+    input: InvoiceMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
     return {
       subject: `Nouveau lien de paiement — facture ${input.documentNumber}`,
       text: this.createInvoicePaymentRetryText(input),
@@ -90,6 +104,22 @@ export class MailService {
       subject: `Paiement confirmé — facture ${input.documentNumber}`,
       text: this.createPaymentConfirmationText(input),
       html: this.createPaymentConfirmationTemplate(input),
+    };
+  }
+
+  createPaymentReceiptMail(
+    input: PaymentReceiptMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    return {
+      subject: `Règlement reçu — facture ${input.documentNumber}`,
+      text: [
+        `Bonjour ${input.clientName},`,
+        '',
+        `Nous confirmons la réception de votre règlement de ${formatAmount(input.amount)} pour la facture ${input.documentNumber}.`,
+        '',
+        'Merci pour votre paiement.',
+      ].join('\n'),
+      html: this.createPaymentReceiptTemplate(input),
     };
   }
 
@@ -138,7 +168,9 @@ export class MailService {
     ].join('\n');
   }
 
-  private createPaymentConfirmationText(input: PaymentConfirmationMailInput): string {
+  private createPaymentConfirmationText(
+    input: PaymentConfirmationMailInput,
+  ): string {
     return [
       `Bonjour ${input.clientName},`,
       '',
@@ -203,7 +235,9 @@ export class MailService {
     });
   }
 
-  private createPaymentConfirmationTemplate(input: PaymentConfirmationMailInput): string {
+  private createPaymentConfirmationTemplate(
+    input: PaymentConfirmationMailInput,
+  ): string {
     const details = this.createDetailsTable([
       ['Montant réglé', formatAmount(input.totalPrice)],
       ['Statut', 'Paiement confirmé'],
@@ -220,16 +254,44 @@ export class MailService {
     });
   }
 
+  private createPaymentReceiptTemplate(input: PaymentReceiptMailInput): string {
+    const details = this.createDetailsTable([
+      ['Montant reçu', formatAmount(input.amount)],
+      ['Statut', 'Règlement reçu'],
+    ]);
+
+    return this.createEmailLayout({
+      badge: 'RÈGLEMENT REÇU',
+      title: 'Votre règlement a bien été reçu',
+      greeting: `Bonjour ${input.clientName},`,
+      message: `Nous confirmons la réception de votre règlement pour la facture <strong>${input.documentNumber}</strong>.`,
+      details,
+      footer: `${input.companyName} · ${input.companyEmail}`,
+      note: 'Merci pour votre confiance.',
+    });
+  }
+
   private createDetailsTable(rows: Array<[string, string]>): string {
-    const cells = rows.map(([label, value], index) => {
-      const bottomPadding = index === rows.length - 1 ? '16px' : '0';
-      return `<tr><td style="padding:16px 16px ${bottomPadding};color:#71717a">${label}</td><td style="padding:16px 16px ${bottomPadding};text-align:right;font-weight:700;color:#635bff">${value}</td></tr>`;
-    }).join('');
+    const cells = rows
+      .map(([label, value], index) => {
+        const bottomPadding = index === rows.length - 1 ? '16px' : '0';
+        return `<tr><td style="padding:16px 16px ${bottomPadding};color:#71717a">${label}</td><td style="padding:16px 16px ${bottomPadding};text-align:right;font-weight:700;color:#635bff">${value}</td></tr>`;
+      })
+      .join('');
 
     return `<table role="presentation" style="width:100%;margin:24px 0;background:#fafafa;border-radius:10px">${cells}</table>`;
   }
 
-  private createEmailLayout({ badge, title, greeting, message, details, action, footer, note }: {
+  private createEmailLayout({
+    badge,
+    title,
+    greeting,
+    message,
+    details,
+    action,
+    footer,
+    note,
+  }: {
     badge: string;
     title: string;
     greeting: string;

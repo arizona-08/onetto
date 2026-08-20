@@ -244,6 +244,7 @@ enum InvoicePaymentLinkStatus {
   COMPLETED
   EXPIRED
   REVOKED
+  FAILED
 }
 
 enum InvoicePaymentStatus {
@@ -256,14 +257,16 @@ enum InvoicePaymentStatus {
 model InvoicePaymentAttempt {
   id String @id @default(uuid())
   invoicePaymentLinkSessionId String
-  paymentRequestId String?
-  paymentTransactionId String @unique
-  paymentTransactionStatus InvoicePaymentAttemptStatus?
-  paymentTransactionErrorStatusReason String?
+  provider PaymentProvider @default(GOCARDLESS)
+  providerRequestId String?
+  providerPaymentId String? 
+  paymentStatus InvoicePaymentAttemptStatus?
+  failureReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   invoicePaymentLinkSession InvoicePaymentLinkSession @relation(fields: [invoicePaymentLinkSessionId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerPaymentId])
 }
 
 enum InvoicePaymentAttemptStatus {
@@ -271,6 +274,15 @@ enum InvoicePaymentAttemptStatus {
   PAYMENT_IN_PROGRESS
   SUCCESS
   FAILED
+}
+
+model ProcessedWebhookEvents {
+  id String @id @default(uuid())
+  provider PaymentProvider
+  providerEventId String
+  processedAt DateTime @default(now())
+
+  @@unique([provider, providerEventId])
 }
 
 // Pour paiement en plusieurs échéances
