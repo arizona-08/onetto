@@ -31,6 +31,8 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       dueDate: dueDate.toISOString().split('T')[0]
     }
   })
+  const [paymentMode, setPaymentMode] = useState<'ONE_TIME' | 'INSTALMENTS'>('ONE_TIME');
+  const [numberOfInstalments, setNumberOfInstalments] = useState<2 | 3>(2);
 
   useEffect(() => {
     if(document) {
@@ -70,6 +72,12 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
 
   const isLineItemsEmpty = lineItems.length === 0;
   const isCreatingInvoice = mode === 'create' && documentType === 'INVOICE';
+  const totalPriceInCents = Math.round(
+    lineItems.reduce(
+      (total, item) => total + item.unitPrice * item.quantity * (1 + item.taxRate / 100),
+      0,
+    ) * 100,
+  );
   const isInCreationEstimate = mode === 'create'
     ? documentType === 'ESTIMATE'
     : document?.type === 'ESTIMATE';
@@ -137,7 +145,17 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
         type: documentType,
         client: clientData,
         lineItems,
-        documentDates
+        documentDates,
+        ...(isCreatingInvoice && {
+          paymentMode,
+          instalmentsDetails: paymentMode === 'INSTALMENTS'
+            ? {
+                frequency: 'MONTHLY' as const,
+                numberOfInstalments,
+                amountPerInstalmentInCents: Math.round(totalPriceInCents / numberOfInstalments),
+              }
+            : undefined,
+        }),
       });
     } else {
       response = await updateDraftDocument(document?.id as string, {
@@ -214,6 +232,12 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
           client={client}
           lineItems={lineItems}
           documentDates={documentDates}
+          showPaymentMode={isCreatingInvoice}
+          paymentMode={paymentMode}
+          numberOfInstalments={numberOfInstalments}
+          amountPerInstalmentInCents={Math.round(totalPriceInCents / numberOfInstalments)}
+          onPaymentModeChange={setPaymentMode}
+          onNumberOfInstalmentsChange={setNumberOfInstalments}
           lockInvoiceContent={isInvoiceContentLocked}
         />
       </fieldset>

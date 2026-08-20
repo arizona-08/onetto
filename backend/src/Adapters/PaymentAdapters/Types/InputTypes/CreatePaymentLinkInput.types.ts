@@ -9,4 +9,10 @@ export type CreatePaymentLinkInput = {
     lastName?: string;
     email: string;
   }
+  paymentMode: 'ONE_TIME' | 'INSTALMENTS';
+  instalments_details?: {
+    frequency: 'BIWEEKLY' | 'MONTHLY';
+    numberOfInstalments: number;
+    amountPerInstalmentInCents: number;
+  }
 }

@@ -13,76 +13,41 @@ export class InvoicePaymentStatusService {
   ) {}
 
   /**
-   * Recalcule le statut d'une facture après la mise à jour d'une tentative.
-   * Une échéance réglée déclenche un reçu ; la confirmation finale n'est envoyée
-   * que lorsque la facture entière est réglée.
+   * Recalcule le statut d'une facture après la mise à jour d'une tentative de
+   * paiement par virement. Un reçu est envoyé pour cette tentative réussie ; la
+   * confirmation finale n'est envoyée que lorsque la facture entière est réglée.
    */
   async refreshFromPaymentAttempt(
-    invoicePaymentLinkSessionId: string,
+    payByBankPaymentId: string,
     attemptBecameSuccessful: boolean,
   ): Promise<void> {
-    const session =
-      await this.prismaService.invoicePaymentLinkSession.findUnique({
-        where: { id: invoicePaymentLinkSessionId },
-        select: { invoiceId: true, invoicePaymentInstallmentId: true },
+    const payByBankPayment =
+      await this.prismaService.payByBankPayment.findUnique({
+        where: { id: payByBankPaymentId },
+        select: { invoiceId: true },
       });
 
-    if (!session) {
+    if (!payByBankPayment) {
       return;
     }
 
-    if (attemptBecameSuccessful && session.invoicePaymentInstallmentId) {
-      await this.prismaService.invoicePaymentInstallment.update({
-        where: { id: session.invoicePaymentInstallmentId },
-        data: { installmentStatus: 'SUCCESS', paidAt: new Date() },
-      });
-    }
-
     const document = await this.prismaService.document.findUnique({
-      where: { id: session.invoiceId },
-      include: {
-        company: { select: { name: true, email: true } },
-        invoicePaymentLinkSessions: {
-          include: {
-            invoicePaymentAttempts: { select: { paymentStatus: true } },
-            invoicePaymentInstallment: { select: { amountInCents: true } },
-          },
-        },
-        invoicePaymentPlan: {
-          include: {
-            invoicePaymentInstallments: {
-              include: {
-                invoicePaymentLinkSessions: {
-                  include: {
-                    invoicePaymentAttempts: { select: { paymentStatus: true } },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      where: { id: payByBankPayment.invoiceId },
+      select: { id: true, companyId: true, invoiceStatus: true },
     });
 
     if (!document || document.invoiceStatus === 'PAID_MANUALLY') {
       return;
     }
 
-    const paymentSession = document.invoicePaymentLinkSessions.find(
-      ({ id }) => id === invoicePaymentLinkSessionId,
-    );
-    if (paymentSession) {
-      await this.prismaService.invoicePaymentLinkSession.update({
-        where: { id: paymentSession.id },
-        data: {
-          paymentStatus: this.getPaymentSessionStatus(
-            paymentSession.invoicePaymentAttempts,
-          ),
-        },
-      });
-    }
+    const paymentStatus =
+      await this.getPayByBankPaymentStatus(payByBankPaymentId);
+    await this.prismaService.payByBankPayment.update({
+      where: { id: payByBankPaymentId },
+      data: { status: paymentStatus },
+    });
 
-    const nextStatus = this.getInvoiceStatus(document);
+    const nextStatus = await this.getInvoiceStatus(document.id);
     const justPaid = nextStatus === 'PAID' && document.invoiceStatus !== 'PAID';
 
     if (nextStatus !== document.invoiceStatus) {
@@ -101,69 +66,87 @@ export class InvoicePaymentStatusService {
     }
 
     if (attemptBecameSuccessful) {
-      await this.sendPaymentReceipt(document, invoicePaymentLinkSessionId);
+      await this.sendPaymentReceipt(document.id);
     }
 
     if (justPaid) {
-      await this.sendInvoicePaidConfirmation(document);
+      await this.sendInvoicePaidConfirmation(document.id);
     }
   }
 
-  private getInvoiceStatus(document: {
-    invoicePaymentLinkSessions: Array<{
-      invoicePaymentAttempts: Array<{
-        paymentStatus: $Enums.InvoicePaymentAttemptStatus | null;
-      }>;
-    }>;
-    invoicePaymentPlan: {
-      invoicePaymentInstallments: Array<{
-        invoicePaymentLinkSessions: Array<{
-          invoicePaymentAttempts: Array<{
-            paymentStatus: $Enums.InvoicePaymentAttemptStatus | null;
-          }>;
-        }>;
-      }>;
-    } | null;
-  }): $Enums.InvoiceStatus {
-    const attempts = document.invoicePaymentLinkSessions.flatMap(
-      (paymentSession) => paymentSession.invoicePaymentAttempts,
-    );
+  private async getInvoiceStatus(
+    documentId: string,
+  ): Promise<$Enums.InvoiceStatus> {
+    const document = await this.prismaService.document.findUniqueOrThrow({
+      where: { id: documentId },
+      select: {
+        payByBankPayments: {
+          select: { status: true },
+        },
+        invoiceInstalmentPlan: {
+          select: {
+            invoicePaymentInstalments: {
+              select: { instalmentStatus: true },
+            },
+          },
+        },
+      },
+    });
 
-    if (this.hasInstallmentPlan(document)) {
-      const everyInstallmentPaid =
-        document.invoicePaymentPlan!.invoicePaymentInstallments.every(
-          (installment) =>
-            installment.invoicePaymentLinkSessions.some((paymentSession) =>
-              paymentSession.invoicePaymentAttempts.some(
-                (attempt) => attempt.paymentStatus === 'SUCCESS',
-              ),
-            ),
-        );
+    const instalments =
+      document.invoiceInstalmentPlan?.invoicePaymentInstalments ?? [];
 
-      if (everyInstallmentPaid) {
+    if (instalments.length > 0) {
+      if (
+        instalments.every(
+          (instalment) => instalment.instalmentStatus === 'SUCCESS',
+        )
+      ) {
         return 'PAID';
       }
 
-      if (attempts.some((attempt) => attempt.paymentStatus === 'SUCCESS')) {
+      if (
+        instalments.some(
+          (instalment) => instalment.instalmentStatus === 'SUCCESS',
+        )
+      ) {
         return 'PARTIALLY_PAID';
       }
-    } else if (
-      attempts.some((attempt) => attempt.paymentStatus === 'SUCCESS')
-    ) {
+
+      if (
+        instalments.some(
+          (instalment) => instalment.instalmentStatus === 'PAYMENT_IN_PROGRESS',
+        )
+      ) {
+        return 'PAYMENT_IN_PROGRESS';
+      }
+
+      if (
+        instalments.every(
+          (instalment) => instalment.instalmentStatus === 'FAILED',
+        )
+      ) {
+        return 'REJECTED';
+      }
+
+      return 'PENDING';
+    }
+
+    const paymentStatuses = document.payByBankPayments.map(
+      (payment) => payment.status,
+    );
+
+    if (paymentStatuses.some((status) => status === 'SUCCESS')) {
       return 'PAID';
     }
 
-    if (
-      attempts.some(
-        (attempt) => attempt.paymentStatus === 'PAYMENT_IN_PROGRESS',
-      )
-    ) {
+    if (paymentStatuses.some((status) => status === 'PAYMENT_IN_PROGRESS')) {
       return 'PAYMENT_IN_PROGRESS';
     }
 
     if (
-      attempts.length > 0 &&
-      attempts.every((attempt) => attempt.paymentStatus === 'FAILED')
+      paymentStatuses.length > 0 &&
+      paymentStatuses.every((status) => status === 'FAILED')
     ) {
       return 'REJECTED';
     }
@@ -171,19 +154,19 @@ export class InvoicePaymentStatusService {
     return 'PENDING';
   }
 
-  private hasInstallmentPlan(document: {
-    invoicePaymentPlan: { invoicePaymentInstallments: unknown[] } | null;
-  }): boolean {
-    return (
-      (document.invoicePaymentPlan?.invoicePaymentInstallments.length ?? 0) > 0
+  private async getPayByBankPaymentStatus(
+    payByBankPaymentId: string,
+  ): Promise<$Enums.InvoicePaymentStatus> {
+    const payment = await this.prismaService.payByBankPayment.findUniqueOrThrow(
+      {
+        where: { id: payByBankPaymentId },
+        select: {
+          payByBankPaymentAttempts: { select: { paymentStatus: true } },
+        },
+      },
     );
-  }
+    const attempts = payment.payByBankPaymentAttempts;
 
-  private getPaymentSessionStatus(
-    attempts: Array<{
-      paymentStatus: $Enums.InvoicePaymentAttemptStatus | null;
-    }>,
-  ): $Enums.InvoicePaymentStatus {
     if (attempts.some((attempt) => attempt.paymentStatus === 'SUCCESS')) {
       return 'SUCCESS';
     }
@@ -206,30 +189,21 @@ export class InvoicePaymentStatusService {
     return 'PENDING';
   }
 
-  private async sendPaymentReceipt(
-    document: {
-      clientName: string;
-      clientEmail: string;
-      documentNumber: string | null;
-      totalPrice: number;
-      company: { name: string; email: string };
-      invoicePaymentLinkSessions: Array<{
-        id: string;
-        invoicePaymentInstallment: { amountInCents: number } | null;
-      }>;
-    },
-    sessionId: string,
-  ): Promise<void> {
-    const session = document.invoicePaymentLinkSessions.find(
-      ({ id }) => id === sessionId,
-    );
-    const amount = session?.invoicePaymentInstallment
-      ? session.invoicePaymentInstallment.amountInCents / 100
-      : document.totalPrice;
+  private async sendPaymentReceipt(documentId: string): Promise<void> {
+    const document = await this.prismaService.document.findUniqueOrThrow({
+      where: { id: documentId },
+      select: {
+        clientName: true,
+        clientEmail: true,
+        documentNumber: true,
+        totalPrice: true,
+        company: { select: { name: true, email: true } },
+      },
+    });
     const mailContent = this.mailService.createPaymentReceiptMail({
       clientName: document.clientName,
       documentNumber: document.documentNumber,
-      amount,
+      amount: document.totalPrice,
       companyName: document.company.name,
       companyEmail: document.company.email,
     });
@@ -241,13 +215,17 @@ export class InvoicePaymentStatusService {
     );
   }
 
-  private async sendInvoicePaidConfirmation(document: {
-    clientName: string;
-    clientEmail: string;
-    documentNumber: string | null;
-    totalPrice: number;
-    company: { name: string; email: string };
-  }): Promise<void> {
+  private async sendInvoicePaidConfirmation(documentId: string): Promise<void> {
+    const document = await this.prismaService.document.findUniqueOrThrow({
+      where: { id: documentId },
+      select: {
+        clientName: true,
+        clientEmail: true,
+        documentNumber: true,
+        totalPrice: true,
+        company: { select: { name: true, email: true } },
+      },
+    });
     const mailContent = this.mailService.createPaymentConfirmationMail({
       clientName: document.clientName,
       documentNumber: document.documentNumber,

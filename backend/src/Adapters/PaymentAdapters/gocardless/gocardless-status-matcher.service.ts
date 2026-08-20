@@ -27,9 +27,9 @@ export class GoCardlessStatusMatcherService {
       case "pending_customer_approval":
         return "PENDING"
       case "submitted":
-      case "paid_out":
         return "PAYMENT_IN_PROGRESS"
       case "confirmed":
+      case "paid_out":
         return "SUCCESS"
       case "failed":
       case "cancelled":
@@ -39,7 +39,7 @@ export class GoCardlessStatusMatcherService {
     }
   }
 
-  matchLinkSessionStatus(status: string): $Enums.InvoicePaymentLinkStatus {
+  matchLinkStatus(status: string): $Enums.InvoicePaymentLinkStatus {
     switch (status) {
       case "pending":
       case "ready_to_fullfill":
@@ -49,6 +49,13 @@ export class GoCardlessStatusMatcherService {
         return "COMPLETED"
       default:
         return "FAILED"
+    }
+  }
+
+  matchSessionStatus(status: string): $Enums.InvoicePaymentStatus {
+    switch (status) {
+      default:
+        return "PENDING"
     }
   }
 }

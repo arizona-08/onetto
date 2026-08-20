@@ -116,20 +116,21 @@ export class BridgeProviderService implements BasePaymentProviderInterface {
 
       const responseData = await response.json();
 
-      await this.prismaService.$transaction(async (prisma) => {
-        for (const transaction of bridgeDataInput.transactions) {
-          await prisma.invoicePaymentLinkSession.create({
-            data: {
-              paymentLinkId: responseData.id,
-              paymentAccessToken: paymentAccessToken,
-              invoiceId: transaction.client_reference, // id de la facture
-              url: responseData.url,
-              expiresAt: new Date(bridgeDataInput.expired_date),
-              paymentStatus: 'PENDING',
-            }
-          });
-        }
-      } )
+      // gérer Bridge
+      
+      // await this.prismaService.$transaction(async (prisma) => {
+      //   for (const transaction of bridgeDataInput.transactions) {
+      //     await prisma.payByBankPayment.create({
+      //       data: {
+      //         invoicePaymentLinkId: responseData.id,
+      //         invoiceId: transaction.client_reference, // id de la facture
+      //         url: responseData.url,
+      //         expiresAt: new Date(bridgeDataInput.expired_date),
+      //         paymentStatus: 'PENDING',
+      //       }
+      //     });
+      //   }
+      // } )
 
       return {
         paymentLinkId: responseData.id,

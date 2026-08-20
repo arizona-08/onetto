@@ -147,9 +147,12 @@ model Document {
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
   services DocumentService[]
   negociations EstimateNegociation[]
-  invoicePaymentLinkSessions InvoicePaymentLinkSession[] // peut en créer plusieurs pour un même document, mais seulement un actif à la fois
-  invoicePaymentPlan InvoicePaymentPlan?
+  invoicePaymentLinks InvoicePaymentLink[]
+  payByBankPayments PayByBankPayment[]
+  invoiceInstalmentPlan InvoiceInstalmentPlan?
   invoicePaymentFee InvoicePaymentFee?
+  invoicePaymentMode InvoicePaymentMode?
+  invoicePublicAccess InvoicePublicAccess?
 }
 
 enum DocumentType {
@@ -195,6 +198,28 @@ enum EstimateNegociationStatus {
   REJECTED
 }
 
+// doit générer un InvoiceInstalmentPlan si INSTALMENTS
+model InvoicePaymentMode {
+  id String @id @default(uuid())
+  invoiceId String @unique
+  paymentMode PaymentMode @default(ONE_TIME)
+  paymentModeFrequency PaymentModeFrequency?
+  numberOfInstalments Int?
+  amountPerInstalmentInCents Int?
+
+  invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+enum PaymentMode {
+  ONE_TIME
+  INSTALMENTS
+}
+
+enum PaymentModeFrequency {
+  BIWEEKLY
+  MONTHLY
+}
+
 model InvoicePaymentFee {
   id String @id @default(uuid())
   documentId String @unique
@@ -220,23 +245,35 @@ enum PaymentProvider {
   GOCARDLESS
 }
 
-model InvoicePaymentLinkSession {
+model InvoicePublicAccess {
   id String @id @default(uuid())
-  invoiceId String
-  paymentLinkId String @unique
-  paymentAccessToken String @unique
-  linkStatus InvoicePaymentLinkStatus?
-  paymentStatus InvoicePaymentStatus
-  url String
-  invoicePaymentInstallmentId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  invoiceId String @unique
+
+  invoicePaymentLinkId String @unique
+  invoicePaymentLink InvoicePaymentLink @relation(fields: [invoicePaymentLinkId], references: [id], onDelete: Cascade)
+
+  accessToken String @unique
   expiresAt DateTime
-  provider PaymentProvider @default(BRIDGE)
 
   invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  invoicePaymentAttempts InvoicePaymentAttempt[]
-  invoicePaymentInstallment InvoicePaymentInstallment? @relation(fields: [invoicePaymentInstallmentId], references: [id], onDelete: Cascade)
+}
+
+model InvoicePaymentLink {
+  id String @id @default(uuid())
+
+  invoiceId String
+  invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  url String
+  
+  provider PaymentProvider @default(BRIDGE)
+  providerReference String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  linkStatus InvoicePaymentLinkStatus? @default(VALID)
+  publicAccess InvoicePublicAccess?
+  payByBankPayments PayByBankPayment[]
 }
 
 enum InvoicePaymentLinkStatus {
@@ -246,6 +283,25 @@ enum InvoicePaymentLinkStatus {
   REVOKED
   FAILED
 }
+model PayByBankPayment {
+  id String @id @default(uuid())
+
+  invoiceId String
+  invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  invoicePaymentLinkId String?
+  invoicePaymentLink InvoicePaymentLink? @relation(fields: [invoicePaymentLinkId], references: [id], onDelete: Cascade)
+
+  amountInCents Int // Bridge l'attend en euros, mais on stocke en centimes pour éviter les problèmes d'arrondi
+  provider PaymentProvider @default(BRIDGE)
+  providerReference String @unique
+  status InvoicePaymentStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  payByBankPaymentAttempts PayByBankPaymentAttempt[]
+}
+
 
 enum InvoicePaymentStatus {
   PENDING
@@ -254,19 +310,20 @@ enum InvoicePaymentStatus {
   FAILED
 }
 
-model InvoicePaymentAttempt {
+model PayByBankPaymentAttempt {
   id String @id @default(uuid())
-  invoicePaymentLinkSessionId String
-  provider PaymentProvider @default(GOCARDLESS)
-  providerRequestId String?
-  providerPaymentId String? 
-  paymentStatus InvoicePaymentAttemptStatus?
+
+  payByBankPaymentId String
+  payByBankPayment PayByBankPayment @relation(fields: [payByBankPaymentId], references: [id], onDelete: Cascade)
+
+  providerReference String @unique
+  providerPaymentId String
+  paymentStatus InvoicePaymentAttemptStatus? @default(PENDING)
   failureReason String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  invoicePaymentLinkSession InvoicePaymentLinkSession @relation(fields: [invoicePaymentLinkSessionId], references: [id], onDelete: Cascade)
-  @@unique([provider, providerPaymentId])
+  @@unique([providerReference, providerPaymentId])
 }
 
 enum InvoicePaymentAttemptStatus {
@@ -286,32 +343,35 @@ model ProcessedWebhookEvents {
 }
 
 // Pour paiement en plusieurs échéances
-model InvoicePaymentPlan {
+model InvoiceInstalmentPlan {
   id String @id @default(uuid())
   invoiceId String @unique
   totalAmountInCents Int
-  numberOfInstallments Int
-  amountPerInstallmentInCents Int
+  numberOfInstalments Int
+  amountPerInstalmentInCents Int
+  providerScheduledId String?
+  providerMandateId String?
   isCompleted Boolean @default(false)
 
   invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  invoicePaymentInstallments InvoicePaymentInstallment[]
+  invoicePaymentInstalments InvoicePaymentInstalment[]
 }
 
-model InvoicePaymentInstallment {
+model InvoicePaymentInstalment {
   id String @id @default(uuid())
-  invoicePaymentPlanId String
-  installmentNumber Int
+
+  invoiceInstalmentPlanId String
+  invoiceInstalmentPlan InvoiceInstalmentPlan @relation(fields: [invoiceInstalmentPlanId], references: [id], onDelete: Cascade)
+  providerPaymentId String? @unique
+  instalmentNumber Int
   amountInCents Int
   dueDate DateTime
-  installmentStatus InvoicePaymentInstallmentStatus @default(PENDING)
+  instalmentStatus InvoicePaymentInstalmentStatus @default(PENDING)
   paidAt DateTime?
 
-  invoicePaymentPlan InvoicePaymentPlan @relation(fields: [invoicePaymentPlanId], references: [id], onDelete: Cascade)
-  invoicePaymentLinkSessions InvoicePaymentLinkSession[] // peut en créer plusieurs pour un même échéancier, mais seulement un actif à la fois
 }
 
-enum InvoicePaymentInstallmentStatus {
+enum InvoicePaymentInstalmentStatus {
   PENDING
   PAYMENT_IN_PROGRESS
   SUCCESS

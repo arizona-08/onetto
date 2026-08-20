@@ -27,21 +27,18 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       );
     }
 
-    const paymentSession =
-      await this.prismaService.invoicePaymentLinkSession.findUnique({
-        where: { paymentLinkId: billingRequestId },
+    const payByBankPayment =
+      await this.prismaService.payByBankPayment.findUnique({
+        where: { providerReference: billingRequestId },
         select: { id: true },
       });
-    if (!paymentSession) {
+    if (!payByBankPayment) {
       throw new InternalServerErrorException(
-        `Aucune session de paiement trouvée pour le billing request ${billingRequestId}`,
+        `Aucun paiement trouvé pour le billing request ${billingRequestId}`,
       );
     }
 
-    const client =
-      await this.gocardlessOAuthService.getClientForProviderAccount(
-        webhookEvent.organisation_id,
-      );
+    const client = await this.gocardlessOAuthService.getClientForProviderAccount(webhookEvent.organisation_id,);
     const payment = await client.payments.find(webhookEvent.links.payment);
     if (!payment) {
       throw new InternalServerErrorException(
@@ -49,9 +46,9 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       );
     }
 
-    await this.syncPaymentStatus(
-      paymentSession.id,
-      webhookEvent.links.payment_request,
+    await this.syncPaymentAttemptStatus(
+      billingRequestId,
+      payByBankPayment.id,
       payment.id as string,
       payment.status as string,
     );
@@ -63,9 +60,9 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
     return relevantActions.includes(action);
   }
 
-  async syncPaymentStatus(
-    paymentLinkSessionId: string,
-    paymentRequestId: string,
+  async syncPaymentAttemptStatus(
+    billingRequestId: string,
+    payByBankPaymentId: string,
     paymentId: string,
     paymentStatus: string,
   ): Promise<void> {
@@ -76,12 +73,12 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       );
 
     const existingPaymentAttempt =
-      await this.prismaService.invoicePaymentAttempt.findUnique({
+      await this.prismaService.payByBankPaymentAttempt.findUnique({
         where: {
-          provider_providerPaymentId: {
-            provider: 'GOCARDLESS',
-            providerPaymentId: paymentId,
-          },
+          providerReference_providerPaymentId: {
+            providerReference: billingRequestId,
+            providerPaymentId: paymentId
+          }
         },
       });
 
@@ -104,27 +101,26 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
     }
 
     const paymentAttempt =
-      await this.prismaService.invoicePaymentAttempt.upsert({
+      await this.prismaService.payByBankPaymentAttempt.upsert({
         where: {
-          provider_providerPaymentId: {
-            provider: 'GOCARDLESS',
-            providerPaymentId: paymentId,
+          providerReference_providerPaymentId: {
+            providerReference: billingRequestId,
+            providerPaymentId: paymentId
           },
         },
         update: {
           paymentStatus: mappedStatus,
         },
         create: {
-          invoicePaymentLinkSessionId: paymentLinkSessionId,
-          provider: 'GOCARDLESS',
-          providerRequestId: paymentRequestId,
+          payByBankPaymentId: payByBankPaymentId,
+          providerReference: billingRequestId,
           providerPaymentId: paymentId,
           paymentStatus: mappedStatus,
         },
       });
 
     await this.invoicePaymentStatusService.refreshFromPaymentAttempt(
-      paymentAttempt.invoicePaymentLinkSessionId,
+      paymentAttempt.payByBankPaymentId,
       mappedStatus === 'SUCCESS',
     );
   }

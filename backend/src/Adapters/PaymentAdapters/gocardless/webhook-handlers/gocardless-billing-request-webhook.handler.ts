@@ -26,15 +26,12 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       );
     }
 
-    if (webhook.action === 'bank_authorisation_failed') {
+    if (webhook.action === 'bank_authorisation_failed' || webhook.action === 'bank_authorisation_denied') {
       await this.markPaymentAsFailed(billingRequestId, webhook);
       return;
     }
 
-    const client =
-      await this.gocardlessOAuthService.getClientForProviderAccount(
-        webhook.organisation_id,
-      );
+    const client = await this.gocardlessOAuthService.getClientForProviderAccount(webhook.organisation_id);
     const billingRequest = await client.billingRequests.find(billingRequestId);
     if (!billingRequest) {
       throw new Error(
@@ -42,12 +39,9 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       );
     }
 
-    const mappedStatus =
-      this.gocardlessStatusMatcherService.matchLinkSessionStatus(
-        billingRequest.status as string,
-      );
+    const mappedStatus = this.gocardlessStatusMatcherService.matchLinkStatus(billingRequest.status as string,);
 
-    await this.syncBillingRequestStatus(billingRequestId, mappedStatus);
+    await this.syncLinkStatus(billingRequestId, mappedStatus);
   }
 
   isRelevantAction(action: string): boolean {
@@ -59,20 +53,27 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
     return relevantActions.includes(action);
   }
 
-  async syncBillingRequestStatus(
+  async syncPayByBankPaymentStatus(
+    providerReference: string,
+    providerStatus: $Enums.InvoicePaymentStatus
+  ){
+
+  }
+
+  async syncLinkStatus(
     billingRequestId: string,
     billingRequestStatus: $Enums.InvoicePaymentLinkStatus,
   ): Promise<void> {
-    const invoicePaymentLinkSession =
-      await this.prismaService.invoicePaymentLinkSession.findUnique({
+    const invoicePaymentLink =
+      await this.prismaService.invoicePaymentLink.findUnique({
         where: {
-          paymentLinkId: billingRequestId,
+          providerReference: billingRequestId,
         },
       });
 
-    if (!invoicePaymentLinkSession) {
+    if (!invoicePaymentLink) {
       throw new Error(
-        `No invoice payment link session found for billing request ID ${billingRequestId}`,
+        `No invoice payment link found for billing request ID ${billingRequestId}`,
       );
     }
 
@@ -83,7 +84,7 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       },
     });
 
-    const existingStatus = invoicePaymentLinkSession.linkStatus;
+    const existingStatus = invoicePaymentLink.linkStatus;
 
     if (existingStatus === billingRequestStatus) {
       console.log(
@@ -105,9 +106,9 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       return;
     }
 
-    await this.prismaService.invoicePaymentLinkSession.update({
+    await this.prismaService.invoicePaymentLink.update({
       where: {
-        id: invoicePaymentLinkSession.id,
+        id: invoicePaymentLink.id,
       },
       data: {
         linkStatus: billingRequestStatus,
@@ -123,11 +124,11 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
     billingRequestId: string,
     webhook: GoCardlessEventDto,
   ): Promise<void> {
-    const session =
-      await this.prismaService.invoicePaymentLinkSession.findUnique({
-        where: { paymentLinkId: billingRequestId },
+    const payByBankPayment =
+      await this.prismaService.payByBankPayment.findUnique({
+        where: { providerReference: billingRequestId },
         include: {
-          invoicePaymentAttempts: {
+          payByBankPaymentAttempts: {
             orderBy: { createdAt: 'desc' },
             take: 1,
             select: { id: true },
@@ -135,9 +136,9 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
         },
       });
 
-    if (!session) {
+    if (!payByBankPayment) {
       throw new Error(
-        `No invoice payment link session found for billing request ID ${billingRequestId}`,
+        `No payment found for billing request ID ${billingRequestId}`,
       );
     }
 
@@ -147,17 +148,16 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
         : 'Bank authorisation failed';
 
     await this.prismaService.$transaction(async (prisma) => {
-      await prisma.invoicePaymentLinkSession.update({
-        where: { id: session.id },
+      await prisma.payByBankPayment.update({
+        where: { id: payByBankPayment.id },
         data: {
-          linkStatus: 'FAILED',
-          paymentStatus: 'FAILED',
+          status: 'FAILED',
         },
       });
 
-      const latestAttempt = session.invoicePaymentAttempts[0];
+      const latestAttempt = payByBankPayment.payByBankPaymentAttempts[0];
       if (latestAttempt) {
-        await prisma.invoicePaymentAttempt.update({
+        await prisma.payByBankPaymentAttempt.update({
           where: { id: latestAttempt.id },
           data: {
             paymentStatus: 'FAILED',

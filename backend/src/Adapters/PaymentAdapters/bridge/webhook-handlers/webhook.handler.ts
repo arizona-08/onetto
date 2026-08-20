@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { InvoicePaymentLinkSession } from '@prisma/client';
+
 import {
   BridgeWebhookLinkStatus,
   BridgeWebhookTransactionStatus,
@@ -8,11 +8,12 @@ import {
 } from './dtos/transaction.dto';
 import { BridgeStatusMatcherService } from '../bridge-status-matcher.service';
 import { InvoicePaymentStatusService } from 'src/invoice-payments/invoice-payment-status.service';
+import { PayByBankPayment } from '@prisma/client';
 
-type GetPaymentSessionResult =
+type GetPayByBankPaymentResult =
   | {
       ok: true;
-      session: InvoicePaymentLinkSession;
+      payByBankPayment: PayByBankPayment;
     }
   | {
       ok: false;
@@ -50,21 +51,21 @@ export class BridgeWebhookHandler {
       const webhookContent = webhook.content;
       console.log('webhookContent', webhookContent);
 
-      const sessionResult = await this.getPaymentSession(
+      const payByBankResult = await this.getPayByBankPayment(
         webhookContent.payment_link_id,
       );
-      if (!sessionResult.ok) {
-        console.error(sessionResult.message);
+      if (!payByBankResult.ok) {
+        console.error(payByBankResult.message);
         return;
       }
 
-      const session = sessionResult.session;
+      const payByBankPayment = payByBankResult.payByBankPayment;
 
-      await this.prismaService.invoicePaymentAttempt.create({
+      await this.prismaService.payByBankPaymentAttempt.create({
         data: {
-          invoicePaymentLinkSessionId: session?.id,
-          providerRequestId: webhookContent.payment_request_id,
-          providerPaymentId: webhookContent.payment_transaction_id,
+          providerReference: webhookContent.payment_transaction_id,
+          providerPaymentId: webhookContent.payment_request_id,
+          payByBankPaymentId: payByBankPayment.id,
         },
       });
     } catch (error) {
@@ -78,36 +79,36 @@ export class BridgeWebhookHandler {
       const webhookContent = webhook.content;
       console.log('webhook update fired', webhookContent);
 
-      const sessionResult = await this.getPaymentSession(
+      const payByBankPaymentResult = await this.getPayByBankPayment(
         webhookContent.payment_link_id,
       );
-      if (!sessionResult.ok) {
-        console.error(sessionResult.message);
+      if (!payByBankPaymentResult.ok) {
+        console.error(payByBankPaymentResult.message);
         return;
       }
 
-      const session = sessionResult.session;
+      const payByBankPayment = payByBankPaymentResult.payByBankPayment;
 
       const mappedStatus =
         this.bridgeStatusMatcherService.transactionAttemptStatusMatcher(
           webhookContent.status as BridgeWebhookTransactionStatus,
         );
       const existingAttempt =
-        await this.prismaService.invoicePaymentAttempt.findUnique({
+        await this.prismaService.payByBankPaymentAttempt.findUnique({
           where: {
-            provider_providerPaymentId: {
-              provider: 'BRIDGE',
-              providerPaymentId: webhookContent.payment_transaction_id,
-            },
+            providerReference_providerPaymentId: {
+              providerReference: webhookContent.payment_transaction_id,
+              providerPaymentId: webhookContent.payment_request_id,
+            }
           },
           select: { paymentStatus: true },
         });
 
-      await this.prismaService.invoicePaymentAttempt.upsert({
+      await this.prismaService.payByBankPaymentAttempt.upsert({
         where: {
-          provider_providerPaymentId: {
-            provider: 'BRIDGE',
-            providerPaymentId: webhookContent.payment_transaction_id,
+          providerReference_providerPaymentId: {
+            providerReference: webhookContent.payment_transaction_id,
+            providerPaymentId: webhookContent.payment_request_id,
           },
         },
         update: {
@@ -115,16 +116,16 @@ export class BridgeWebhookHandler {
           failureReason: webhookContent.status_reason,
         },
         create: {
-          invoicePaymentLinkSessionId: session.id,
-          providerRequestId: webhookContent.payment_request_id,
-          providerPaymentId: webhookContent.payment_transaction_id,
+          payByBankPaymentId: payByBankPayment.id,
+          providerReference: webhookContent.payment_transaction_id,
+          providerPaymentId: webhookContent.payment_request_id,
           paymentStatus: mappedStatus,
           failureReason: webhookContent.status_reason,
         },
       });
 
       await this.invoicePaymentStatusService.refreshFromPaymentAttempt(
-        session.id,
+        payByBankPayment.id,
         mappedStatus === 'SUCCESS' &&
           existingAttempt?.paymentStatus !== 'SUCCESS',
       );
@@ -138,9 +139,9 @@ export class BridgeWebhookHandler {
     try {
       const webhookContent = webhook.content;
 
-      await this.prismaService.invoicePaymentLinkSession.update({
+      await this.prismaService.invoicePaymentLink.update({
         where: {
-          paymentLinkId: webhookContent.payment_link_id,
+          id: webhookContent.payment_link_id,
         },
         data: {
           linkStatus:
@@ -155,24 +156,24 @@ export class BridgeWebhookHandler {
     }
   }
 
-  async getPaymentSession(
+  async getPayByBankPayment(
     paymentLinkId: string,
-  ): Promise<GetPaymentSessionResult> {
-    const session =
-      await this.prismaService.invoicePaymentLinkSession.findUnique({
+  ): Promise<GetPayByBankPaymentResult> {
+    const payByBankPayment =
+      await this.prismaService.payByBankPayment.findUnique({
         where: {
-          paymentLinkId: paymentLinkId,
+          providerReference: paymentLinkId,
         },
       });
 
-    if (!session) {
-      console.error(`No session found for payment_link_id: ${paymentLinkId}`);
+    if (!payByBankPayment) {
+      console.error(`No payByBankPayment found for payment_link_id: ${paymentLinkId}`);
       return {
         ok: false,
-        message: `No session found for payment_link_id: ${paymentLinkId}`,
+        message: `No payByBankPayment found for payment_link_id: ${paymentLinkId}`,
       };
     }
 
-    return { ok: true, session: session };
+    return { ok: true, payByBankPayment: payByBankPayment };
   }
 }
