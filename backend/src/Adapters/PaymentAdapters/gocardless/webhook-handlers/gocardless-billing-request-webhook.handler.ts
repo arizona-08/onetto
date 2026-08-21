@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { WebhookHandlerInterface } from '../../Interfaces/WebhookHandler.interface';
 import { GoCardlessEventDto } from './dtos/event.dto';
 import { GoCardlessStatusMatcherService } from '../gocardless-status-matcher.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { GoCardlessOAuthService } from '../gocardless-oauth.service';
 import { $Enums } from '@prisma/client';
+import { GoCardlessClient } from 'gocardless-nodejs';
 
 @Injectable()
 export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInterface {
@@ -39,6 +40,33 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       );
     }
 
+    const existingInstalmentPlan = await this.prismaService.invoiceInstalmentPlan.findUnique({
+      where: {
+        providerReference: billingRequestId,
+      },
+      include: {
+        invoice: {
+          select: {
+            id: true,
+            documentNumber: true,
+            totalPrice: true,
+            invoicePaymentMode: {
+              select: {
+                paymentModeFrequency: true
+              }
+            }
+          }
+        },
+      }
+    });
+
+    if(existingInstalmentPlan){
+      if(billingRequest.status === 'fulfilled'){
+
+      }
+      return;
+    }
+
     const mappedStatus = this.gocardlessStatusMatcherService.matchLinkStatus(billingRequest.status as string,);
 
     await this.syncLinkStatus(billingRequestId, mappedStatus);
@@ -51,6 +79,102 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       'fulfilled',
     ];
     return relevantActions.includes(action);
+  }
+
+  async createInstalmentSchedule(input: {
+    name: string;
+    totalAmountInCents: number;
+    startDate: string;
+    intervalUnit: $Enums.PaymentModeFrequency;
+    interval: number;
+    numberOfInstalments: number,
+    amountPerInstalmentInCents: number;
+    mandateId: string;
+  } ,
+    billingRequestId: string,
+    client: GoCardlessClient){
+    try{
+      const amounts = Array(input.numberOfInstalments).fill(input.amountPerInstalmentInCents);
+      const payload = {
+        name: input.name,
+        currency: "EUR" as "EUR",
+        total_amount: input.totalAmountInCents.toString(),
+        instalments: {
+          start_date: input.startDate,
+          interval_unit: input.intervalUnit.toLocaleLowerCase() as "weekly" | "monthly" | "yearly",
+          interval: input.interval,
+          amounts: amounts
+        },
+        links: {
+          mandate: input.mandateId
+        }
+      }
+
+      const createdSchedule = await client.instalmentSchedules.createWithSchedule(payload);
+      if(!createdSchedule){
+        throw new InternalServerErrorException("Failed to create instalment schedule with GoCardless");
+      }
+
+      await this.updateCreatedInstalmentPlan(
+        billingRequestId,
+        createdSchedule.id as string,
+        input.mandateId,
+        createdSchedule.links?.payments as string[]
+      )
+    } catch (error) {
+      console.error("Erreur lors de la création du instalment schedule", error);
+      throw error;
+    }
+  }
+
+  async updateCreatedInstalmentPlan(billingRequestId: string, providerScheduledId: string, providerMandateId: string, payments: string[]){
+    try{
+      const existingInstalmentPlan = await this.prismaService.invoiceInstalmentPlan.findUnique({
+        where: {
+          providerReference: billingRequestId,
+        },
+        select: {
+          id: true,
+          providerReference: true,
+        }
+      });
+
+      if(!existingInstalmentPlan){
+        throw new Error(`No instalment plan found for billing request ID ${billingRequestId}`);
+      }
+
+      const updateInstalmentPlan =await this.prismaService.invoiceInstalmentPlan.update({
+        where: {
+          id: existingInstalmentPlan.id,
+        },
+        data: {
+          providerScheduledId,
+          providerMandateId
+        }
+      });
+
+      await this.prismaService.$transaction(async (prisma) => {
+        for(let i = 0; i < payments.length; i++){
+          const paymentNumber = i + 1;
+
+          await prisma.invoicePaymentInstalment.update({
+            where: {
+              invoiceInstalmentPlanId_instalmentNumber: {
+                invoiceInstalmentPlanId: updateInstalmentPlan.id,
+                instalmentNumber: paymentNumber
+              }
+            },
+            data: {
+              providerPaymentId: payments[i]
+            }
+          })
+        }
+      })
+
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour du instalment plan", error);
+      throw error;
+    }
   }
 
   async syncPayByBankPaymentStatus(

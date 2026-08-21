@@ -1,3 +1,5 @@
+import { $Enums } from "@prisma/client";
+
 export type CreatePaymentLinkInput = {
   description?: string;
   companyId: string;
@@ -11,7 +13,7 @@ export type CreatePaymentLinkInput = {
   }
   paymentMode: 'ONE_TIME' | 'INSTALMENTS';
   instalments_details?: {
-    frequency: 'BIWEEKLY' | 'MONTHLY';
+    frequency: $Enums.PaymentModeFrequency;
     numberOfInstalments: number;
     amountPerInstalmentInCents: number;
   }

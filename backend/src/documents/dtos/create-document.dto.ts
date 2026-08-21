@@ -77,8 +77,8 @@ export class DocumentDateDto {
 
 export class InstalmentsDetailsDto {
   @IsDefined()
-  @IsIn(['BIWEEKLY', 'MONTHLY'])
-  frequency: 'BIWEEKLY' | 'MONTHLY';
+  @IsIn(['WEEKLY', 'MONTHLY', 'YEARLY'])
+  frequency: 'WEEKLY' | 'MONTHLY' | 'YEARLY';
 
   @IsDefined()
   @IsNumber()

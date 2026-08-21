@@ -175,19 +175,23 @@ implements
 
   async createInstalmentsPaymentLink(input: CreatePaymentLinkInput, paymentAccessToken: string): Promise<PaymentLinkResponse> {
     try {
+      
+      
       const client = await this.gocardlessOAuthService.getClientForCompany(input.companyId);
-
+      
       const billingRequestId = await this.createBillingRequest('INSTALMENTS', input.companyId, {
         mandate_request: {
           scheme: "sepa_credit_transfer"
         }
       });
       const existingBillingRequest = await client.billingRequests.find(billingRequestId);
-
+      
       if(!existingBillingRequest) {
         throw new BadRequestException("Aucune demande de facturation trouvée avec l'ID fourni.");
       }
-
+      
+      await this.generateInstalmentPlan(input.invoiceId, billingRequestId, input.instalments_details as CreatePaymentLinkInput["instalments_details"]);
+      
       const createdBillingRequestFlow = await client.billingRequestFlows.create({
         redirect_uri: this.configService.get<string>('GOCARDLESS_REDIRECT_URI') || "",
         exit_uri: this.configService.get<string>('GOCARDLESS_REDIRECT_URI') || "",
@@ -224,6 +228,31 @@ implements
       console.error("Une erreur est survenue lors d'un création de paiement avec plusieurs échéances", error);
       throw new InternalServerErrorException("Une erreur est survenue lors d'un création de paiement avec plusieurs échéances", ( error as Error));
     }
+  }
+
+  async generateInstalmentPlan(invoiceId: string, billingRequestId: string, input: CreatePaymentLinkInput["instalments_details"]){
+    const instalmentPlan = await this.prismaService.invoiceInstalmentPlan.create({
+      data: {
+        invoiceId,
+        numberOfInstalments: input?.numberOfInstalments as number,
+        totalAmountInCents: ((input?.numberOfInstalments as number) * (input?.amountPerInstalmentInCents as number)) * 100,
+        amountPerInstalmentInCents: input?.amountPerInstalmentInCents as number,
+        providerReference: billingRequestId
+      }
+    });
+
+    await this.prismaService.$transaction(async (prisma) => {
+      for(let i = 0; i < (input?.numberOfInstalments as number); i++) {
+        await prisma.invoicePaymentInstalment.create({
+          data: {
+            invoiceInstalmentPlanId: instalmentPlan.id,
+            instalmentNumber: i + 1,
+            amountInCents: input?.amountPerInstalmentInCents as number,
+            dueDate: new Date(Date.now() + (i * 30 * 24 * 60 * 60 * 1000)), // Each instalment due every 30 days
+          }
+        })
+      }
+    })
   }
   
   async createRecurringPaymentLink(input: CreateRecurringPaymentLinkInput, paymentAccessToken: string): Promise<PaymentLinkResponse> {

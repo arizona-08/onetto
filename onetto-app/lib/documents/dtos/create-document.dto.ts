@@ -7,7 +7,7 @@ export interface CreateDocumentDto {
   documentDates: DocumentDates,
   paymentMode?: 'ONE_TIME' | 'INSTALMENTS',
   instalmentsDetails?: {
-    frequency: 'BIWEEKLY' | 'MONTHLY',
+    frequency: 'WEEKLY' | 'MONTHLY' | 'YEARLY',
     numberOfInstalments: 2 | 3,
     amountPerInstalmentInCents: number,
   }

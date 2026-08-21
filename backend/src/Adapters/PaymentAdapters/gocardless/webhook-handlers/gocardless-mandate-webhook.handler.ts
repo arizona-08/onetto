@@ -9,7 +9,7 @@ export class GoCardlessMandateWebhookHandler implements WebhookHandlerInterface 
 
   }
 
-    isRelevantAction(action: string): boolean {
+  isRelevantAction(action: string): boolean {
     const relevantActions = [
       'active',
       'failed',
@@ -17,5 +17,9 @@ export class GoCardlessMandateWebhookHandler implements WebhookHandlerInterface 
     ]
 
     return relevantActions.includes(action);
+  }
+
+  async handleMandate(){
+    
   }
 }

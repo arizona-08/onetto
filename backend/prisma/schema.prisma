@@ -216,8 +216,9 @@ enum PaymentMode {
 }
 
 enum PaymentModeFrequency {
-  BIWEEKLY
+  WEEKLY
   MONTHLY
+  YEARLY
 }
 
 model InvoicePaymentFee {
@@ -349,6 +350,7 @@ model InvoiceInstalmentPlan {
   totalAmountInCents Int
   numberOfInstalments Int
   amountPerInstalmentInCents Int
+  providerReference String @unique
   providerScheduledId String?
   providerMandateId String?
   isCompleted Boolean @default(false)
@@ -369,6 +371,7 @@ model InvoicePaymentInstalment {
   instalmentStatus InvoicePaymentInstalmentStatus @default(PENDING)
   paidAt DateTime?
 
+  @@unique([invoiceInstalmentPlanId, instalmentNumber])
 }
 
 enum InvoicePaymentInstalmentStatus {
