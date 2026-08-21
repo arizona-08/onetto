@@ -10,6 +10,27 @@ import DocumentPreview from './DocumentPreview';
 import { useToast } from '../../context/ToastContext';
 import DocumentVersionSelector from '../../molecules/DocumentVersionSelector';
 
+function toDateInputValue(date: Date) {
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+}
+
+function addCalendarMonths(dateValue: string, months: number) {
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const lastDay = new Date(year, month + months, 0).getDate();
+  return toDateInputValue(new Date(year, month - 1 + months, Math.min(day, lastDay)));
+}
+
+function buildInstalmentPreview(totalInCents: number, count: 2 | 3, firstDueDate: string) {
+  if (!firstDueDate) return [];
+  const base = Math.floor(totalInCents / count);
+  const remainder = totalInCents % count;
+  return Array.from({ length: count }, (_, index) => ({
+    sequence: index + 1,
+    amountInCents: base + (index < remainder ? 1 : 0),
+    dueDate: addCalendarMonths(firstDueDate, index),
+  }));
+}
+
 interface DocumentCreateProps {
   document?: Document;
   mode: 'create' | 'update';
@@ -33,6 +54,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
   })
   const [paymentMode, setPaymentMode] = useState<'ONE_TIME' | 'INSTALMENTS'>('ONE_TIME');
   const [numberOfInstalments, setNumberOfInstalments] = useState<2 | 3>(2);
+  const [firstDueDate, setFirstDueDate] = useState(() => addCalendarMonths(toDateInputValue(new Date()), 1));
 
   useEffect(() => {
     if(document) {
@@ -58,6 +80,11 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       setDocumentDates({
         dueDate: document.paymentDueAt // à adapter pour les devis avec document.toValidateAt
       })
+      if (document.invoicePaymentMode?.paymentMode === 'INSTALMENTS' && document.invoiceInstalmentPlan) {
+        setPaymentMode('INSTALMENTS');
+        setNumberOfInstalments(document.invoiceInstalmentPlan.numberOfInstalments as 2 | 3);
+        setFirstDueDate(toDateInputValue(new Date(document.invoiceInstalmentPlan.startDate)));
+      }
     }
   }, [document])
 
@@ -135,6 +162,11 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       return null;
     }
 
+    if (paymentMode === 'INSTALMENTS' && !firstDueDate) {
+      showToast('Veuillez renseigner la date de première échéance.', 'error');
+      return null;
+    }
+
     const { name, email, address, city, postalCode, country } = client as Client;
     const clientData = { name, email, address, city, postalCode, country };
 
@@ -146,12 +178,18 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
         client: clientData,
         lineItems,
         documentDates,
+        instalmentsDetails: documentType === 'INVOICE' && paymentMode === 'INSTALMENTS'
+          ? { numberOfInstalments, firstDueDate }
+          : undefined,
       });
     } else {
       response = await updateDraftDocument(document?.id as string, {
         client: clientData,
         lineItems,
         documentDates,
+        instalmentsDetails: isInvoice && paymentMode === 'INSTALMENTS'
+          ? { numberOfInstalments, firstDueDate }
+          : undefined,
       });
     }
 
@@ -189,18 +227,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
 
     const response = await sendDocumentToClient(
       savedDocument.id,
-      (isCreatingInvoice || isDraftInvoice)
-        ? {
-            paymentMode,
-            instalmentsDetails: paymentMode === 'INSTALMENTS'
-              ? {
-                  frequency: 'MONTHLY',
-                  numberOfInstalments,
-                  amountPerInstalmentInCents: Math.round(totalPriceInCents / numberOfInstalments),
-                }
-              : undefined,
-          }
-        : undefined,
+      undefined,
     );
     setIsSending(false);
 
@@ -239,9 +266,12 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
           showPaymentMode={isCreatingInvoice || isDraftInvoice}
           paymentMode={paymentMode}
           numberOfInstalments={numberOfInstalments}
-          amountPerInstalmentInCents={Math.round(totalPriceInCents / numberOfInstalments)}
+          firstDueDate={firstDueDate}
+          minFirstDueDate={toDateInputValue(new Date(issuanceDate))}
+          instalments={buildInstalmentPreview(totalPriceInCents, numberOfInstalments, firstDueDate)}
           onPaymentModeChange={setPaymentMode}
           onNumberOfInstalmentsChange={setNumberOfInstalments}
+          onFirstDueDateChange={setFirstDueDate}
           lockInvoiceContent={isInvoiceContentLocked}
         />
       </fieldset>

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { GoCardlessInstalmentSchedulesWebhookHandler } from './webhook-handlers/gocardless-instalment-schedules-webhook.handler';
 import { GoCardlessMandateWebhookHandler } from './webhook-handlers/gocardless-mandate-webhook.handler';
 import { GoCardlessPaymentWebhookHandler } from './webhook-handlers/gocardless-payment-webhook.handler';
@@ -9,6 +9,8 @@ import { $Enums } from '@prisma/client';
 
 @Injectable()
 export class GoCardlessWebhookService {
+  private readonly logger = new Logger(GoCardlessWebhookService.name);
+
   constructor(
     private readonly prismaService: PrismaService,
     private readonly billingRequestHandler: GoCardlessBillingRequestWebhookHandler,
@@ -27,28 +29,35 @@ export class GoCardlessWebhookService {
 
     const events = webhook.events;
     for (const event of events) {
-      const alreadyProcessed = await this.isAlreadyProcessed(
-        $Enums.PaymentProvider.GOCARDLESS,
-        event.id,
-      );
-      if (alreadyProcessed) {
-        console.log(
-          `Webhook event with ID ${event.id} has already been processed. Skipping.`,
+      try {
+        const alreadyProcessed = await this.isAlreadyProcessed(
+          $Enums.PaymentProvider.GOCARDLESS,
+          event.id,
         );
-        continue;
-      }
-
-      switch (event.resource_type) {
-        case 'billing_request':
-        case 'billing_requests':
-          await this.billingRequestHandler.handleWebhook(event);
-          break;
-        case 'mandates':
-          await this.mandateHandler.handleWebhook(event);
-          break;
-        case 'payments':
-          await this.paymentHandler.handleWebhook(event);
-          break;
+        if (alreadyProcessed) {
+          console.log(
+            `Webhook event with ID ${event.id} has already been processed. Skipping.`,
+          );
+          continue;
+        }
+  
+        switch (event.resource_type) {
+          case 'billing_request':
+          case 'billing_requests':
+            await this.billingRequestHandler.handleWebhook(event);
+            break;
+          case 'mandates':
+            await this.mandateHandler.handleWebhook(event);
+            break;
+          case 'payments':
+            await this.paymentHandler.handleWebhook(event);
+            break;
+        }
+      } catch (error) {
+        this.logger.error(
+          `Erreur lors du traitement de l'événement GoCardless ${event.id}`,
+          error instanceof Error ? error.stack : error,
+        );
       }
     }
   }

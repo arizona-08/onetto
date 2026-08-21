@@ -32,6 +32,18 @@ implements
     private readonly prismaService: PrismaService
   ) {}
 
+  private buildPrefilledCustomer(customer: CreatePaymentLinkInput['customer']) {
+    return {
+      email: customer.email,
+      ...(customer.firstName ? { given_name: customer.firstName } : {}),
+      ...(customer.lastName ? { family_name: customer.lastName } : {}),
+      ...(customer.addressLine1 ? { address_line1: customer.addressLine1 } : {}),
+      ...(customer.city ? { city: customer.city } : {}),
+      ...(customer.postalCode ? { postal_code: customer.postalCode } : {}),
+      ...(customer.countryCode ? { country_code: customer.countryCode } : {}),
+    };
+  }
+
   async createBillingRequest(mode: 'ONE_TIME' | 'INSTALMENTS', companyId: string, input: GoCardlessCreatePaymentRequestInput){
     try {
       const paymentRequest = input.payment_request;
@@ -135,11 +147,7 @@ implements
     const billingRequestFlow = await client.billingRequestFlows.create({
       redirect_uri: redirectUri,
       exit_uri: redirectUri,
-      prefilled_customer: {
-        email: input.customer.email,
-        given_name: input.customer.firstName,
-        family_name: input.customer.lastName,
-      },
+      prefilled_customer: this.buildPrefilledCustomer(input.customer),
       links: {
         billing_request: billingRequestId
       }
@@ -201,11 +209,7 @@ implements
       const createdBillingRequestFlow = await client.billingRequestFlows.create({
         redirect_uri: this.configService.get<string>('GOCARDLESS_REDIRECT_URI') || "",
         exit_uri: this.configService.get<string>('GOCARDLESS_REDIRECT_URI') || "",
-        prefilled_customer: {
-          email: input.customer.email,
-          given_name: input.customer.firstName,
-          family_name: input.customer.lastName,
-        },
+        prefilled_customer: this.buildPrefilledCustomer(input.customer),
         links: {
           billing_request: billingRequestId
         }
@@ -240,28 +244,23 @@ implements
   }
 
   async generateInstalmentPlan(invoiceId: string, billingRequestId: string, input: CreatePaymentLinkInput["instalments_details"]){
-    const instalmentPlan = await this.prismaService.invoiceInstalmentPlan.create({
-      data: {
-        invoiceId,
-        numberOfInstalments: input?.numberOfInstalments as number,
-        totalAmountInCents: (input?.numberOfInstalments as number) * (input?.amountPerInstalmentInCents as number),
-        amountPerInstalmentInCents: input?.amountPerInstalmentInCents as number,
-        providerReference: billingRequestId
-      }
+    const instalmentPlan = await this.prismaService.invoiceInstalmentPlan.findUnique({
+      where: { invoiceId },
+      select: { id: true },
     });
 
-    await this.prismaService.$transaction(async (prisma) => {
-      for(let i = 0; i < (input?.numberOfInstalments as number); i++) {
-        await prisma.invoicePaymentInstalment.create({
-          data: {
-            invoiceInstalmentPlanId: instalmentPlan.id,
-            instalmentNumber: i + 1,
-            amountInCents: input?.amountPerInstalmentInCents as number,
-            dueDate: new Date(Date.now() + (i * 30 * 24 * 60 * 60 * 1000)), // Each instalment due every 30 days
-          }
-        })
-      }
-    })
+    if (!instalmentPlan) {
+      throw new BadRequestException(
+        "L'échéancier métier de cette facture n'a pas été trouvé.",
+      );
+    }
+
+    // The business schedule is created with the invoice. Provider information
+    // is attached only when the customer payment flow is initiated.
+    await this.prismaService.invoiceInstalmentPlan.update({
+      where: { id: instalmentPlan.id },
+      data: { providerReference: billingRequestId },
+    });
   }
   
   async createRecurringPaymentLink(input: CreateRecurringPaymentLinkInput, paymentAccessToken: string): Promise<PaymentLinkResponse> {

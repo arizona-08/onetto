@@ -16,6 +16,10 @@ import { ConfigService } from '@nestjs/config';
 import { CreatePaymentLinkInput } from 'src/Adapters/PaymentAdapters/Types/InputTypes/CreatePaymentLinkInput.types';
 import { PaymentService } from 'src/Adapters/PaymentAdapters/payment.service';
 import { PdfService } from 'src/pdf/pdf.service';
+import {
+  buildInstalmentSchedule,
+  parseDateOnly,
+} from './instalment-plan.utils';
 
 @Injectable()
 export class DocumentService {
@@ -43,6 +47,12 @@ export class DocumentService {
       const companyId = await this.getActiveCompanyId(user, true);
       const documentNumber = await this.createDocumentNumber(type, companyId);
 
+      if (type !== 'INVOICE' && data.instalmentsDetails) {
+        throw new BadRequestException(
+          'Un échéancier ne peut être défini que pour une facture.',
+        );
+      }
+
       const totalPriceExludingTax = lineItems.reduce((acc, item) => {
         const basePrice = item.unitPrice * item.quantity;
         return acc + basePrice;
@@ -56,8 +66,9 @@ export class DocumentService {
 
       const totalDocumentPrice = totalPriceExludingTax + totalVatAmount;
 
-      const document = await this.prismaService.document.create({
-        data: {
+      const document = await this.prismaService.$transaction(async (prisma) => {
+        const createdDocument = await prisma.document.create({
+          data: {
           clientName: documentData.client.name,
           clientEmail: documentData.client.email,
           clientAddress: documentData.client.address,
@@ -73,10 +84,9 @@ export class DocumentService {
           invoiceStatus: 'DRAFT',
           companyId,
           paymentDueAt: new Date(data.documentDates.dueDate),
-        },
-      });
+          },
+        });
 
-      await this.prismaService.$transaction(async (prisma) => {
         for (const lineItem of lineItems) {
           const wtPrice = lineItem.unitPrice * lineItem.quantity;
           const totalPrice =
@@ -89,12 +99,22 @@ export class DocumentService {
               taxRate: lineItem.taxRate,
               unitPrice: lineItem.unitPrice,
               unit: lineItem.unit,
-              documentId: document.id,
+              documentId: createdDocument.id,
               wtPrice,
               totalPrice,
             },
           });
         }
+
+        if (type === 'INVOICE') {
+          await this.syncInvoiceInstalmentPlan(
+            prisma,
+            createdDocument,
+            data.instalmentsDetails,
+          );
+        }
+
+        return createdDocument;
       });
 
       return {
@@ -135,6 +155,12 @@ export class DocumentService {
         );
       }
 
+      if (document.type !== 'INVOICE' && data.instalmentsDetails) {
+        throw new BadRequestException(
+          'Un échéancier ne peut être défini que pour une facture.',
+        );
+      }
+
       if (document.type === 'INVOICE' && document.isFromEstimate !== false) {
         if (document.invoiceStatus !== 'DRAFT') {
           throw new BadRequestException(
@@ -142,9 +168,17 @@ export class DocumentService {
           );
         }
 
-        const updatedDocument = await this.prismaService.document.update({
-          where: { id: document.id },
-          data: { paymentDueAt: new Date(data.documentDates.dueDate) },
+        const updatedDocument = await this.prismaService.$transaction(async (prisma) => {
+          const updated = await prisma.document.update({
+            where: { id: document.id },
+            data: { paymentDueAt: new Date(data.documentDates.dueDate) },
+          });
+          await this.syncInvoiceInstalmentPlan(
+            prisma,
+            updated,
+            data.instalmentsDetails,
+          );
+          return updated;
         });
 
         return {
@@ -248,6 +282,14 @@ export class DocumentService {
             }
           }
 
+          if (updatedDocument.type === 'INVOICE') {
+            await this.syncInvoiceInstalmentPlan(
+              prisma,
+              updatedDocument,
+              data.instalmentsDetails,
+            );
+          }
+
           return updatedDocument;
         },
       );
@@ -264,6 +306,98 @@ export class DocumentService {
         'Une erreur est survenue lors de la mise à jour du document.',
       );
     }
+  }
+
+  private async syncInvoiceInstalmentPlan(
+    prisma: Prisma.TransactionClient,
+    invoice: { id: string; totalPrice: number; createdAt: Date },
+    instalmentsDetails?: {
+      numberOfInstalments: 2 | 3;
+      firstDueDate: string;
+    },
+  ) {
+    if (!instalmentsDetails) {
+      await prisma.invoicePaymentMode.upsert({
+        where: { invoiceId: invoice.id },
+        create: { invoiceId: invoice.id, paymentMode: 'ONE_TIME' },
+        update: {
+          paymentMode: 'ONE_TIME',
+          paymentModeFrequency: null,
+          numberOfInstalments: null,
+          amountPerInstalmentInCents: null,
+        },
+      });
+      await prisma.invoiceInstalmentPlan.deleteMany({
+        where: { invoiceId: invoice.id },
+      });
+      return;
+    }
+
+    const firstDueDate = parseDateOnly(instalmentsDetails.firstDueDate);
+    const issuedAt = new Date(invoice.createdAt);
+    const issueDate = new Date(
+      Date.UTC(
+        issuedAt.getUTCFullYear(),
+        issuedAt.getUTCMonth(),
+        issuedAt.getUTCDate(),
+        12,
+      ),
+    );
+    if (Number.isNaN(firstDueDate.getTime()) || firstDueDate < issueDate) {
+      throw new BadRequestException(
+        "La première échéance ne peut pas être antérieure à la date d'émission de la facture.",
+      );
+    }
+
+    const totalAmountInCents = Math.round(invoice.totalPrice * 100);
+    const schedule = buildInstalmentSchedule(
+      totalAmountInCents,
+      instalmentsDetails.numberOfInstalments,
+      firstDueDate,
+    );
+    const amountPerInstalmentInCents = Math.floor(
+      totalAmountInCents / instalmentsDetails.numberOfInstalments,
+    );
+
+    await prisma.invoicePaymentMode.upsert({
+      where: { invoiceId: invoice.id },
+      create: {
+        invoiceId: invoice.id,
+        paymentMode: 'INSTALMENTS',
+        paymentModeFrequency: 'MONTHLY',
+        numberOfInstalments: instalmentsDetails.numberOfInstalments,
+        amountPerInstalmentInCents,
+      },
+      update: {
+        paymentMode: 'INSTALMENTS',
+        paymentModeFrequency: 'MONTHLY',
+        numberOfInstalments: instalmentsDetails.numberOfInstalments,
+        amountPerInstalmentInCents,
+      },
+    });
+
+    await prisma.invoiceInstalmentPlan.deleteMany({
+      where: { invoiceId: invoice.id },
+    });
+    await prisma.invoiceInstalmentPlan.create({
+      data: {
+        invoiceId: invoice.id,
+        totalAmountInCents,
+        numberOfInstalments: instalmentsDetails.numberOfInstalments,
+        amountPerInstalmentInCents,
+        startDate: firstDueDate,
+        // A provider reference is required by the current schema. It is an
+        // internal placeholder until a future provider integration replaces it.
+        providerReference: `onetto-${randomBytes(16).toString('hex')}`,
+        invoicePaymentInstalments: {
+          create: schedule.map((instalment) => ({
+            instalmentNumber: instalment.sequence,
+            amountInCents: instalment.amountInCents,
+            dueDate: instalment.dueDate,
+          })),
+        },
+      },
+    });
   }
 
   async convertEstimateToInvoice(documentId: string, user: User) {
@@ -453,6 +587,12 @@ export class DocumentService {
         orderBy: { createdAt: 'desc' },
         include: {
           services: withServices,
+          invoicePaymentMode: true,
+          invoiceInstalmentPlan: {
+            include: {
+              invoicePaymentInstalments: { orderBy: { instalmentNumber: 'asc' } },
+            },
+          },
           convertedDocuments: {
             where: { type: 'INVOICE' },
             select: { id: true },
@@ -934,7 +1074,7 @@ export class DocumentService {
         : null;
 
       const paymentDetails = isInvoice
-        ? await this.createInvoicePaymentMode(document, sendData)
+        ? await this.getPaymentModeDetails(document.id)
         : null;
       const paymentLink = isInvoice
         ? await this.createInvoicePaymentLink(
@@ -1093,9 +1233,7 @@ export class DocumentService {
     });
 
     if (!paymentMode) {
-      throw new BadRequestException(
-        "Le mode de paiement pour cette facture n'a pas été trouvé.",
-      );
+      return { paymentMode: 'ONE_TIME', instalmentsDetails: undefined };
     }
 
     let instalmentsDetails: CreatePaymentLinkInput['instalments_details'];
@@ -1123,52 +1261,6 @@ export class DocumentService {
     };
   }
 
-  private async createInvoicePaymentMode(
-    document: { id: string; totalPrice: number },
-    sendData: SendDocumentToClientDto,
-  ): Promise<{
-    paymentMode: CreatePaymentLinkInput['paymentMode'];
-    instalmentsDetails: CreatePaymentLinkInput['instalments_details'];
-  }> {
-    const paymentMode = sendData.paymentMode ?? 'ONE_TIME';
-    const instalmentsDetails =
-      paymentMode === 'INSTALMENTS'
-        ? {
-            frequency: sendData.instalmentsDetails!.frequency,
-            numberOfInstalments:
-              sendData.instalmentsDetails!.numberOfInstalments,
-            amountPerInstalmentInCents: Math.round(
-              (document.totalPrice * 100) /
-                sendData.instalmentsDetails!.numberOfInstalments,
-            ),
-          }
-        : undefined;
-
-    const data = {
-      invoiceId: document.id,
-      paymentMode,
-      paymentModeFrequency: instalmentsDetails?.frequency ?? null,
-      numberOfInstalments: instalmentsDetails?.numberOfInstalments ?? null,
-      amountPerInstalmentInCents:
-        instalmentsDetails?.amountPerInstalmentInCents ?? null,
-    };
-
-    // An earlier attempt can fail after this point (PDF or email). Upsert lets
-    // the user send the same draft again and also upgrades existing drafts.
-    await this.prismaService.invoicePaymentMode.upsert({
-      where: { invoiceId: document.id },
-      create: data,
-      update: {
-        paymentMode: data.paymentMode,
-        paymentModeFrequency: data.paymentModeFrequency,
-        numberOfInstalments: data.numberOfInstalments,
-        amountPerInstalmentInCents: data.amountPerInstalmentInCents,
-      },
-    });
-
-    return { paymentMode, instalmentsDetails };
-  }
-
   async isCompanyUser(userId: string, companyId: string): Promise<boolean> {
     const companyUser = await this.prismaService.companyUser.findFirst({
       where: {
@@ -1188,6 +1280,10 @@ export class DocumentService {
       totalPrice: number;
       clientName: string;
       clientEmail: string;
+      clientAddress: string;
+      clientCity: string;
+      clientPostalCode: string;
+      clientCountry: string;
       paymentDueAt: Date;
     },
     company: { id: string; name: string; email: string; IBAN: string },
@@ -1218,6 +1314,7 @@ export class DocumentService {
       companyId: company.id,
       customer: {
         email: document.clientEmail,
+        ...this.toGoCardlessCustomerDetails(document),
       },
     };
 
@@ -1229,6 +1326,27 @@ export class DocumentService {
 
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
     return `${frontendUrl}/payment?token=${paymentAccessToken}`;
+  }
+
+  private toGoCardlessCustomerDetails(document: {
+    clientName: string;
+    clientAddress: string;
+    clientCity: string;
+    clientPostalCode: string;
+    clientCountry: string;
+  }): Omit<CreatePaymentLinkInput['customer'], 'email'> {
+    const nameParts = document.clientName.trim().split(/\s+/);
+    const country = document.clientCountry.trim().toUpperCase();
+    const countryCode = country === 'FRANCE' ? 'FR' : /^[A-Z]{2}$/.test(country) ? country : undefined;
+
+    return {
+      firstName: nameParts[0] || undefined,
+      lastName: nameParts.slice(1).join(' ') || undefined,
+      addressLine1: document.clientAddress || undefined,
+      city: document.clientCity || undefined,
+      postalCode: document.clientPostalCode || undefined,
+      countryCode,
+    };
   }
 
   async getPublicPaymentByToken(accessToken: string) {

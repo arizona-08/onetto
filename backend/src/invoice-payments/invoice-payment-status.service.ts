@@ -74,6 +74,33 @@ export class InvoicePaymentStatusService {
     }
   }
 
+  /** Recalculates the invoice status when one of its instalments changes. */
+  async refreshFromInstalment(invoiceId: string): Promise<void> {
+    const document = await this.prismaService.document.findUnique({
+      where: { id: invoiceId },
+      select: { id: true, companyId: true, invoiceStatus: true },
+    });
+
+    if (!document || document.invoiceStatus === 'PAID_MANUALLY') return;
+
+    const nextStatus = await this.getInvoiceStatus(document.id);
+    const justPaid = nextStatus === 'PAID' && document.invoiceStatus !== 'PAID';
+    if (nextStatus !== document.invoiceStatus) {
+      await this.prismaService.document.update({
+        where: { id: document.id },
+        data: { invoiceStatus: nextStatus },
+      });
+    }
+    if (justPaid) {
+      await this.invoicePaymentFeeService.createForPaidInvoice(
+        document.id,
+        document.companyId,
+        this.prismaService,
+      );
+      await this.sendInvoicePaidConfirmation(document.id);
+    }
+  }
+
   private async getInvoiceStatus(
     documentId: string,
   ): Promise<$Enums.InvoiceStatus> {

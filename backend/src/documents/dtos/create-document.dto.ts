@@ -76,18 +76,13 @@ export class DocumentDateDto {
 
 export class InstalmentsDetailsDto {
   @IsDefined()
-  @IsIn(['WEEKLY', 'MONTHLY', 'YEARLY'])
-  frequency: 'WEEKLY' | 'MONTHLY' | 'YEARLY';
-
-  @IsDefined()
   @IsNumber()
   @IsIn([2, 3])
   numberOfInstalments: 2 | 3;
 
   @IsDefined()
-  @IsNumber()
-  @Min(1)
-  amountPerInstalmentInCents: number;
+  @IsDateString()
+  firstDueDate: string;
 }
 
 export class CreateDocumentDto {
@@ -109,5 +104,10 @@ export class CreateDocumentDto {
   @ValidateNested()
   @Type(() => DocumentDateDto)
   documentDates: DocumentDateDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => InstalmentsDetailsDto)
+  instalmentsDetails?: InstalmentsDetailsDto;
 
 }

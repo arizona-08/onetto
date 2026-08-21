@@ -1,7 +1,7 @@
 import React from 'react'
 import CustomerDetails from '../../molecules/DocumentFormComponents/CustomerDetails'
 import ServiceLineItems from '../../molecules/DocumentFormComponents/ServiceLineItems'
-import { Client, DocumentDates, Service, ServiceLineItem } from '@/app/types';
+import { Client, DocumentDates, ServiceLineItem } from '@/app/types';
 import { DocumentClientError, DocumentDateError, DocumentLineItemsError } from '@/shared/DocumentErrorsTypes';
 
 
@@ -21,12 +21,15 @@ interface DocumentFormProps {
   showPaymentMode?: boolean
   paymentMode?: 'ONE_TIME' | 'INSTALMENTS'
   numberOfInstalments?: 2 | 3
-  amountPerInstalmentInCents?: number
+  firstDueDate?: string
+  minFirstDueDate?: string
+  instalments?: Array<{ sequence: number; amountInCents: number; dueDate: string }>
   onPaymentModeChange?: (paymentMode: 'ONE_TIME' | 'INSTALMENTS') => void
   onNumberOfInstalmentsChange?: (numberOfInstalments: 2 | 3) => void
+  onFirstDueDateChange?: (firstDueDate: string) => void
 }
 
-function DocumentForm({ client, lineItems, documentDates, onClientChange, onLineItemsChange, onDocumentDatesChange, errors, lockInvoiceContent = false, showPaymentMode = false, paymentMode = 'ONE_TIME', numberOfInstalments = 2, amountPerInstalmentInCents = 0, onPaymentModeChange, onNumberOfInstalmentsChange }: DocumentFormProps) {
+function DocumentForm({ client, lineItems, documentDates, onClientChange, onLineItemsChange, onDocumentDatesChange, errors, lockInvoiceContent = false, showPaymentMode = false, paymentMode = 'ONE_TIME', numberOfInstalments = 2, firstDueDate = '', minFirstDueDate, instalments = [], onPaymentModeChange, onNumberOfInstalmentsChange, onFirstDueDateChange }: DocumentFormProps) {
   
   return (
     <div className="">
@@ -57,7 +60,21 @@ function DocumentForm({ client, lineItems, documentDates, onClientChange, onLine
                   </label>
                 ))}
               </div>
-              <p className="mt-3 text-sm text-zinc-600">{(amountPerInstalmentInCents / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })} par échéance</p>
+              <div className="mt-5">
+                <label htmlFor="firstDueDate" className="block text-sm font-medium text-zinc-900">Première échéance</label>
+                <input id="firstDueDate" type="date" value={firstDueDate} min={minFirstDueDate} onChange={(event) => onFirstDueDateChange?.(event.target.value)} className="mt-2 rounded-md border border-zinc-300 px-3 py-2" required />
+              </div>
+              <div className="mt-5 rounded-md bg-zinc-50 p-4">
+                <h3 className="font-medium text-zinc-900">Échéancier</h3>
+                <ul className="mt-3 space-y-2 text-sm text-zinc-700">
+                  {instalments.map((instalment) => (
+                    <li key={instalment.sequence} className="flex justify-between gap-4">
+                      <span>{new Intl.DateTimeFormat('fr-FR').format(new Date(`${instalment.dueDate}T12:00:00`))}</span>
+                      <span className="font-medium">{(instalment.amountInCents / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' })}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           )}
         </section>

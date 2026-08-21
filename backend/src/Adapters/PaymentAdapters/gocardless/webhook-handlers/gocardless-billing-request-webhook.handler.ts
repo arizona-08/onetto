@@ -49,7 +49,6 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
           select: {
             id: true,
             documentNumber: true,
-            totalPrice: true,
             invoicePaymentMode: {
               select: {
                 paymentModeFrequency: true
@@ -57,12 +56,29 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
             }
           }
         },
+        invoicePaymentInstalments: {
+          orderBy: { instalmentNumber: 'asc' },
+          select: { amountInCents: true },
+        },
       }
     });
 
     if(existingInstalmentPlan){
       if(billingRequest.status === 'fulfilled'){
-
+        if (existingInstalmentPlan.providerScheduledId) {
+          return;
+        }
+        await this.createInstalmentSchedule({
+          name: `Instalment plan for invoice ${existingInstalmentPlan.invoice.documentNumber}`,
+          totalAmountInCents: existingInstalmentPlan.totalAmountInCents,
+          startDate: existingInstalmentPlan.startDate.toISOString().slice(0, 10),
+          intervalUnit: existingInstalmentPlan.invoice.invoicePaymentMode?.paymentModeFrequency as $Enums.PaymentModeFrequency,
+          interval: 1,
+          amountsInCents: existingInstalmentPlan.invoicePaymentInstalments.map(
+            (instalment) => instalment.amountInCents,
+          ),
+          mandateId: billingRequest.links?.mandate_request_mandate as string
+        }, billingRequestId, client);
       }
       return;
     }
@@ -87,14 +103,21 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
     startDate: string;
     intervalUnit: $Enums.PaymentModeFrequency;
     interval: number;
-    numberOfInstalments: number,
-    amountPerInstalmentInCents: number;
+    amountsInCents: number[];
     mandateId: string;
   } ,
     billingRequestId: string,
     client: GoCardlessClient){
     try{
-      const amounts = Array(input.numberOfInstalments).fill(input.amountPerInstalmentInCents);
+      if (
+        input.amountsInCents.length === 0 ||
+        input.amountsInCents.some((amount) => !Number.isSafeInteger(amount) || amount <= 0) ||
+        input.amountsInCents.reduce((total, amount) => total + amount, 0) !== input.totalAmountInCents
+      ) {
+        throw new InternalServerErrorException(
+          "L'échéancier Onetto contient des montants invalides pour GoCardless.",
+        );
+      }
       const payload = {
         name: input.name,
         currency: "EUR" as "EUR",
@@ -103,7 +126,7 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
           start_date: input.startDate,
           interval_unit: input.intervalUnit.toLocaleLowerCase() as "weekly" | "monthly" | "yearly",
           interval: input.interval,
-          amounts: amounts
+          amounts: input.amountsInCents.map(String),
         },
         links: {
           mandate: input.mandateId
@@ -115,11 +138,16 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
         throw new InternalServerErrorException("Failed to create instalment schedule with GoCardless");
       }
 
+      // GoCardless can return a newly-created schedule before its Payments have
+      // been generated. The canonical payment IDs live on the fetched schedule.
+      const instalmentSchedule = await client.instalmentSchedules.find(
+        createdSchedule.id as string,
+      );
       await this.updateCreatedInstalmentPlan(
         billingRequestId,
         createdSchedule.id as string,
         input.mandateId,
-        createdSchedule.links?.payments as string[]
+        instalmentSchedule?.links?.payments,
       )
     } catch (error) {
       console.error("Erreur lors de la création du instalment schedule", error);
@@ -127,7 +155,7 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
     }
   }
 
-  async updateCreatedInstalmentPlan(billingRequestId: string, providerScheduledId: string, providerMandateId: string, payments: string[]){
+  async updateCreatedInstalmentPlan(billingRequestId: string, providerScheduledId: string, providerMandateId: string, payments?: string[]){
     try{
       const existingInstalmentPlan = await this.prismaService.invoiceInstalmentPlan.findUnique({
         where: {
@@ -152,6 +180,13 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
           providerMandateId
         }
       });
+
+      if (!payments?.length) {
+        console.log(
+          `Instalment schedule ${providerScheduledId} créé, en attente des Payments GoCardless.`,
+        );
+        return;
+      }
 
       await this.prismaService.$transaction(async (prisma) => {
         for(let i = 0; i < payments.length; i++){

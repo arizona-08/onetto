@@ -10,6 +10,10 @@ export type CreatePaymentLinkInput = {
     firstName?: string;
     lastName?: string;
     email: string;
+    addressLine1?: string;
+    city?: string;
+    postalCode?: string;
+    countryCode?: string;
   }
   paymentMode: 'ONE_TIME' | 'INSTALMENTS';
   instalments_details?: {

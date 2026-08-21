@@ -350,6 +350,7 @@ model InvoiceInstalmentPlan {
   totalAmountInCents Int
   numberOfInstalments Int
   amountPerInstalmentInCents Int
+  startDate DateTime @default(now())
   providerReference String @unique
   providerScheduledId String?
   providerMandateId String?

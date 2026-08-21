@@ -5,4 +5,8 @@ export interface CreateDocumentDto {
   client: Omit<Client, 'id'>,
   lineItems: ServiceLineItem[],
   documentDates: DocumentDates,
+  instalmentsDetails?: {
+    numberOfInstalments: 2 | 3,
+    firstDueDate: string,
+  },
 }
