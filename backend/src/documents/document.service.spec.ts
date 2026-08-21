@@ -1,10 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { DocumentService } from './document.service';
-import { InvoicePdfService } from './invoice-pdf.service';
+import { InvoicePdfService } from '../pdf/pdf.service';
 import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BridgeApiService } from 'src/bridgeApi/bridgeApi.service';
-import { InvoicePaymentFeeService } from './invoice-payment-fee.service';
+import { InvoicePaymentFeeService } from '../payment-fee/invoice-payment-fee.service';
 
 const user = { id: 'user-1', firstname: 'Ada', lastname: 'Lovelace', email: 'ada@example.test', sub: 'user-1', iat: 0, exp: 0, role: 'BASIC_USER' };
 const dto = {

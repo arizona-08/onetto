@@ -1,6 +1,17 @@
-import { Type } from "class-transformer";
-import { IsArray, IsDate, IsDateString, IsDefined, IsIn, IsNotEmpty, IsNumber, IsNumberString, IsOptional, IsString, IsUUID, Min, ValidateNested } from "class-validator";
-
+import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsDateString,
+  IsDefined,
+  IsIn,
+  IsNumber,
+  IsNumberString,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 export class DocumentClientDto {
   @IsDefined()
@@ -9,7 +20,7 @@ export class DocumentClientDto {
 
   @IsDefined()
   @IsString()
-  email: string
+  email: string;
 
   @IsDefined()
   @IsString()
@@ -26,7 +37,6 @@ export class DocumentClientDto {
   @IsDefined()
   @IsString()
   country: string;
-
 }
 
 export class LineItemsDto {
@@ -56,13 +66,23 @@ export class LineItemsDto {
   @IsDefined()
   @IsString()
   unit: string;
-
 }
 
 export class DocumentDateDto {
   @IsDefined()
   @IsDateString()
   dueDate: string;
+}
+
+export class InstalmentsDetailsDto {
+  @IsDefined()
+  @IsNumber()
+  @IsIn([2, 3])
+  numberOfInstalments: 2 | 3;
+
+  @IsDefined()
+  @IsDateString()
+  firstDueDate: string;
 }
 
 export class CreateDocumentDto {
@@ -76,7 +96,7 @@ export class CreateDocumentDto {
   client: DocumentClientDto;
 
   @IsArray()
-  @ValidateNested({each: true})
+  @ValidateNested({ each: true })
   @Type(() => LineItemsDto)
   lineItems: LineItemsDto[];
 
@@ -84,4 +104,10 @@ export class CreateDocumentDto {
   @ValidateNested()
   @Type(() => DocumentDateDto)
   documentDates: DocumentDateDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => InstalmentsDetailsDto)
+  instalmentsDetails?: InstalmentsDetailsDto;
+
 }

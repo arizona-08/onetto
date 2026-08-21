@@ -28,6 +28,34 @@ export class CompaniesService {
     return company;
   }
 
+  private async getAccessibleCompany(companyId: string, userId: string) {
+    const company = await this.prismaService.company.findFirst({
+      where: {
+        id: companyId,
+        OR: [
+          { ownerId: userId },
+          { companyUsers: { some: { userId } } },
+        ],
+      },
+      include: {
+        companyPaymentAccount: {
+          select: {
+            id: true,
+            companyId: true,
+            creditorId: true,
+            verificationStatus: true
+          }
+        }
+      }
+    });
+
+    if (!company) {
+      throw new NotFoundException("Entreprise introuvable ou accès non autorisé.");
+    }
+
+    return company;
+  }
+
   async createCompany(data: CreateCompanyDto, ownerId: string) {
     try {
       const company = await this.prismaService.$transaction(async (prisma) => {
@@ -58,6 +86,14 @@ export class CompaniesService {
     const [ownedCompanies, companyUsers, user] = await Promise.all([
       this.prismaService.company.findMany({
         where: { ownerId: userId },
+        include: { companyPaymentAccount: {
+          select: {
+            id: true,
+            companyId: true,
+            creditorId: true,
+            verificationStatus: true
+          }
+        }},
         orderBy: { name: "asc" },
       }),
       this.prismaService.companyUser.findMany({
@@ -78,6 +114,7 @@ export class CompaniesService {
       companiesById.set(companyUser.companyId, {
         ...companyUser.company,
         isHidden: companyUser.isHidden,
+        companyPaymentAccount: ownedCompanies.find((c) => c.id === companyUser.companyId)?.companyPaymentAccount ?? null,
       });
     }
 
@@ -132,7 +169,7 @@ export class CompaniesService {
   }
 
   async getCompanyInvoiceFeeDetails(companyId: string, userId: string) {
-    await this.getOwnedCompany(companyId, userId);
+    await this.getAccessibleCompany(companyId, userId);
 
     const periodStart = this.getStartOfCurrentMonth();
     const [currentPeriodFees, history] = await Promise.all([
@@ -183,14 +220,25 @@ export class CompaniesService {
   }
 
   async getCompany(companyId: string, userId: string) {
-    return this.getOwnedCompany(companyId, userId);
+    return this.getAccessibleCompany(companyId, userId);
   }
 
   async getMyActiveCompany(userId: string) {
     try{
       const user = await this.prismaService.user.findUnique({
         where: { id: userId },
-        select: { lastConnectedCompany: true },
+        include: { lastConnectedCompany: {
+          include: {
+            companyPaymentAccount: {
+              select: {
+                id: true,
+                companyId: true,
+                creditorId: true,
+                verificationStatus: true
+              }
+            }
+          }
+        } },
       });
 
       if (!user?.lastConnectedCompany) {

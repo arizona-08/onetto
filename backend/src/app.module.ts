@@ -8,8 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { DocumentModule } from './documents/document.module';
 import { CompaniesModule } from './companies/companies.module';
 import { MailModule } from './mail/mail.module';
-import { BridgeApiModule } from './bridgeApi/bridgeApi.module';
-import { BridgeWebhookModule } from './bridgeWebhooks/bridgeWebhook.module';
+import { PaymentProviderModule } from './Adapters/PaymentAdapters/payment-provider.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
@@ -21,8 +20,7 @@ import { BridgeWebhookModule } from './bridgeWebhooks/bridgeWebhook.module';
     DocumentModule,
     CompaniesModule,
     MailModule, // custom mail module for sending emails
-    BridgeApiModule,
-    BridgeWebhookModule
+    PaymentProviderModule
   ],
   controllers: [AppController],
   providers: [AppService],

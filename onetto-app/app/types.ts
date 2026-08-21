@@ -64,6 +64,19 @@ export type Document = {
   }
   isChecked?: boolean;
   isEditable?: boolean;
+  invoicePaymentMode?: {
+    paymentMode: 'ONE_TIME' | 'INSTALMENTS';
+    numberOfInstalments: number | null;
+  } | null;
+  invoiceInstalmentPlan?: {
+    startDate: string;
+    numberOfInstalments: number;
+    invoicePaymentInstalments: Array<{
+      instalmentNumber: number;
+      amountInCents: number;
+      dueDate: string;
+    }>;
+  } | null;
 }
 
 export type InvoiceStatus =

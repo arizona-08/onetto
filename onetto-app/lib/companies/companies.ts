@@ -1,4 +1,4 @@
-import { apiClient } from "../api";
+import { apiClient, buildApiUrl } from "../api";
 import { Company, CreateCompanyDto } from "./dtos/create-company.dto";
 
 export type CompaniesResponse = {
@@ -33,6 +33,21 @@ export function getCompany(companyId: string) {
 
 export function getCompanyInvoiceFeeDetails(companyId: string) {
   return apiClient<CompanyInvoiceFeeDetails>(`api/companies/${companyId}/invoice-fees`);
+}
+
+export function getGoCardlessAuthorizationUrl(companyId: string, email: string) {
+  // const query = new URLSearchParams({ companyId, email });
+
+  console.log(`api/gocardless/oauth/authorize?companyId=${companyId}&email=${email}`);
+
+  return apiClient<{ url: string }>(`api/gocardless/oauth/authorize?companyId=${companyId}&email=${email}`);
+}
+
+export function getGoCardlessVerificationStatusUrl(companyPaymentAccountId: string) {
+  return buildApiUrl(
+    process.env.NEXT_PUBLIC_API_URL,
+    `api/gocardless/oauth/${encodeURIComponent(companyPaymentAccountId)}/verification-status`,
+  );
 }
 
 export function getMyActiveCompany() {

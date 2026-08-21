@@ -4,5 +4,9 @@ export interface CreateDocumentDto {
   type?: 'ESTIMATE' | 'INVOICE',
   client: Omit<Client, 'id'>,
   lineItems: ServiceLineItem[],
-  documentDates: DocumentDates
+  documentDates: DocumentDates,
+  instalmentsDetails?: {
+    numberOfInstalments: 2 | 3,
+    firstDueDate: string,
+  },
 }

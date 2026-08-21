@@ -3,7 +3,7 @@
 import { Company } from '@/lib/companies/dtos/create-company.dto';
 import { deleteCompany, getMyCompanies, performOwnedCompanyAction, performUserCompanyAction, selectCompany } from '@/lib/companies/companies';
 import { COMPANY_UPDATED_EVENT, notifyCompanyUpdated } from '@/lib/companies/company-events';
-import { Building2, Check, ChevronDown, ChevronRight, EllipsisVertical, Eye, EyeOff, Plus, Power, RotateCcw, Trash2 } from 'lucide-react';
+import { Building2, Check, ChevronDown, ChevronRight, EllipsisVertical, Eye, EyeOff, Plus, Power, RotateCcw, Trash2, TriangleAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React from 'react';
@@ -178,15 +178,28 @@ function MyCompanies() {
                   <div className="flex min-w-0 gap-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"><Building2 className="h-5 w-5" /></div>
                     <div className="min-w-0">
-                      <h2 className="truncate font-title font-bold text-zinc-900">{company.name}</h2>
+                      <div className="flex items-center gap-2">
+                        <h2 className="truncate font-title font-bold text-zinc-900">{company.name}</h2>
+                        {!company.isPaymentAccountConnected && (
+                          <div title="Compte de paiment GoCardless non connecté">
+                            <TriangleAlert className="w-4 h-4 text-red-500"/>
+                          </div>
+                        ) }
+
+                        {(company?.companyPaymentAccount && company.companyPaymentAccount.verificationStatus === 'NOT_VERIFIED') && (
+                          <div title="Compte de paiment GoCardless non vérifié">
+                            <TriangleAlert className="w-4 h-4 text-orange-500"/>
+                          </div>
+                        )}
+                      </div>
                       <p className="truncate text-sm text-zinc-500">{company.email}</p>
                       <p className="mt-1 text-sm text-zinc-500">{company.city}, {company.country}</p>
                     </div>
                   </div>
-                  <div className="relative flex shrink-0 items-center gap-2">
-                    {isClosed && <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">Fermée</span>}
+                  <div className="relative flex shrink-0 items-start gap-2">
+                    {isClosed && <span className="rounded-full bg-red-100 py-2 text-xs font-semibold text-red-700">Fermée</span>}
                     {isActive && <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary"><Check className="h-3 w-3" /> Active</span>}
-                    <button type="button" aria-label={`Actions pour ${company.name}`} aria-expanded={isMenuOpen} onClick={() => setOpenMenuCompanyId(isMenuOpen ? null : company.id)} className="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800">
+                    <button type="button" aria-label={`Actions pour ${company.name}`} aria-expanded={isMenuOpen} onClick={() => setOpenMenuCompanyId(isMenuOpen ? null : company.id)} className="rounded-md px-2 pb-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800">
                       <EllipsisVertical className="h-5 w-5" />
                     </button>
                     {isMenuOpen && (
