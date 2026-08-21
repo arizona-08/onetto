@@ -10,7 +10,6 @@ import {
   IsString,
   IsUUID,
   Min,
-  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -111,13 +110,4 @@ export class CreateDocumentDto {
   @Type(() => DocumentDateDto)
   documentDates: DocumentDateDto;
 
-  @IsOptional()
-  @IsIn(['ONE_TIME', 'INSTALMENTS'])
-  paymentMode?: 'ONE_TIME' | 'INSTALMENTS';
-
-  @ValidateIf((dto: CreateDocumentDto) => dto.paymentMode === 'INSTALMENTS')
-  @IsDefined()
-  @ValidateNested()
-  @Type(() => InstalmentsDetailsDto)
-  instalmentsDetails?: InstalmentsDetailsDto;
 }

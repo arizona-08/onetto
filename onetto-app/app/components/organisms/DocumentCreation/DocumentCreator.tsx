@@ -146,16 +146,6 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
         client: clientData,
         lineItems,
         documentDates,
-        ...(isCreatingInvoice && {
-          paymentMode,
-          instalmentsDetails: paymentMode === 'INSTALMENTS'
-            ? {
-                frequency: 'MONTHLY' as const,
-                numberOfInstalments,
-                amountPerInstalmentInCents: Math.round(totalPriceInCents / numberOfInstalments),
-              }
-            : undefined,
-        }),
       });
     } else {
       response = await updateDraftDocument(document?.id as string, {
@@ -197,7 +187,21 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       return;
     }
 
-    const response = await sendDocumentToClient(savedDocument.id);
+    const response = await sendDocumentToClient(
+      savedDocument.id,
+      (isCreatingInvoice || isDraftInvoice)
+        ? {
+            paymentMode,
+            instalmentsDetails: paymentMode === 'INSTALMENTS'
+              ? {
+                  frequency: 'MONTHLY',
+                  numberOfInstalments,
+                  amountPerInstalmentInCents: Math.round(totalPriceInCents / numberOfInstalments),
+                }
+              : undefined,
+          }
+        : undefined,
+    );
     setIsSending(false);
 
     if (!response.ok) {
@@ -232,7 +236,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
           client={client}
           lineItems={lineItems}
           documentDates={documentDates}
-          showPaymentMode={isCreatingInvoice}
+          showPaymentMode={isCreatingInvoice || isDraftInvoice}
           paymentMode={paymentMode}
           numberOfInstalments={numberOfInstalments}
           amountPerInstalmentInCents={Math.round(totalPriceInCents / numberOfInstalments)}

@@ -34,24 +34,31 @@ implements
 
   async createBillingRequest(mode: 'ONE_TIME' | 'INSTALMENTS', companyId: string, input: GoCardlessCreatePaymentRequestInput){
     try {
-      const amount = Math.round(input.payment_request?.amount as number);
-      const currency = input.payment_request?.currency.toUpperCase();
-      const description = input.payment_request?.description.trim();
+      const paymentRequest = input.payment_request;
+      const amount = Math.round(paymentRequest?.amount as number);
+      const currency = paymentRequest?.currency.toUpperCase();
+      const description = paymentRequest?.description.trim();
 
-      if (!Number.isSafeInteger(amount) || amount <= 0) {
-        throw new BadRequestException('Le montant GoCardless doit être un entier positif exprimé en centimes.');
-      }
+      if (mode === 'ONE_TIME') {
+        if (!Number.isSafeInteger(amount) || amount <= 0) {
+          throw new BadRequestException('Le montant GoCardless doit être un entier positif exprimé en centimes.');
+        }
 
-      if (currency !== 'EUR') {
-        throw new BadRequestException('Les paiements GoCardless configurés ici doivent être en EUR.');
-      }
+        if (currency !== 'EUR') {
+          throw new BadRequestException('Les paiements GoCardless configurés ici doivent être en EUR.');
+        }
 
-      if (!description) {
-        throw new BadRequestException('La description du paiement GoCardless est obligatoire.');
-      }
+        if (!description) {
+          throw new BadRequestException('La description du paiement GoCardless est obligatoire.');
+        }
 
-      if (!supportedOpenBankingSchemes.has(input.payment_request?.scheme as string)) {
-        throw new BadRequestException('Le schéma de paiement GoCardless est invalide.');
+        if (!supportedOpenBankingSchemes.has(paymentRequest?.scheme as string)) {
+          throw new BadRequestException('Le schéma de paiement GoCardless est invalide.');
+        }
+      } else if (input.mandate_request?.scheme !== 'sepa_core') {
+        throw new BadRequestException(
+          'Les échéances GoCardless en EUR nécessitent un mandat SEPA Core.',
+        );
       }
 
       const company = await this.prismaService.company.findUnique({
@@ -85,8 +92,7 @@ implements
       } else if(mode === 'INSTALMENTS'){
         billingRequest = await client.billingRequests.create({
           mandate_request: {
-            scheme: input.payment_request?.scheme as string,
-            description: description
+            scheme: input.mandate_request?.scheme as string,
           }
         })
       }
@@ -116,7 +122,7 @@ implements
     const billingRequestId = await this.createBillingRequest('ONE_TIME', input.companyId, {
       payment_request: {
         description: input.description ?? "Paiement pour la facture " + input.invoiceId,
-        amount: input.amount * 100,
+        amount: input.amount,
         currency: input.currency,
         scheme: "sepa_credit_transfer"
       }
@@ -163,7 +169,7 @@ implements
       data: {
         invoiceId: input.invoiceId,
         providerReference: billingRequestId,
-        amountInCents: input.amount * 100,
+        amountInCents: input.amount,
         invoicePaymentLinkId: persistedPaymentLink.id,
         status: "PENDING",
         provider: "GOCARDLESS"
@@ -181,7 +187,7 @@ implements
       
       const billingRequestId = await this.createBillingRequest('INSTALMENTS', input.companyId, {
         mandate_request: {
-          scheme: "sepa_credit_transfer"
+          scheme: "sepa_core"
         }
       });
       const existingBillingRequest = await client.billingRequests.find(billingRequestId);
@@ -225,6 +231,9 @@ implements
 
       return { url: createdBillingRequestFlow.authorisation_url as string, paymentLinkId: billingRequestId };
     } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       console.error("Une erreur est survenue lors d'un création de paiement avec plusieurs échéances", error);
       throw new InternalServerErrorException("Une erreur est survenue lors d'un création de paiement avec plusieurs échéances", ( error as Error));
     }
@@ -235,7 +244,7 @@ implements
       data: {
         invoiceId,
         numberOfInstalments: input?.numberOfInstalments as number,
-        totalAmountInCents: ((input?.numberOfInstalments as number) * (input?.amountPerInstalmentInCents as number)) * 100,
+        totalAmountInCents: (input?.numberOfInstalments as number) * (input?.amountPerInstalmentInCents as number),
         amountPerInstalmentInCents: input?.amountPerInstalmentInCents as number,
         providerReference: billingRequestId
       }

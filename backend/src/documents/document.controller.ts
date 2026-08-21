@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, Res, Unaut
 import type { Response } from 'express';
 import { DocumentService } from "./document.service";
 import { CreateDocumentDto } from "./dtos/create-document.dto";
+import { SendDocumentToClientDto } from './dtos/send-document-to-client.dto';
 import { MarkInvoicePaidManuallyDto } from './dtos/mark-invoice-paid-manually.dto';
 import type { ExtendedRequest, User } from "src/types/extended-request.types";
 import { AuthGuard } from "src/auth/auth.guard";
@@ -119,13 +120,13 @@ export class DocumentController {
   }
 
   @Post(":documentId/send-to-client")
-  async sendDocumentToClient(@Param("documentId") documentId: string, @Req() req: ExtendedRequest) {
+  async sendDocumentToClient(@Param("documentId") documentId: string, @Body() body: SendDocumentToClientDto, @Req() req: ExtendedRequest) {
     const user = req.user;
     if(!user){
       throw new UnauthorizedException("Non authentifié");
     }
 
-    return await this.documentService.sendDocumentToClient(documentId, user);
+    return await this.documentService.sendDocumentToClient(documentId, user, body);
   }
 
   @Post(":documentId/retry-payment")

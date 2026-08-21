@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateDocumentDto } from './dtos/create-document.dto';
+import { SendDocumentToClientDto } from './dtos/send-document-to-client.dto';
 import { User } from 'src/types/extended-request.types';
 import { randomBytes } from 'crypto';
 import { MailService } from 'src/mail/mail.service';
@@ -37,8 +38,6 @@ export class DocumentService {
       const {
         lineItems,
         type = 'ESTIMATE',
-        paymentMode = 'ONE_TIME',
-        instalmentsDetails,
         ...documentData
       } = data;
       const companyId = await this.getActiveCompanyId(user, true);
@@ -56,17 +55,6 @@ export class DocumentService {
       }, 0);
 
       const totalDocumentPrice = totalPriceExludingTax + totalVatAmount;
-      const instalmentsDetailsForPaymentLink: CreatePaymentLinkInput['instalments_details'] =
-        paymentMode === 'INSTALMENTS'
-          ? {
-              frequency: instalmentsDetails!.frequency,
-              numberOfInstalments: instalmentsDetails!.numberOfInstalments,
-              amountPerInstalmentInCents: Math.round(
-                (totalDocumentPrice * 100) /
-                  instalmentsDetails!.numberOfInstalments,
-              ),
-            }
-          : undefined;
 
       const document = await this.prismaService.document.create({
         data: {
@@ -89,27 +77,6 @@ export class DocumentService {
       });
 
       await this.prismaService.$transaction(async (prisma) => {
-        if (type === 'INVOICE') {
-          await prisma.invoicePaymentMode.create({
-            data: {
-              invoiceId: document.id,
-              paymentMode,
-              paymentModeFrequency:
-                paymentMode === 'INSTALMENTS'
-                  ? instalmentsDetailsForPaymentLink!.frequency
-                  : null,
-              numberOfInstalments:
-                paymentMode === 'INSTALMENTS'
-                  ? instalmentsDetailsForPaymentLink!.numberOfInstalments
-                  : null,
-              amountPerInstalmentInCents:
-                paymentMode === 'INSTALMENTS'
-                  ? instalmentsDetailsForPaymentLink!.amountPerInstalmentInCents
-                  : null,
-            },
-          });
-        }
-
         for (const lineItem of lineItems) {
           const wtPrice = lineItem.unitPrice * lineItem.quantity;
           const totalPrice =
@@ -922,7 +889,11 @@ export class DocumentService {
     }
   }
 
-  async sendDocumentToClient(documentId: string, user: User) {
+  async sendDocumentToClient(
+    documentId: string,
+    user: User,
+    sendData: SendDocumentToClientDto = {},
+  ) {
     try {
       const document = await this.getDocumentById(documentId, user, true);
 
@@ -962,15 +933,16 @@ export class DocumentService {
         ? await this.getInvoiceCompany(document.companyId)
         : null;
 
-      const { paymentMode, instalmentsDetails } =
-        await this.getPaymentModeDetails(documentId);
+      const paymentDetails = isInvoice
+        ? await this.createInvoicePaymentMode(document, sendData)
+        : null;
       const paymentLink = isInvoice
         ? await this.createInvoicePaymentLink(
-            paymentMode,
+            paymentDetails!.paymentMode,
             document,
             company!,
             user,
-            instalmentsDetails,
+            paymentDetails!.instalmentsDetails,
           )
         : undefined;
 
@@ -1151,6 +1123,52 @@ export class DocumentService {
     };
   }
 
+  private async createInvoicePaymentMode(
+    document: { id: string; totalPrice: number },
+    sendData: SendDocumentToClientDto,
+  ): Promise<{
+    paymentMode: CreatePaymentLinkInput['paymentMode'];
+    instalmentsDetails: CreatePaymentLinkInput['instalments_details'];
+  }> {
+    const paymentMode = sendData.paymentMode ?? 'ONE_TIME';
+    const instalmentsDetails =
+      paymentMode === 'INSTALMENTS'
+        ? {
+            frequency: sendData.instalmentsDetails!.frequency,
+            numberOfInstalments:
+              sendData.instalmentsDetails!.numberOfInstalments,
+            amountPerInstalmentInCents: Math.round(
+              (document.totalPrice * 100) /
+                sendData.instalmentsDetails!.numberOfInstalments,
+            ),
+          }
+        : undefined;
+
+    const data = {
+      invoiceId: document.id,
+      paymentMode,
+      paymentModeFrequency: instalmentsDetails?.frequency ?? null,
+      numberOfInstalments: instalmentsDetails?.numberOfInstalments ?? null,
+      amountPerInstalmentInCents:
+        instalmentsDetails?.amountPerInstalmentInCents ?? null,
+    };
+
+    // An earlier attempt can fail after this point (PDF or email). Upsert lets
+    // the user send the same draft again and also upgrades existing drafts.
+    await this.prismaService.invoicePaymentMode.upsert({
+      where: { invoiceId: document.id },
+      create: data,
+      update: {
+        paymentMode: data.paymentMode,
+        paymentModeFrequency: data.paymentModeFrequency,
+        numberOfInstalments: data.numberOfInstalments,
+        amountPerInstalmentInCents: data.amountPerInstalmentInCents,
+      },
+    });
+
+    return { paymentMode, instalmentsDetails };
+  }
+
   async isCompanyUser(userId: string, companyId: string): Promise<boolean> {
     const companyUser = await this.prismaService.companyUser.findFirst({
       where: {
@@ -1177,19 +1195,6 @@ export class DocumentService {
     instalmentsDetails: CreatePaymentLinkInput['instalments_details'],
   ): Promise<string> {
     const paymentAccessToken = randomBytes(32).toString('hex');
-    const paymentLinkData: CreatePaymentLinkInput = {
-      paymentMode,
-      instalments_details: instalmentsDetails,
-      description: `Paiement de la facture ${document.documentNumber} pour ${document.clientName}`,
-      invoiceId: document.id,
-      amount: document.totalPrice,
-      currency: 'EUR',
-      companyId: company.id,
-      customer: {
-        email: document.clientEmail,
-      },
-    };
-
     const paymentProvider = this.configService.get<'BRIDGE' | 'GOCARDLESS'>(
       'PAYMENT_PROVIDER',
     );
@@ -1198,6 +1203,23 @@ export class DocumentService {
         "Le fournisseur de paiement n'est pas configuré.",
       );
     }
+
+    const paymentLinkData: CreatePaymentLinkInput = {
+      paymentMode,
+      instalments_details: instalmentsDetails,
+      description: `Paiement de la facture ${document.documentNumber} pour ${document.clientName}`,
+      invoiceId: document.id,
+      // Bridge expects an amount in euros, whereas GoCardless expects cents.
+      amount:
+        paymentProvider === 'GOCARDLESS'
+          ? Math.round(document.totalPrice * 100)
+          : document.totalPrice,
+      currency: 'EUR',
+      companyId: company.id,
+      customer: {
+        email: document.clientEmail,
+      },
+    };
 
     await this.paymentService.createPaymentLink(
       paymentProvider,

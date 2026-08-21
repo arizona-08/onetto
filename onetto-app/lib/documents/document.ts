@@ -1,6 +1,7 @@
 import { Document, DocumentNegociation, DocumentVersion } from "@/app/types";
 import { apiClient } from "../api";
 import { CreateDocumentDto } from "./dtos/create-document.dto";
+import { SendDocumentToClientDto } from "./dtos/send-document-to-client.dto";
 import { CreateDocumentResponse } from "./responses/create-document.response";
 import { DeleteDocumentsResponse } from "./responses/DeleteDocumentsResponse";
 import { SendDocumentToClientResponse } from "./responses/send-document-to-client.response";
@@ -43,9 +44,10 @@ export async function massDeleteDocuments(documentIds: string[]) {
   })
 }
 
-export async function sendDocumentToClient(documentId: string){
+export async function sendDocumentToClient(documentId: string, data?: SendDocumentToClientDto){
   return apiClient<SendDocumentToClientResponse>(`api/documents/${documentId}/send-to-client`, {
     method: "POST",
+    body: data ? JSON.stringify(data) : undefined,
   })
 }
 
