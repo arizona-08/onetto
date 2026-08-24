@@ -15,6 +15,7 @@ import { Document, InvoiceStatus } from '@/app/types';
 import { formatDate } from '@/shared/utils';
 import DocumentSelector from '../molecules/DcumentSelector';
 import DocumentSorter from '../molecules/DocumentSorter';
+import InvoiceInstalmentProgress from '../molecules/InvoiceInstalmentProgress';
 import {
   convertEstimateToInvoice,
   getDocumentsPage,
@@ -82,7 +83,7 @@ export type InvoiceSelectStatus =
   | 'Refusées';
 
 export type EstimateSelectStatus =
-  | 'Tout'
+  | 'Tous'
   | 'Brouillons'
   | 'Envoyés'
   | 'Acceptés'
@@ -102,7 +103,7 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
   const { showToast } = useToast();
   const router = useRouter();
 
-  const [selectedStatus, setSelectedStatus] = React.useState<InvoiceSelectStatus | EstimateSelectStatus>(isInvoiceType ? 'Toutes' : 'Tout');
+  const [selectedStatus, setSelectedStatus] = React.useState<InvoiceSelectStatus | EstimateSelectStatus>(isInvoiceType ? 'Toutes' : 'Tous');
   const [sortMethod, setSortMethod] = React.useState<'date' | 'amount'>('date')
   const [isSortOpen, setIsSortOpen] = React.useState<boolean>(false);
   const [checkedDocuments, setCheckedDocuments] = React.useState<string[]>([]);
@@ -449,6 +450,7 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
                       <span className={`h-2 w-2 rounded-full ${getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).dotClassName}`} />
                       {getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).label}
                     </span>
+                    {isInvoiceType && <InvoiceInstalmentProgress document={document} className="mt-2 w-32" />}
                     {isInvoiceType && document.invoiceStatus === 'REJECTED' && (
                       <button
                         type="button"
@@ -555,10 +557,13 @@ function DocumentsTable({ type, documents, currentDate, canCreate, initialPagina
                 </td>
                 <td className="px-5 py-5 align-center">
                   <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-500">
-                    <span className={`h-2 w-2 rounded-full ${getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).dotClassName}`} />
-                    {getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).label}
-                  </span>
+                    <div className="flex min-w-28 flex-col items-start gap-2">
+                      <span className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-500">
+                        <span className={`h-2 w-2 rounded-full ${getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).dotClassName}`} />
+                        {getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).label}
+                      </span>
+                      {isInvoiceType && <InvoiceInstalmentProgress document={document} className="w-full" />}
+                    </div>
                   {isInvoiceType && document.invoiceStatus === 'REJECTED' && (
                     <button
                       type="button"

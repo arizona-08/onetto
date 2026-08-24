@@ -75,6 +75,8 @@ export type Document = {
       instalmentNumber: number;
       amountInCents: number;
       dueDate: string;
+      instalmentStatus: 'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'OVERDUE';
+      paidAt?: string | null;
     }>;
   } | null;
 }

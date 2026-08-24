@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import DocumentsTable from '@/app/components/organisms/DocumentsTable';
+import DocumentsTypeSwitch from '@/app/components/organisms/DocumentsTypeSwitch';
 
 export const dynamic = 'force-dynamic'
 
@@ -90,23 +91,38 @@ async function DocumentsPage() {
           iconClassName="bg-zinc-100 text-zinc-600"
         />
       </div>
-      {activeCompany?.status === 'CLOSED' && (
-        <div className="mt-4 rounded-lg border border-red-100 bg-red-50/70 p-4 text-sm text-zinc-700">
-          Cette entreprise est fermée : les factures existantes restent consultables, mais aucune nouvelle facture ne peut être créée.
-        </div>
-      )}
 
-      <div className="space-y-12">
-        <div className="mt-6">
-          <h2 className="font-semibold text-xl">Devis</h2>
-          <DocumentsTable type="estimates" documents={estimates} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} initialPagination={estimatesResponse.ok ? estimatesResponse.data.pagination : undefined} />
-        </div>
-
-        <div>
-          <h2 className="font-semibold text-xl">Factures</h2>
-          <DocumentsTable type="invoices" documents={invoices} currentDate={currentDate} canCreate={activeCompany?.status !== 'CLOSED'} initialPagination={invoicesResponse.ok ? invoicesResponse.data.pagination : undefined} />
-        </div>
-      </div>
+      <DocumentsTypeSwitch
+        notice={activeCompany?.status === 'CLOSED' && (
+          <div className="mt-4 rounded-lg border border-red-100 bg-red-50/70 p-4 text-sm text-zinc-700">
+            Cette entreprise est fermée : les factures existantes restent consultables, mais aucune nouvelle facture ne peut être créée.
+          </div>
+        )}
+        estimates={(
+          <section aria-labelledby="estimates-heading">
+            <h2 id="estimates-heading" className="text-xl font-semibold">Devis</h2>
+            <DocumentsTable
+              type="estimates"
+              documents={estimates}
+              currentDate={currentDate}
+              canCreate={activeCompany?.status !== 'CLOSED'}
+              initialPagination={estimatesResponse.ok ? estimatesResponse.data.pagination : undefined}
+            />
+          </section>
+        )}
+        invoices={(
+          <section aria-labelledby="invoices-heading">
+            <h2 id="invoices-heading" className="text-xl font-semibold">Factures</h2>
+            <DocumentsTable
+              type="invoices"
+              documents={invoices}
+              currentDate={currentDate}
+              canCreate={activeCompany?.status !== 'CLOSED'}
+              initialPagination={invoicesResponse.ok ? invoicesResponse.data.pagination : undefined}
+            />
+          </section>
+        )}
+      />
     </div>
   )
 }

@@ -558,6 +558,12 @@ export class DocumentService {
           where,
           include: {
             services: withServices,
+            invoicePaymentMode: true,
+            invoiceInstalmentPlan: {
+              include: {
+                invoicePaymentInstalments: { orderBy: { instalmentNumber: 'asc' } },
+              },
+            },
             convertedDocuments: {
               where: { type: 'INVOICE' },
               select: { id: true },
