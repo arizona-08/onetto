@@ -6,17 +6,6 @@ export type CompaniesResponse = {
   activeCompanyId: string | null;
 };
 
-export type InvoiceFeeSummary = {
-  periodStart: string;
-  totalAmountInCents: number;
-  companies: Array<{
-    companyId: string;
-    companyName: string;
-    paidInvoicesCount: number;
-    amountInCents: number;
-  }>;
-};
-
 export type CompanyService = {
   id: string;
   companyId: string;
@@ -43,10 +32,6 @@ export type CompanyClient = {
 
 export function getMyCompaniesServer() {
   return apiServer<CompaniesResponse>("api/companies");
-}
-
-export function getCurrentInvoiceFeeSummaryServer() {
-  return apiServer<InvoiceFeeSummary>("api/companies/invoice-fees/summary");
 }
 
 export function getActiveCompanyServicesServer() {

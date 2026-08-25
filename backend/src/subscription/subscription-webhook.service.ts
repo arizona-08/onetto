@@ -80,11 +80,13 @@ export class SubscriptionWebhookService {
         : null;
 
     await this.prismaService.$transaction(async (tx) => {
-      const existingSubscription = await tx.userSubscription.findUnique({
-        where: { customerId },
-      });
-      const userId =
-        existingSubscription?.userId ?? subscription.metadata.userId;
+      const metadataUserId = subscription.metadata.userId;
+      const existingSubscription = metadataUserId
+        ? await tx.userSubscription.findUnique({
+            where: { userId: metadataUserId },
+          })
+        : await tx.userSubscription.findUnique({ where: { customerId } });
+      const userId = metadataUserId ?? existingSubscription?.userId;
 
       if (!userId) {
         throw new Error(
@@ -92,8 +94,11 @@ export class SubscriptionWebhookService {
         );
       }
 
+      const willCancelAtPeriodEnd = canceledAtPeriodEnd != null;
       await tx.userSubscription.upsert({
-        where: { customerId },
+        // UserSubscription.userId is the business invariant: one row per user.
+        // A price change must update that row even if Stripe's customer changes.
+        where: { userId },
         create: {
           userId,
           customerId,
@@ -101,14 +106,14 @@ export class SubscriptionWebhookService {
           subscriptionPlan,
           isActive,
           canceledAtPeriodEnd,
-          willCancelAtPeriodEnd: subscription.cancel_at_period_end,
+          willCancelAtPeriodEnd: willCancelAtPeriodEnd,
         },
         update: {
           subscriptionId: subscription.id,
           subscriptionPlan,
           isActive,
           canceledAtPeriodEnd,
-          willCancelAtPeriodEnd: subscription.cancel_at_period_end,
+          willCancelAtPeriodEnd: willCancelAtPeriodEnd,
         },
       });
 

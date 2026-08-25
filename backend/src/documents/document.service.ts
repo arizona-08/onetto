@@ -11,7 +11,6 @@ import { User } from 'src/types/extended-request.types';
 import { randomBytes } from 'crypto';
 import { MailService } from 'src/mail/mail.service';
 import { $Enums, Prisma } from '@prisma/client';
-import { InvoicePaymentFeeService } from '../payment-fee/invoice-payment-fee.service';
 import { ConfigService } from '@nestjs/config';
 import { CreatePaymentLinkInput } from 'src/Adapters/PaymentAdapters/Types/InputTypes/CreatePaymentLinkInput.types';
 import { PaymentService } from 'src/Adapters/PaymentAdapters/payment.service';
@@ -31,7 +30,6 @@ export class DocumentService {
     private readonly pdfService: PdfService,
     private readonly paymentService: PaymentService,
     private readonly configService: ConfigService,
-    private readonly invoicePaymentFeeService: InvoicePaymentFeeService,
   ) {
     this.callbackUrl =
       this.configService.get<string>('BRIDGE_CALLBACK_URL') || '';
@@ -39,11 +37,7 @@ export class DocumentService {
 
   async createDocument(data: CreateDocumentDto, user: User) {
     try {
-      const {
-        lineItems,
-        type = 'ESTIMATE',
-        ...documentData
-      } = data;
+      const { lineItems, type = 'ESTIMATE', ...documentData } = data;
       const companyId = await this.getActiveCompanyId(user, true);
       const documentNumber = await this.createDocumentNumber(type, companyId);
 
@@ -69,21 +63,21 @@ export class DocumentService {
       const document = await this.prismaService.$transaction(async (prisma) => {
         const createdDocument = await prisma.document.create({
           data: {
-          clientName: documentData.client.name,
-          clientEmail: documentData.client.email,
-          clientAddress: documentData.client.address,
-          clientCity: documentData.client.city,
-          clientCountry: documentData.client.country,
-          clientPostalCode: documentData.client.postalCode,
-          totalPriceExcludingTax: totalPriceExludingTax,
-          totalPrice: totalDocumentPrice,
-          documentNumber,
-          type,
-          isFromEstimate: type === 'ESTIMATE',
-          estimateStatus: 'DRAFT',
-          invoiceStatus: 'DRAFT',
-          companyId,
-          paymentDueAt: new Date(data.documentDates.dueDate),
+            clientName: documentData.client.name,
+            clientEmail: documentData.client.email,
+            clientAddress: documentData.client.address,
+            clientCity: documentData.client.city,
+            clientCountry: documentData.client.country,
+            clientPostalCode: documentData.client.postalCode,
+            totalPriceExcludingTax: totalPriceExludingTax,
+            totalPrice: totalDocumentPrice,
+            documentNumber,
+            type,
+            isFromEstimate: type === 'ESTIMATE',
+            estimateStatus: 'DRAFT',
+            invoiceStatus: 'DRAFT',
+            companyId,
+            paymentDueAt: new Date(data.documentDates.dueDate),
           },
         });
 
@@ -168,18 +162,20 @@ export class DocumentService {
           );
         }
 
-        const updatedDocument = await this.prismaService.$transaction(async (prisma) => {
-          const updated = await prisma.document.update({
-            where: { id: document.id },
-            data: { paymentDueAt: new Date(data.documentDates.dueDate) },
-          });
-          await this.syncInvoiceInstalmentPlan(
-            prisma,
-            updated,
-            data.instalmentsDetails,
-          );
-          return updated;
-        });
+        const updatedDocument = await this.prismaService.$transaction(
+          async (prisma) => {
+            const updated = await prisma.document.update({
+              where: { id: document.id },
+              data: { paymentDueAt: new Date(data.documentDates.dueDate) },
+            });
+            await this.syncInvoiceInstalmentPlan(
+              prisma,
+              updated,
+              data.instalmentsDetails,
+            );
+            return updated;
+          },
+        );
 
         return {
           message: "Date d'échéance de la facture mise à jour avec succès.",
@@ -561,7 +557,9 @@ export class DocumentService {
             invoicePaymentMode: true,
             invoiceInstalmentPlan: {
               include: {
-                invoicePaymentInstalments: { orderBy: { instalmentNumber: 'asc' } },
+                invoicePaymentInstalments: {
+                  orderBy: { instalmentNumber: 'asc' },
+                },
               },
             },
             convertedDocuments: {
@@ -596,7 +594,9 @@ export class DocumentService {
           invoicePaymentMode: true,
           invoiceInstalmentPlan: {
             include: {
-              invoicePaymentInstalments: { orderBy: { instalmentNumber: 'asc' } },
+              invoicePaymentInstalments: {
+                orderBy: { instalmentNumber: 'asc' },
+              },
             },
           },
           convertedDocuments: {
@@ -1343,7 +1343,12 @@ export class DocumentService {
   }): Omit<CreatePaymentLinkInput['customer'], 'email'> {
     const nameParts = document.clientName.trim().split(/\s+/);
     const country = document.clientCountry.trim().toUpperCase();
-    const countryCode = country === 'FRANCE' ? 'FR' : /^[A-Z]{2}$/.test(country) ? country : undefined;
+    const countryCode =
+      country === 'FRANCE'
+        ? 'FR'
+        : /^[A-Z]{2}$/.test(country)
+          ? country
+          : undefined;
 
     return {
       firstName: nameParts[0] || undefined,
@@ -1449,11 +1454,7 @@ export class DocumentService {
     });
   }
 
-  async manuallyMarkInvoiceAsPaid(
-    documentId: string,
-    user: User,
-    paymentMethod: $Enums.PaymentMethod,
-  ) {
+  async manuallyMarkInvoiceAsPaid(documentId: string, user: User) {
     try {
       const activeCompanyId = await this.getActiveCompanyId(user, true);
       const isCompanyUser = await this.isCompanyUser(user.id, activeCompanyId);
@@ -1481,11 +1482,7 @@ export class DocumentService {
         );
       }
 
-      await this.manuallyMarkInvoiceAs(
-        'PAID_MANUALLY',
-        documentId,
-        paymentMethod,
-      );
+      await this.manuallyMarkInvoiceAs('PAID_MANUALLY', documentId);
 
       return {
         success: true,
@@ -1561,13 +1558,12 @@ export class DocumentService {
   private async manuallyMarkInvoiceAs(
     status: $Enums.InvoiceStatus,
     documentId: string,
-    paymentMethod?: $Enums.PaymentMethod,
   ) {
     try {
       await this.prismaService.$transaction(async (prisma) => {
         const document = await prisma.document.findUnique({
           where: { id: documentId },
-          select: { type: true, invoiceStatus: true, companyId: true },
+          select: { type: true, invoiceStatus: true },
         });
 
         if (!document) {
@@ -1590,22 +1586,6 @@ export class DocumentService {
           where: { id: documentId },
           data: { invoiceStatus: status },
         });
-
-        if (status === 'PAID_MANUALLY') {
-          await this.invoicePaymentFeeService.createForPaidInvoice(
-            documentId,
-            document.companyId,
-            prisma,
-            paymentMethod,
-          );
-        }
-
-        if (status === 'PENDING') {
-          await this.invoicePaymentFeeService.resetForPendingInvoice(
-            documentId,
-            prisma,
-          );
-        }
       });
     } catch (error: unknown) {
       console.error('Error manually marking invoice as:', error);

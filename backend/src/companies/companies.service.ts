@@ -1,20 +1,22 @@
-import { BadRequestException, HttpException, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
-import { PrismaService } from "src/prisma/prisma.service";
-import { CreateCompanyDto } from "./dtos/create-company.dto";
-import { UpdateCompanyDto } from "./dtos/update-company.dto";
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { CreateCompanyDto } from './dtos/create-company.dto';
+import { UpdateCompanyDto } from './dtos/update-company.dto';
 import { CreateCompanyClientDto } from './dtos/create-company-client.dto';
 import { CreateCompanyServiceDto } from './dtos/create-company-service.dto';
 import { UpdateCompanyClientDto } from './dtos/update-company-client.dto';
 import { UpdateCompanyServiceDto } from './dtos/update-company-service.dto';
 
-const PAID_INVOICE_STATUSES = ['PAID', 'PAID_MANUALLY'] as const;
-
 @Injectable()
 export class CompaniesService {
-  constructor(
-    private readonly prismaService: PrismaService
-  ) {}
+  constructor(private readonly prismaService: PrismaService) {}
 
   private async getOwnedCompany(companyId: string, userId: string) {
     const company = await this.prismaService.company.findFirst({
@@ -22,7 +24,9 @@ export class CompaniesService {
     });
 
     if (!company) {
-      throw new NotFoundException("Entreprise introuvable ou accès non autorisé.");
+      throw new NotFoundException(
+        'Entreprise introuvable ou accès non autorisé.',
+      );
     }
 
     return company;
@@ -32,10 +36,7 @@ export class CompaniesService {
     const company = await this.prismaService.company.findFirst({
       where: {
         id: companyId,
-        OR: [
-          { ownerId: userId },
-          { companyUsers: { some: { userId } } },
-        ],
+        OR: [{ ownerId: userId }, { companyUsers: { some: { userId } } }],
       },
       include: {
         companyPaymentAccount: {
@@ -43,14 +44,16 @@ export class CompaniesService {
             id: true,
             companyId: true,
             creditorId: true,
-            verificationStatus: true
-          }
-        }
-      }
+            verificationStatus: true,
+          },
+        },
+      },
     });
 
     if (!company) {
-      throw new NotFoundException("Entreprise introuvable ou accès non autorisé.");
+      throw new NotFoundException(
+        'Entreprise introuvable ou accès non autorisé.',
+      );
     }
 
     return company;
@@ -60,11 +63,19 @@ export class CompaniesService {
     try {
       const company = await this.prismaService.$transaction(async (prisma) => {
         const createdCompany = await prisma.company.create({
-          data: { ...data, vatNumber: data.subjectToVat ? data.vatNumber : null, ownerId },
+          data: {
+            ...data,
+            vatNumber: data.subjectToVat ? data.vatNumber : null,
+            ownerId,
+          },
         });
 
         await prisma.companyUser.create({
-          data: { companyId: createdCompany.id, userId: ownerId, role: "ADMIN" },
+          data: {
+            companyId: createdCompany.id,
+            userId: ownerId,
+            role: 'ADMIN',
+          },
         });
 
         // Une nouvelle entreprise devient immédiatement l'entreprise active.
@@ -78,7 +89,7 @@ export class CompaniesService {
 
       return { success: true, company };
     } catch (error) {
-      this.handleDatabaseError(error, "création");
+      this.handleDatabaseError(error, 'création');
     }
   }
 
@@ -86,15 +97,17 @@ export class CompaniesService {
     const [ownedCompanies, companyUsers, user] = await Promise.all([
       this.prismaService.company.findMany({
         where: { ownerId: userId },
-        include: { companyPaymentAccount: {
-          select: {
-            id: true,
-            companyId: true,
-            creditorId: true,
-            verificationStatus: true
-          }
-        }},
-        orderBy: { name: "asc" },
+        include: {
+          companyPaymentAccount: {
+            select: {
+              id: true,
+              companyId: true,
+              creditorId: true,
+              verificationStatus: true,
+            },
+          },
+        },
+        orderBy: { name: 'asc' },
       }),
       this.prismaService.companyUser.findMany({
         where: { userId },
@@ -107,116 +120,27 @@ export class CompaniesService {
     ]);
 
     const companiesById = new Map(
-      ownedCompanies.map((company) => [company.id, { ...company, isHidden: false }]),
+      ownedCompanies.map((company) => [
+        company.id,
+        { ...company, isHidden: false },
+      ]),
     );
 
     for (const companyUser of companyUsers) {
       companiesById.set(companyUser.companyId, {
         ...companyUser.company,
         isHidden: companyUser.isHidden,
-        companyPaymentAccount: ownedCompanies.find((c) => c.id === companyUser.companyId)?.companyPaymentAccount ?? null,
+        companyPaymentAccount:
+          ownedCompanies.find((c) => c.id === companyUser.companyId)
+            ?.companyPaymentAccount ?? null,
       });
     }
 
-    const companies = [...companiesById.values()].sort((first, second) => first.name.localeCompare(second.name));
+    const companies = [...companiesById.values()].sort((first, second) =>
+      first.name.localeCompare(second.name),
+    );
 
     return { companies, activeCompanyId: user?.lastConnectedCompanyId ?? null };
-  }
-
-  async getCurrentInvoiceFeeSummary(userId: string) {
-    const periodStart = this.getStartOfCurrentMonth();
-    const companies = await this.prismaService.company.findMany({
-      where: { ownerId: userId },
-      orderBy: { name: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        invoicePaymentFees: {
-          where: {
-            createdAt: { gte: periodStart },
-            document: {
-              invoiceStatus: { in: [...PAID_INVOICE_STATUSES] },
-            },
-          },
-          select: { amountInCents: true },
-        },
-      },
-    });
-
-    const details = companies.map((company) => {
-      const paidInvoicesCount = company.invoicePaymentFees.length;
-      const amountInCents = company.invoicePaymentFees.reduce(
-        (total, fee) => total + fee.amountInCents,
-        0,
-      );
-
-      return {
-        companyId: company.id,
-        companyName: company.name,
-        paidInvoicesCount,
-        amountInCents,
-      };
-    });
-
-    return {
-      periodStart,
-      totalAmountInCents: details.reduce(
-        (total, company) => total + company.amountInCents,
-        0,
-      ),
-      companies: details,
-    };
-  }
-
-  async getCompanyInvoiceFeeDetails(companyId: string, userId: string) {
-    await this.getAccessibleCompany(companyId, userId);
-
-    const periodStart = this.getStartOfCurrentMonth();
-    const [currentPeriodFees, history] = await Promise.all([
-      this.prismaService.invoicePaymentFee.aggregate({
-        where: {
-          companyId,
-          createdAt: { gte: periodStart },
-          document: {
-            invoiceStatus: { in: [...PAID_INVOICE_STATUSES] },
-          },
-        },
-        _sum: { amountInCents: true },
-        _count: { id: true },
-      }),
-      this.prismaService.invoicePaymentFee.findMany({
-        where: { companyId },
-        orderBy: { createdAt: 'desc' },
-        include: {
-          document: {
-            select: {
-              id: true,
-              documentNumber: true,
-              invoiceStatus: true,
-            },
-          },
-        },
-      }),
-    ]);
-
-    return {
-      periodStart,
-      currentPeriodAmountInCents: currentPeriodFees._sum.amountInCents ?? 0,
-      paidInvoicesCount: currentPeriodFees._count.id,
-      history: history.map((fee) => ({
-        id: fee.id,
-        amountInCents: fee.amountInCents,
-        paymentMethod: fee.paymentMethod,
-        createdAt: fee.createdAt,
-        invoice: fee.document,
-      })),
-    };
-  }
-
-  private getStartOfCurrentMonth() {
-    const now = new Date();
-
-    return new Date(now.getFullYear(), now.getMonth(), 1);
   }
 
   async getCompany(companyId: string, userId: string) {
@@ -224,21 +148,23 @@ export class CompaniesService {
   }
 
   async getMyActiveCompany(userId: string) {
-    try{
+    try {
       const user = await this.prismaService.user.findUnique({
         where: { id: userId },
-        include: { lastConnectedCompany: {
-          include: {
-            companyPaymentAccount: {
-              select: {
-                id: true,
-                companyId: true,
-                creditorId: true,
-                verificationStatus: true
-              }
-            }
-          }
-        } },
+        include: {
+          lastConnectedCompany: {
+            include: {
+              companyPaymentAccount: {
+                select: {
+                  id: true,
+                  companyId: true,
+                  creditorId: true,
+                  verificationStatus: true,
+                },
+              },
+            },
+          },
+        },
       });
 
       if (!user?.lastConnectedCompany) {
@@ -246,8 +172,8 @@ export class CompaniesService {
       }
 
       return {
-        ...(user.lastConnectedCompany)
-      }
+        ...user.lastConnectedCompany,
+      };
     } catch (error) {
       this.handleDatabaseError(error, "récupération de l'entreprise active.");
     }
@@ -271,7 +197,10 @@ export class CompaniesService {
     });
   }
 
-  async createActiveCompanyService(userId: string, data: CreateCompanyServiceDto) {
+  async createActiveCompanyService(
+    userId: string,
+    data: CreateCompanyServiceDto,
+  ) {
     const companyId = await this.getActiveCompanyIdForUser(userId);
     await this.ensureCompanyCatalogIsEditable(companyId);
 
@@ -333,7 +262,10 @@ export class CompaniesService {
     return { success: true };
   }
 
-  async createActiveCompanyClient(userId: string, data: CreateCompanyClientDto) {
+  async createActiveCompanyClient(
+    userId: string,
+    data: CreateCompanyClientDto,
+  ) {
     const companyId = await this.getActiveCompanyIdForUser(userId);
     await this.ensureCompanyCatalogIsEditable(companyId);
 
@@ -403,7 +335,9 @@ export class CompaniesService {
     });
 
     if (!companyUser) {
-      throw new NotFoundException('Entreprise active introuvable ou accès non autorisé.');
+      throw new NotFoundException(
+        'Entreprise active introuvable ou accès non autorisé.',
+      );
     }
 
     return companyUser.companyId;
@@ -416,7 +350,9 @@ export class CompaniesService {
     });
 
     if (!company || company.status === 'CLOSED') {
-      throw new BadRequestException('Le catalogue d’une entreprise fermée ne peut pas être modifié.');
+      throw new BadRequestException(
+        'Le catalogue d’une entreprise fermée ne peut pas être modifié.',
+      );
     }
   }
 
@@ -424,10 +360,16 @@ export class CompaniesService {
     return unitPrice * (1 + (taxRate ?? 0) / 100);
   }
 
-  async updateCompany(companyId: string, data: UpdateCompanyDto, userId: string) {
+  async updateCompany(
+    companyId: string,
+    data: UpdateCompanyDto,
+    userId: string,
+  ) {
     const company = await this.getOwnedCompany(companyId, userId);
-    if (company.status === "CLOSED") {
-      throw new BadRequestException("Une entreprise fermée ne peut pas être modifiée.");
+    if (company.status === 'CLOSED') {
+      throw new BadRequestException(
+        'Une entreprise fermée ne peut pas être modifiée.',
+      );
     }
     const { id: _id, ownerId: _ownerId, ...companyData } = data;
 
@@ -440,16 +382,20 @@ export class CompaniesService {
         },
       });
     } catch (error) {
-      this.handleDatabaseError(error, "mise à jour");
+      this.handleDatabaseError(error, 'mise à jour');
     }
   }
 
   async selectCompany(companyId: string, userId: string) {
     const company = await this.getOwnedCompany(companyId, userId);
 
-    const companyUser = await this.prismaService.companyUser.findFirst({ where: { companyId, userId } });
+    const companyUser = await this.prismaService.companyUser.findFirst({
+      where: { companyId, userId },
+    });
     if (companyUser?.isHidden) {
-      throw new BadRequestException("Démasquez cette entreprise avant de la sélectionner.");
+      throw new BadRequestException(
+        'Démasquez cette entreprise avant de la sélectionner.',
+      );
     }
 
     await this.prismaService.user.update({
@@ -460,32 +406,44 @@ export class CompaniesService {
     return { success: true, activeCompanyId: companyId };
   }
 
-  async performOwnedCompanyAction(companyId: string, userId: string, action: "reactivate" | "close", reason?: string) {
-    try{
+  async performOwnedCompanyAction(
+    companyId: string,
+    userId: string,
+    action: 'reactivate' | 'close',
+    reason?: string,
+  ) {
+    try {
       await this.getOwnedCompany(companyId, userId);
 
-      let newStatus: "ACTIVE" | "CLOSED";
+      let newStatus: 'ACTIVE' | 'CLOSED';
       const closingReason = reason?.trim();
 
-      switch(action){
-        case "reactivate":
-          newStatus = "ACTIVE";
+      switch (action) {
+        case 'reactivate':
+          newStatus = 'ACTIVE';
           break;
-        case "close":
+        case 'close':
           if (!closingReason) {
-            throw new BadRequestException("Le motif de fermeture est obligatoire.");
+            throw new BadRequestException(
+              'Le motif de fermeture est obligatoire.',
+            );
           }
-          newStatus = "CLOSED";
+          newStatus = 'CLOSED';
           break;
         default:
-          throw new BadRequestException("Action invalide.");
+          throw new BadRequestException('Action invalide.');
       }
 
       await this.prismaService.company.update({
         where: { id: companyId },
-        data: newStatus === "CLOSED"
-          ? { status: newStatus, closingReason: closingReason ?? null, closedAt: new Date() }
-          : { status: newStatus },
+        data:
+          newStatus === 'CLOSED'
+            ? {
+                status: newStatus,
+                closingReason: closingReason ?? null,
+                closedAt: new Date(),
+              }
+            : { status: newStatus },
       });
 
       return { success: true, status: newStatus };
@@ -494,30 +452,36 @@ export class CompaniesService {
     }
   }
 
-  async performUserCompanyAction(companyId: string, userId: string, action: "hide" | "unhide") {
+  async performUserCompanyAction(
+    companyId: string,
+    userId: string,
+    action: 'hide' | 'unhide',
+  ) {
     try {
       const companyUser = await this.prismaService.companyUser.findFirst({
-        where: { companyId, userId }
+        where: { companyId, userId },
       });
 
-      if(!companyUser){
+      if (!companyUser) {
         throw new NotFoundException("Utilisateur non associé à l'entreprise.");
       }
 
-      if (action === "hide") {
+      if (action === 'hide') {
         const user = await this.prismaService.user.findUnique({
           where: { id: userId },
           select: { lastConnectedCompanyId: true },
         });
 
         if (user?.lastConnectedCompanyId === companyId) {
-          throw new BadRequestException("Une entreprise active ne peut pas être masquée.");
+          throw new BadRequestException(
+            'Une entreprise active ne peut pas être masquée.',
+          );
         }
       }
 
       await this.prismaService.companyUser.update({
         where: { id: companyUser.id },
-        data: { isHidden: action === "hide" }
+        data: { isHidden: action === 'hide' },
       });
 
       return { success: true };
@@ -528,13 +492,19 @@ export class CompaniesService {
 
   async deleteCompany(companyId: string, userId: string) {
     const company = await this.getOwnedCompany(companyId, userId);
-    if (company.status === "CLOSED") {
-      throw new BadRequestException("Une entreprise fermée est conservée pour des raisons légales et ne peut pas être supprimée.");
+    if (company.status === 'CLOSED') {
+      throw new BadRequestException(
+        'Une entreprise fermée est conservée pour des raisons légales et ne peut pas être supprimée.',
+      );
     }
 
-    const invoicesCount = await this.prismaService.document.count({ where: { companyId, type: "INVOICE" } });
+    const invoicesCount = await this.prismaService.document.count({
+      where: { companyId, type: 'INVOICE' },
+    });
     if (invoicesCount > 0) {
-      throw new BadRequestException("Cette entreprise possède des factures et ne peut pas être supprimée.");
+      throw new BadRequestException(
+        'Cette entreprise possède des factures et ne peut pas être supprimée.',
+      );
     }
 
     await this.prismaService.$transaction([
@@ -554,10 +524,18 @@ export class CompaniesService {
       throw error;
     }
 
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw new BadRequestException("Une entreprise utilise déjà ces informations uniques (email, téléphone, SIREN ou SIRET)." + error.message);
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new BadRequestException(
+        'Une entreprise utilise déjà ces informations uniques (email, téléphone, SIREN ou SIRET).' +
+          error.message,
+      );
     }
 
-    throw new InternalServerErrorException(`Une erreur est survenue lors de la ${action} de l'entreprise.`);
+    throw new InternalServerErrorException(
+      `Une erreur est survenue lors de la ${action} de l'entreprise.`,
+    );
   }
 }

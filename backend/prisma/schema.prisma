@@ -12,20 +12,20 @@ datasource db {
 }
 
 model User {
-  id     String @id @default(uuid())
-  firstname String
-  lastname String
-  email String @unique
-  password String
-  accountType AccountType @default(BUSINESS_OWNER)
-  subscriptionPlan SubscriptionPlan?
+  id                     String            @id @default(uuid())
+  firstname              String
+  lastname               String
+  email                  String            @unique
+  password               String
+  accountType            AccountType       @default(BUSINESS_OWNER)
+  subscriptionPlan       SubscriptionPlan?
   lastConnectedCompanyId String?
 
-  lastConnectedCompany Company? @relation("LastConnectedCompany", fields: [lastConnectedCompanyId], references: [id])
-  ownedCompanies Company[]
-  companies CompanyUser[]
-  subscription UserSubscription?
-  subscriptionHistory UserSubscriptionHistory[]
+  lastConnectedCompany Company?                  @relation("LastConnectedCompany", fields: [lastConnectedCompanyId], references: [id])
+  ownedCompanies       Company[]
+  companies            CompanyUser[]
+  subscription         UserSubscription?
+  subscriptionHistory  UserSubscriptionHistory[]
 }
 
 enum AccountType {
@@ -34,23 +34,24 @@ enum AccountType {
 }
 
 model UserSubscription {
-  id String @id @default(uuid())
-  userId String @unique
-  user User @relation(fields: [userId], references: [id])
-  customerId String @unique
-  subscriptionId String
-  subscriptionPlan SubscriptionPlan @default(FREE)
-  isActive Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  canceledAtPeriodEnd DateTime?
-  willCancelAtPeriodEnd Boolean @default(false)
+  id                    String           @id @default(uuid())
+  userId                String           @unique
+  user                  User             @relation(fields: [userId], references: [id])
+  customerId            String           @unique
+  subscriptionId        String
+  subscriptionPlan      SubscriptionPlan @default(FREE)
+  isActive              Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  canceledAtPeriodEnd   DateTime?
+  willCancelAtPeriodEnd Boolean          @default(false)
 }
 
 model UserSubscriptionHistory {
-  id String @id @default(uuid())
-  userId String
-  user User @relation(fields: [userId], references: [id])
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
 
   subscriptionPlan SubscriptionPlan
 }
@@ -64,35 +65,33 @@ enum SubscriptionPlan {
 }
 
 model Company {
-  id String @id @default(uuid())
-  ownerId String
-  name String
-  email String @unique
-  phoneNumber String @unique
-  siren String @unique
-  siret String @unique
-  address String
-  city String
-  postalCode String
-  country String
-  subjectToVat Boolean
-  vatNumber String?
-  IBAN String
-  BIC String
-  status CompanyStatus @default(ACTIVE)
-  closingReason String?
-  closedAt DateTime?
-  isPaymentAccountConnected Boolean @default(false)
+  id                        String        @id @default(uuid())
+  ownerId                   String
+  name                      String
+  email                     String        @unique
+  phoneNumber               String        @unique
+  siren                     String        @unique
+  siret                     String        @unique
+  address                   String
+  city                      String
+  postalCode                String
+  country                   String
+  subjectToVat              Boolean
+  vatNumber                 String?
+  IBAN                      String
+  BIC                       String
+  status                    CompanyStatus @default(ACTIVE)
+  closingReason             String?
+  closedAt                  DateTime?
+  isPaymentAccountConnected Boolean       @default(false)
 
-  documents Document[]
-  owner User @relation(fields: [ownerId], references: [id])
-  companyUsers CompanyUser[]
-  lastConnectedUsers User[] @relation("LastConnectedCompany")
-  invoicePaymentFees InvoicePaymentFee[]
-
-  services CompanyService[]
-  clients CompanyClient[]
-  companyPaymentAccount CompanyPaymentAccount?
+  documents                 Document[]
+  owner                     User                       @relation(fields: [ownerId], references: [id])
+  companyUsers              CompanyUser[]
+  lastConnectedUsers        User[]                     @relation("LastConnectedCompany")
+  services                  CompanyService[]
+  clients                   CompanyClient[]
+  companyPaymentAccount     CompanyPaymentAccount?
   companyPaymentOAuthStates CompanyPaymentOAuthState[]
 }
 
@@ -102,12 +101,12 @@ enum CompanyStatus {
 }
 
 model CompanyPaymentAccount {
-  id String @id @default(uuid())
-  companyId String @unique
-  provider PaymentProvider
-  providerAccountId String
-  accessToken String
-  creditorId String?
+  id                 String                                  @id @default(uuid())
+  companyId          String                                  @unique
+  provider           PaymentProvider
+  providerAccountId  String
+  accessToken        String
+  creditorId         String?
   verificationStatus CompanyPaymentAccountVerificationStatus @default(NOT_VERIFIED)
 
   company Company @relation(fields: [companyId], references: [id])
@@ -120,22 +119,23 @@ enum CompanyPaymentAccountVerificationStatus {
 }
 
 model CompanyPaymentOAuthState {
-  id String @id @default(uuid())
+  id        String   @id @default(uuid())
   companyId String
-  state String @unique
+  state     String   @unique
   expiresAt DateTime
 
   company Company @relation(fields: [companyId], references: [id])
 }
+
 model CompanyUser {
-  id String @id @default(uuid())
+  id        String          @id @default(uuid())
   companyId String
-  userId String
-  role CompanyUserRole
-  isHidden Boolean @default(false)
+  userId    String
+  role      CompanyUserRole
+  isHidden  Boolean         @default(false)
 
   company Company @relation(fields: [companyId], references: [id])
-  user User @relation(fields: [userId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
 
   @@unique([companyId, userId])
 }
@@ -147,43 +147,42 @@ enum CompanyUserRole {
 }
 
 model Document {
-  id String @id @default(uuid())
-  type DocumentType @default(ESTIMATE)
-  companyId String
-  clientName String
-  clientEmail String
-  clientAddress String
-  clientCity String
-  clientPostalCode String
-  clientCountry String
+  id                     String       @id @default(uuid())
+  type                   DocumentType @default(ESTIMATE)
+  companyId              String
+  clientName             String
+  clientEmail            String
+  clientAddress          String
+  clientCity             String
+  clientPostalCode       String
+  clientCountry          String
   totalPriceExcludingTax Float
-  totalPrice Float
-  createdAt DateTime @default(now())
-  sentAt DateTime?
-  documentNumber String?
-  versionNumber Int @default(1)
-  isLastVersion Boolean @default(true)
-  isFromEstimate Boolean? @default(true)
-  sourceDocumentId String?
-  sourceDocument Document? @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+  totalPrice             Float
+  createdAt              DateTime     @default(now())
+  sentAt                 DateTime?
+  documentNumber         String?
+  versionNumber          Int          @default(1)
+  isLastVersion          Boolean      @default(true)
+  isFromEstimate         Boolean?     @default(true)
+  sourceDocumentId       String?
+  sourceDocument         Document?    @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
 
   convertedDocuments Document[] @relation("DocumentConversion")
 
-  urlDocumentPdf String?
-  paymentDueAt DateTime
-  invoiceStatus InvoiceStatus @default(DRAFT)
-  estimateStatus EstimateStatus @default(DRAFT)
+  urlDocumentPdf        String?
+  paymentDueAt          DateTime
+  invoiceStatus         InvoiceStatus          @default(DRAFT)
+  estimateStatus        EstimateStatus         @default(DRAFT)
+  company               Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  services              DocumentService[]
+  negociations          EstimateNegociation[]
+  invoicePaymentLinks   InvoicePaymentLink[]
+  payByBankPayments     PayByBankPayment[]
+  invoiceInstalmentPlan InvoiceInstalmentPlan?
+  invoicePaymentMode    InvoicePaymentMode?
+  invoicePublicAccess   InvoicePublicAccess?
 
   @@unique([companyId, documentNumber, versionNumber])
-  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  services DocumentService[]
-  negociations EstimateNegociation[]
-  invoicePaymentLinks InvoicePaymentLink[]
-  payByBankPayments PayByBankPayment[]
-  invoiceInstalmentPlan InvoiceInstalmentPlan?
-  invoicePaymentFee InvoicePaymentFee?
-  invoicePaymentMode InvoicePaymentMode?
-  invoicePublicAccess InvoicePublicAccess?
 }
 
 enum DocumentType {
@@ -211,13 +210,13 @@ enum EstimateStatus {
 }
 
 model EstimateNegociation {
-  id String @id @default(uuid())
-  documentId String
-  message String
+  id                 String                    @id @default(uuid())
+  documentId         String
+  message            String
   proposedTotalPrice Float
-  createdAt DateTime @default(now())
-  negociationToken String @unique
-  status EstimateNegociationStatus @default(PENDING)
+  createdAt          DateTime                  @default(now())
+  negociationToken   String                    @unique
+  status             EstimateNegociationStatus @default(PENDING)
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
@@ -231,11 +230,11 @@ enum EstimateNegociationStatus {
 
 // doit générer un InvoiceInstalmentPlan si INSTALMENTS
 model InvoicePaymentMode {
-  id String @id @default(uuid())
-  invoiceId String @unique
-  paymentMode PaymentMode @default(ONE_TIME)
-  paymentModeFrequency PaymentModeFrequency?
-  numberOfInstalments Int?
+  id                         String                @id @default(uuid())
+  invoiceId                  String                @unique
+  paymentMode                PaymentMode           @default(ONE_TIME)
+  paymentModeFrequency       PaymentModeFrequency?
+  numberOfInstalments        Int?
   amountPerInstalmentInCents Int?
 
   invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
@@ -252,40 +251,20 @@ enum PaymentModeFrequency {
   YEARLY
 }
 
-model InvoicePaymentFee {
-  id String @id @default(uuid())
-  documentId String @unique
-  companyId String
-  amountInCents Int
-  paymentMethod PaymentMethod? @default(BANK_TRANSFER)
-  createdAt DateTime @default(now())
-
-  document Document @relation(fields: [documentId], references: [id])
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-}
-
-enum PaymentMethod {
-  CREDIT_CARD
-  BANK_TRANSFER
-  CHECK
-  CASH
-  OTHER
-}
-
 enum PaymentProvider {
   BRIDGE
   GOCARDLESS
 }
 
 model InvoicePublicAccess {
-  id String @id @default(uuid())
+  id        String @id @default(uuid())
   invoiceId String @unique
 
-  invoicePaymentLinkId String @unique
-  invoicePaymentLink InvoicePaymentLink @relation(fields: [invoicePaymentLinkId], references: [id], onDelete: Cascade)
+  invoicePaymentLinkId String             @unique
+  invoicePaymentLink   InvoicePaymentLink @relation(fields: [invoicePaymentLinkId], references: [id], onDelete: Cascade)
 
-  accessToken String @unique
-  expiresAt DateTime
+  accessToken String   @unique
+  expiresAt   DateTime
 
   invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }
@@ -294,17 +273,17 @@ model InvoicePaymentLink {
   id String @id @default(uuid())
 
   invoiceId String
-  invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice   Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   url String
-  
-  provider PaymentProvider @default(BRIDGE)
-  providerReference String @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
-  linkStatus InvoicePaymentLinkStatus? @default(VALID)
-  publicAccess InvoicePublicAccess?
+  provider          PaymentProvider @default(BRIDGE)
+  providerReference String          @unique
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  linkStatus        InvoicePaymentLinkStatus? @default(VALID)
+  publicAccess      InvoicePublicAccess?
   payByBankPayments PayByBankPayment[]
 }
 
@@ -315,25 +294,25 @@ enum InvoicePaymentLinkStatus {
   REVOKED
   FAILED
 }
+
 model PayByBankPayment {
   id String @id @default(uuid())
 
   invoiceId String
-  invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice   Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   invoicePaymentLinkId String?
-  invoicePaymentLink InvoicePaymentLink? @relation(fields: [invoicePaymentLinkId], references: [id], onDelete: Cascade)
+  invoicePaymentLink   InvoicePaymentLink? @relation(fields: [invoicePaymentLinkId], references: [id], onDelete: Cascade)
 
-  amountInCents Int // Bridge l'attend en euros, mais on stocke en centimes pour éviter les problèmes d'arrondi
-  provider PaymentProvider @default(BRIDGE)
-  providerReference String @unique
-  status InvoicePaymentStatus @default(PENDING)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  amountInCents     Int // Bridge l'attend en euros, mais on stocke en centimes pour éviter les problèmes d'arrondi
+  provider          PaymentProvider      @default(BRIDGE)
+  providerReference String               @unique
+  status            InvoicePaymentStatus @default(PENDING)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   payByBankPaymentAttempts PayByBankPaymentAttempt[]
 }
-
 
 enum InvoicePaymentStatus {
   PENDING
@@ -346,14 +325,14 @@ model PayByBankPaymentAttempt {
   id String @id @default(uuid())
 
   payByBankPaymentId String
-  payByBankPayment PayByBankPayment @relation(fields: [payByBankPaymentId], references: [id], onDelete: Cascade)
+  payByBankPayment   PayByBankPayment @relation(fields: [payByBankPaymentId], references: [id], onDelete: Cascade)
 
-  providerReference String @unique
+  providerReference String                       @unique
   providerPaymentId String
-  paymentStatus InvoicePaymentAttemptStatus? @default(PENDING)
-  failureReason String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  paymentStatus     InvoicePaymentAttemptStatus? @default(PENDING)
+  failureReason     String?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
 
   @@unique([providerReference, providerPaymentId])
 }
@@ -366,36 +345,36 @@ enum InvoicePaymentAttemptStatus {
 }
 
 model ProcessedWebhookEvents {
-  id String @id @default(uuid())
-  provider PaymentProvider
+  id              String          @id @default(uuid())
+  provider        PaymentProvider
   providerEventId String
-  processedAt DateTime @default(now())
+  processedAt     DateTime        @default(now())
 
   @@unique([provider, providerEventId])
 }
 
 model ProcessedStripeWebhookEvents {
-  id String @id @default(uuid())
+  id              String   @id @default(uuid())
   providerEventId String
-  processedAt DateTime @default(now())
+  processedAt     DateTime @default(now())
 
   @@unique([providerEventId])
 }
 
 // Pour paiement en plusieurs échéances
 model InvoiceInstalmentPlan {
-  id String @id @default(uuid())
-  invoiceId String @unique
-  totalAmountInCents Int
-  numberOfInstalments Int
+  id                         String   @id @default(uuid())
+  invoiceId                  String   @unique
+  totalAmountInCents         Int
+  numberOfInstalments        Int
   amountPerInstalmentInCents Int
-  startDate DateTime @default(now())
-  providerReference String @unique
-  providerScheduledId String?
-  providerMandateId String?
-  isCompleted Boolean @default(false)
+  startDate                  DateTime @default(now())
+  providerReference          String   @unique
+  providerScheduledId        String?
+  providerMandateId          String?
+  isCompleted                Boolean  @default(false)
 
-  invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice                   Document                   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   invoicePaymentInstalments InvoicePaymentInstalment[]
 }
 
@@ -403,13 +382,13 @@ model InvoicePaymentInstalment {
   id String @id @default(uuid())
 
   invoiceInstalmentPlanId String
-  invoiceInstalmentPlan InvoiceInstalmentPlan @relation(fields: [invoiceInstalmentPlanId], references: [id], onDelete: Cascade)
-  providerPaymentId String? @unique
-  instalmentNumber Int
-  amountInCents Int
-  dueDate DateTime
-  instalmentStatus InvoicePaymentInstalmentStatus @default(PENDING)
-  paidAt DateTime?
+  invoiceInstalmentPlan   InvoiceInstalmentPlan          @relation(fields: [invoiceInstalmentPlanId], references: [id], onDelete: Cascade)
+  providerPaymentId       String?                        @unique
+  instalmentNumber        Int
+  amountInCents           Int
+  dueDate                 DateTime
+  instalmentStatus        InvoicePaymentInstalmentStatus @default(PENDING)
+  paidAt                  DateTime?
 
   @@unique([invoiceInstalmentPlanId, instalmentNumber])
 }
@@ -423,43 +402,43 @@ enum InvoicePaymentInstalmentStatus {
 }
 
 model DocumentService {
-  id String @id @default(uuid())
-  documentId String
+  id          String @id @default(uuid())
+  documentId  String
   description String
-  quantity Int
-  unitPrice Float
-  unit String
-  taxRate Float?
-  wtPrice Float
-  totalPrice Float
+  quantity    Int
+  unitPrice   Float
+  unit        String
+  taxRate     Float?
+  wtPrice     Float
+  totalPrice  Float
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
 
 model CompanyService {
-  id String @id @default(uuid())
-  companyId String
-  name String
+  id          String @id @default(uuid())
+  companyId   String
+  name        String
   description String
-  unitPrice Float
-  unit String
-  taxRate Float?
-  category String
-  wtPrice Float
-  totalPrice Float
+  unitPrice   Float
+  unit        String
+  taxRate     Float?
+  category    String
+  wtPrice     Float
+  totalPrice  Float
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 model CompanyClient {
-  id String @id @default(uuid())
-  companyId String
-  name String
-  email String
-  address String
-  city String
+  id         String @id @default(uuid())
+  companyId  String
+  name       String
+  email      String
+  address    String
+  city       String
   postalCode String
-  country String
+  country    String
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }

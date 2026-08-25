@@ -1,14 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { $Enums } from '@prisma/client';
 import { MailService } from 'src/mail/mail.service';
-import { InvoicePaymentFeeService } from 'src/payment-fee/invoice-payment-fee.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class InvoicePaymentStatusService {
   constructor(
     private readonly prismaService: PrismaService,
-    private readonly invoicePaymentFeeService: InvoicePaymentFeeService,
     private readonly mailService: MailService,
   ) {}
 
@@ -33,7 +31,7 @@ export class InvoicePaymentStatusService {
 
     const document = await this.prismaService.document.findUnique({
       where: { id: payByBankPayment.invoiceId },
-      select: { id: true, companyId: true, invoiceStatus: true },
+      select: { id: true, invoiceStatus: true },
     });
 
     if (!document || document.invoiceStatus === 'PAID_MANUALLY') {
@@ -57,14 +55,6 @@ export class InvoicePaymentStatusService {
       });
     }
 
-    if (justPaid) {
-      await this.invoicePaymentFeeService.createForPaidInvoice(
-        document.id,
-        document.companyId,
-        this.prismaService,
-      );
-    }
-
     if (attemptBecameSuccessful) {
       await this.sendPaymentReceipt(document.id);
     }
@@ -78,7 +68,7 @@ export class InvoicePaymentStatusService {
   async refreshFromInstalment(invoiceId: string): Promise<void> {
     const document = await this.prismaService.document.findUnique({
       where: { id: invoiceId },
-      select: { id: true, companyId: true, invoiceStatus: true },
+      select: { id: true, invoiceStatus: true },
     });
 
     if (!document || document.invoiceStatus === 'PAID_MANUALLY') return;
@@ -92,11 +82,6 @@ export class InvoicePaymentStatusService {
       });
     }
     if (justPaid) {
-      await this.invoicePaymentFeeService.createForPaidInvoice(
-        document.id,
-        document.companyId,
-        this.prismaService,
-      );
       await this.sendInvoicePaidConfirmation(document.id);
     }
   }

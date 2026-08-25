@@ -9,7 +9,8 @@ import Link from 'next/link'
 function SubscriptionPlans() {
   const { showToast } = useToast();
 
-  async function purchaseSubscriptionPlan(planProductId: string){
+  async function purchaseSubscriptionPlan(e: React.MouseEvent<HTMLButtonElement>, planProductId: string){
+    e.preventDefault();
     try {
       const responseUrl = await getCheckoutSession(planProductId);
       if(!responseUrl.ok){
@@ -36,13 +37,13 @@ function SubscriptionPlans() {
             <p className="text-xs">{formatCurrency(product.prices.yearlyPrice.priceInCents / 100)}/an</p>
             <div className="flex gap-2 items-center mt-4">
               <button
-                onClick={() => purchaseSubscriptionPlan(product.prices.monthlyPrice.id)}
+                onClick={(e) => purchaseSubscriptionPlan(e, product.prices.monthlyPrice.id)}
                 className="px-4 py-2 bg-white text-primary border border-primary rounded-lg cursor-pointer"
               >
                 Choisir Mensuel
               </button>
               <button
-                onClick={() => purchaseSubscriptionPlan(product.prices.yearlyPrice.id)}
+                onClick={(e) => purchaseSubscriptionPlan(e, product.prices.yearlyPrice.id)}
                 className="px-4 py-2 bg-primary text-white rounded-lg cursor-pointer"
               >
                 Choisir Annuel

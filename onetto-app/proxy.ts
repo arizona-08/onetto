@@ -5,6 +5,7 @@ import { apiServer } from "./lib/api-server";
 const AUTH_ROUTE_PREFIX = "/auth";
 const NEGOCIATIONS_ROUTE = "/negociations";
 const PAYMENT_ROUTE_PREFIX = "/payment";
+const SUBSCRIPTION_SUCCESS_ROUTE = "/subscriptions/success";
 const ME_ENDPOINT = "/api/auth/me";
 
 function isAuthRoute(pathname: string): boolean {
@@ -19,7 +20,8 @@ export async function proxy(request: NextRequest) {
   if (
     isAuthRoute(request.nextUrl.pathname) ||
     isPaymentRoute(request.nextUrl.pathname) ||
-    request.nextUrl.pathname === NEGOCIATIONS_ROUTE
+    request.nextUrl.pathname === NEGOCIATIONS_ROUTE ||
+    request.nextUrl.pathname === SUBSCRIPTION_SUCCESS_ROUTE
   ) {
     return NextResponse.next();
   }
