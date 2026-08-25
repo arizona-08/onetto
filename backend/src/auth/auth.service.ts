@@ -46,7 +46,7 @@ export class AuthService {
         throw new BadRequestException("Invalid email or password.");
       }
 
-      const payload = { sub: existingUser.id, email: existingUser.email, role: existingUser.role };
+      const payload = { sub: existingUser.id, email: existingUser.email, accountType: existingUser.accountType, subscriptionPlan: existingUser.subscriptionPlan };
       const token = await this.jwtService.signAsync(payload, {
         secret: process.env.JWT_SECRET,
         expiresIn: '15m'

@@ -17,7 +17,8 @@ model User {
   lastname String
   email String @unique
   password String
-  role Role @default(BASIC_USER)
+  accountType AccountType @default(BUSINESS_OWNER)
+  subscriptionPlan SubscriptionPlan?
   lastConnectedCompanyId String?
 
   lastConnectedCompany Company? @relation("LastConnectedCompany", fields: [lastConnectedCompanyId], references: [id])
@@ -25,11 +26,15 @@ model User {
   companies CompanyUser[]
 }
 
-enum Role {
-  BASIC_USER
-  PREMIUM_USER
-  PRO_USER
-  ADMIN_USER
+enum AccountType {
+  BUSINESS_OWNER
+  EMPLOYEE
+}
+
+enum SubscriptionPlan {
+  FREE
+  PREMIUM
+  PRO
 }
 
 model Company {

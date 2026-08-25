@@ -1,4 +1,6 @@
+import SubscriptionPlans from '@/app/components/organisms/SubscriptionPlans';
 import { getCurrentInvoiceFeeSummaryServer } from '@/lib/companies/companies.server';
+import { STRIPE_PRODUCTS } from '@/shared/constants';
 
 const MOCKED_SUBSCRIPTION_LABEL = 'Essentiel';
 
@@ -15,6 +17,8 @@ function formatPeriodStart(periodStart: string) {
     year: 'numeric',
   }).format(new Date(periodStart));
 }
+
+
 
 async function SubscriptionPage() {
   const summaryResult = await getCurrentInvoiceFeeSummaryServer();
@@ -87,6 +91,8 @@ async function SubscriptionPage() {
           </table>
         </div>
       </section>
+
+      <SubscriptionPlans />
     </div>
   );
 }

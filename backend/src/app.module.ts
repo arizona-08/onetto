@@ -9,6 +9,7 @@ import { DocumentModule } from './documents/document.module';
 import { CompaniesModule } from './companies/companies.module';
 import { MailModule } from './mail/mail.module';
 import { PaymentProviderModule } from './Adapters/PaymentAdapters/payment-provider.module';
+import { SubscriptionModule } from './subscription/subscription.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
@@ -20,7 +21,8 @@ import { PaymentProviderModule } from './Adapters/PaymentAdapters/payment-provid
     DocumentModule,
     CompaniesModule,
     MailModule, // custom mail module for sending emails
-    PaymentProviderModule
+    PaymentProviderModule,
+    SubscriptionModule
   ],
   controllers: [AppController],
   providers: [AppService],
