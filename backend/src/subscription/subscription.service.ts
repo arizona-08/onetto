@@ -14,7 +14,7 @@ export class SubscriptionService {
     this.stripe = new Stripe(this.configService.getOrThrow<string>("STRIPE_SECRET_KEY"))
   }
 
-  async createCheckoutSession(planProductId: string){
+  async createCheckoutSession(planProductId: string, userId: string){
     const frontendUrl = this.configService.getOrThrow<string>("FRONTEND_URL");
 
     const session = await this.stripe.checkout.sessions.create({
@@ -25,9 +25,16 @@ export class SubscriptionService {
           quantity: 1
         }
       ],
+      metadata: {
+        userId: userId
+      },
+      subscription_data: {
+        metadata: {
+          userId: userId,
+        }
+      },
       success_url: `${frontendUrl}/subscription/success`,
     });
-
     return { url: session.url };
   }
 }

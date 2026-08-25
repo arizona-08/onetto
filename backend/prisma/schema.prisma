@@ -24,6 +24,8 @@ model User {
   lastConnectedCompany Company? @relation("LastConnectedCompany", fields: [lastConnectedCompanyId], references: [id])
   ownedCompanies Company[]
   companies CompanyUser[]
+  subscription UserSubscription?
+  subscriptionHistory UserSubscriptionHistory[]
 }
 
 enum AccountType {
@@ -31,10 +33,34 @@ enum AccountType {
   EMPLOYEE
 }
 
+model UserSubscription {
+  id String @id @default(uuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id])
+  customerId String @unique
+  subscriptionId String
+  subscriptionPlan SubscriptionPlan @default(FREE)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  canceledAtPeriodEnd DateTime?
+  willCancelAtPeriodEnd Boolean @default(false)
+}
+
+model UserSubscriptionHistory {
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+
+  subscriptionPlan SubscriptionPlan
+}
+
 enum SubscriptionPlan {
   FREE
-  PREMIUM
-  PRO
+  STARTER_MONTHLY
+  STARTER_YEARLY
+  PRO_MONTHLY
+  PRO_YEARLY
 }
 
 model Company {
@@ -346,6 +372,14 @@ model ProcessedWebhookEvents {
   processedAt DateTime @default(now())
 
   @@unique([provider, providerEventId])
+}
+
+model ProcessedStripeWebhookEvents {
+  id String @id @default(uuid())
+  providerEventId String
+  processedAt DateTime @default(now())
+
+  @@unique([providerEventId])
 }
 
 // Pour paiement en plusieurs échéances
