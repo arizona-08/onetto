@@ -14,3 +14,13 @@ export type User = {
 export interface ExtendedRequest extends Response {
   user?: User
 }
+
+export const REMINDER_RULES = {
+  ESTIMATE_PENDING: 3,
+  ESTIMATE_PENDING_BEFORE_DUE_DATE: 3,
+
+  INVOICE_BEFORE_DUE_DATE: 3,
+
+  INVOICE_OVERDUE_FIRST: 1,
+  INVOICE_OVERDUE_SECOND: 7,
+};

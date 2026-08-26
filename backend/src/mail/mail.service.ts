@@ -1,5 +1,6 @@
 import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
+import { ReminderType } from '@prisma/client';
 
 type Attachment = {
   filename: string;
@@ -48,6 +49,13 @@ type PaymentReceiptMailInput = {
   amount: number;
   companyName: string;
   companyEmail: string;
+};
+
+type ReminderMailInput = {
+  clientName: string;
+  documentNumber: string | null;
+  dueAt: Date | null;
+  action?: { label: string; url: string };
 };
 
 const formatAmount = (amount: number) => `${amount.toFixed(2)} €`;
@@ -123,6 +131,29 @@ export class MailService {
     };
   }
 
+  createReminderMail(
+    input: ReminderMailInput,
+    reminderType: ReminderType,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    const content = this.getReminderContent(reminderType, input.documentNumber);
+    const dueDate = input.dueAt ? formatDate(input.dueAt) : null;
+
+    return {
+      subject: content.subject,
+      text: [
+        `Bonjour ${input.clientName},`,
+        '',
+        content.text,
+        dueDate ? `${content.dueDateLabel} : ${dueDate}` : null,
+        '',
+        content.closing,
+      ]
+        .filter((line): line is string => line !== null)
+        .join('\n'),
+      html: this.createReminderTemplate(input, content),
+    };
+  }
+
   private createInvoiceText(input: InvoiceMailInput): string {
     return [
       `Bonjour ${input.clientName},`,
@@ -179,6 +210,98 @@ export class MailService {
       '',
       'Merci pour votre paiement.',
     ].join('\n');
+  }
+
+  private getReminderContent(
+    reminderType: ReminderType,
+    documentNumber: string | null,
+  ): {
+    badge: string;
+    title: string;
+    subject: string;
+    text: string;
+    html: string;
+    dueDateLabel: string;
+    closing: string;
+  } {
+    const document = documentNumber ?? 'concerné';
+
+    switch (reminderType) {
+      case 'ESTIMATE_PENDING':
+        return {
+          badge: 'RELANCE DEVIS',
+          title: 'Votre réponse est attendue',
+          subject: `Relance — devis ${document}`,
+          text: `Nous n'avons pas encore reçu votre réponse concernant le devis ${document}.`,
+          html: `Nous n'avons pas encore reçu votre réponse concernant le devis <strong>${document}</strong>.`,
+          dueDateLabel: 'Date limite de réponse',
+          closing: 'Merci de nous faire part de votre décision.',
+        };
+      case 'ESTIMATE_PENDING_BEFORE_DUE_DATE':
+        return {
+          badge: 'DEVIS BIENTÔT EXPIRÉ',
+          title: 'Votre devis arrive à échéance',
+          subject: `Votre devis ${document} arrive bientôt à échéance`,
+          text: `Le devis ${document} arrive prochainement à échéance.`,
+          html: `Le devis <strong>${document}</strong> arrive prochainement à échéance.`,
+          dueDateLabel: 'Date d’échéance',
+          closing: 'Merci de nous transmettre votre réponse avant cette date.',
+        };
+      case 'INVOICE_BEFORE_DUE_DATE':
+        return {
+          badge: 'ÉCHÉANCE PROCHE',
+          title: 'Votre facture arrive à échéance',
+          subject: `Votre facture ${document} arrive bientôt à échéance`,
+          text: `La facture ${document} arrive prochainement à échéance.`,
+          html: `La facture <strong>${document}</strong> arrive prochainement à échéance.`,
+          dueDateLabel: 'Date d’échéance',
+          closing: 'Merci de prévoir son règlement avant cette date.',
+        };
+      case 'INVOICE_OVERDUE_FIRST':
+        return {
+          badge: 'FACTURE EN RETARD',
+          title: 'Votre facture est arrivée à échéance',
+          subject: `Relance de paiement — facture ${document}`,
+          text: `Sauf erreur de notre part, la facture ${document} n'a pas encore été réglée.`,
+          html: `Sauf erreur de notre part, la facture <strong>${document}</strong> n'a pas encore été réglée.`,
+          dueDateLabel: 'Échéance dépassée depuis le',
+          closing:
+            'Nous vous remercions de régulariser la situation dès que possible.',
+        };
+      case 'INVOICE_OVERDUE_SECOND':
+        return {
+          badge: 'DEUXIÈME RELANCE',
+          title: 'Votre facture reste impayée',
+          subject: `Deuxième relance de paiement — facture ${document}`,
+          text: `Malgré notre précédent rappel, la facture ${document} reste impayée.`,
+          html: `Malgré notre précédent rappel, la facture <strong>${document}</strong> reste impayée.`,
+          dueDateLabel: 'Échéance dépassée depuis le',
+          closing:
+            'Merci de procéder à son règlement dans les meilleurs délais.',
+        };
+    }
+  }
+
+  private createReminderTemplate(
+    input: ReminderMailInput,
+    content: ReturnType<MailService['getReminderContent']>,
+  ): string {
+    const details = input.dueAt
+      ? this.createDetailsTable([
+          [content.dueDateLabel, formatDate(input.dueAt)],
+        ])
+      : '';
+
+    return this.createEmailLayout({
+      badge: content.badge,
+      title: content.title,
+      greeting: `Bonjour ${input.clientName},`,
+      message: content.html,
+      details,
+      action: input.action,
+      footer: 'Onetto · Votre espace documentaire',
+      note: content.closing,
+    });
   }
 
   private createInvoiceTemplate(input: InvoiceMailInput): string {

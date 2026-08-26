@@ -1,5 +1,13 @@
 import { MailService } from './mail.service';
 
+const reminderTypes = [
+  'ESTIMATE_PENDING',
+  'ESTIMATE_PENDING_BEFORE_DUE_DATE',
+  'INVOICE_BEFORE_DUE_DATE',
+  'INVOICE_OVERDUE_FIRST',
+  'INVOICE_OVERDUE_SECOND',
+] as const;
+
 describe('MailService templates', () => {
   const service = new MailService({ sendMail: jest.fn() } as never);
 
@@ -62,5 +70,38 @@ describe('MailService templates', () => {
     expect(mail.html).toContain('Votre paiement a bien été reçu');
     expect(mail.html).not.toContain('Payer la facture');
     expect(mail.text).toContain('Montant réglé : 120.00 €');
+  });
+
+  it.each(reminderTypes)('génère le message de relance %s', (type) => {
+    const mail = service.createReminderMail(
+      {
+        clientName: 'Client',
+        documentNumber: '#DOC-2026-0001',
+        dueAt: new Date('2026-09-01'),
+      },
+      type,
+    );
+
+    expect(mail.subject).toBeTruthy();
+    expect(mail.text).toContain('#DOC-2026-0001');
+    expect(mail.html).toContain('#DOC-2026-0001');
+  });
+
+  it('ajoute le bouton de négociation à une relance de devis', () => {
+    const mail = service.createReminderMail(
+      {
+        clientName: 'Client',
+        documentNumber: '#DEV-2026-0001',
+        dueAt: new Date('2026-09-01'),
+        action: {
+          label: 'Consulter le devis',
+          url: 'https://onetto.test/negociations?token=fresh-token',
+        },
+      },
+      'ESTIMATE_PENDING',
+    );
+
+    expect(mail.html).toContain('Consulter le devis');
+    expect(mail.html).toContain('fresh-token');
   });
 });

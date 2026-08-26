@@ -1,4 +1,5 @@
 import React from 'react'
+import { Info } from 'lucide-react'
 import CustomerDetails from '../../molecules/DocumentFormComponents/CustomerDetails'
 import ServiceLineItems from '../../molecules/DocumentFormComponents/ServiceLineItems'
 import { Client, DocumentDates, ServiceLineItem } from '@/app/types';
@@ -38,7 +39,26 @@ function DocumentForm({ client, lineItems, documentDates, onClientChange, onLine
       <ServiceLineItems hydratedLineItems={lineItems} hydratedDocumentDates={documentDates} onLineItemsChange={onLineItemsChange} onDocumentDatesChange={onDocumentDatesChange} documentDateErrors={errors?.documentDateErrors} documentLineItemsErrors={errors?.documentLineItemsErrors} disabled={lockInvoiceContent} />
       {showPaymentMode && (
         <section className="mx-auto mt-8 w-full max-w-2xl rounded-lg border border-zinc-200 p-5">
-          <h2 className="text-lg font-semibold text-zinc-900">Mode de paiement</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-zinc-900">Mode de paiement</h2>
+            <div className="group relative">
+              <button
+                type="button"
+                aria-label="Information sur le plafond des paiements uniques GoCardless"
+                aria-describedby="gocardless-payment-limit-info"
+                className="flex rounded-full text-zinc-500 outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              >
+                <Info className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <div
+                id="gocardless-payment-limit-info"
+                role="tooltip"
+                className="pointer-events-none absolute left-0 top-6 z-10 w-80 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-normal leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+              >
+                Par défaut, GoCardless limite un paiement unique Open Banking à 1&nbsp;000&nbsp;€. Vous pouvez demander un relèvement jusqu’à 15&nbsp;000&nbsp;€ depuis votre tableau de bord GoCardless : Paramètres &gt; Paramètres de la société &gt; Transaction limits &gt; Demander un relèvement.
+              </div>
+            </div>
+          </div>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-4 py-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
               <input type="radio" name="paymentMode" value="ONE_TIME" checked={paymentMode === 'ONE_TIME'} onChange={() => onPaymentModeChange?.('ONE_TIME')} />

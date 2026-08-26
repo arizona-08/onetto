@@ -2003,11 +2003,11 @@ export class DocumentService {
   ) {
     const data = isInvoice
       ? { invoiceStatus: 'PENDING' as const, sentAt: new Date() }
-      : { estimateStatus: 'SENT' as const };
+      : { estimateStatus: 'SENT' as const, sentAt: new Date() };
 
     await this.prismaService.document.update({
       where: { id: documentId },
-      data,
+      data
     });
   }
 

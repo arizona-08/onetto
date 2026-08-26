@@ -682,7 +682,7 @@ function DocumentsTable({
                   </td>
                   <td className="px-5 py-5 align-center">
                     <div className="font-medium text-zinc-900">
-                      {formatDate(document.createdAt)}
+                      {document.sentAt ? formatDate(document.sentAt) : "—"}
                     </div>
                   </td>
                   <td className="px-5 py-5 align-center">
