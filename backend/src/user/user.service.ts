@@ -1,89 +1,159 @@
-import { BadRequestException, HttpException, Injectable, InternalServerErrorException } from "@nestjs/common";
-import { PrismaService } from "src/prisma/prisma.service";
-import { CreateUserDto } from "./dtos/create-user.dto";
-import argon2 from "argon2";
-import { Prisma } from "@prisma/client";
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { CreateUserDto } from './dtos/create-user.dto';
+import { UpdateProfileDto } from './dtos/update-profile.dto';
+import { ChangePasswordDto } from './dtos/change-password.dto';
+import argon2 from 'argon2';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class UserService {
-  constructor(
-    private readonly prismaService: PrismaService
-  ) {}
+  constructor(private readonly prismaService: PrismaService) {}
 
-  async findAll(){
+  async findAll() {
     return this.prismaService.user.findMany();
   }
 
-  async create(data: CreateUserDto){
+  async create(data: CreateUserDto) {
     try {
       const existingUser = await this.prismaService.user.findUnique({
-        where: { email: data.email }
+        where: { email: data.email },
       });
 
-      if(existingUser){
-        throw new BadRequestException("Email already in use.");
+      if (existingUser) {
+        throw new BadRequestException('Email already in use.');
       }
 
-      if(data.password !== data.confirmationPassword){
-        throw new BadRequestException("Passwords do not match.");
+      if (data.password !== data.confirmationPassword) {
+        throw new BadRequestException('Passwords do not match.');
       }
 
       const hashedPassword = await argon2.hash(data.password);
 
-      const createdUser = await this.prismaService.$transaction(async (prisma) => {
-        const user = await prisma.user.create({
-          data: {
-            firstname: data.firstname,
-            lastname: data.lastname,
-            email: data.email,
-            password: hashedPassword,
-            subscriptionPlan: 'FREE',
-          },
-        });
+      const createdUser = await this.prismaService.$transaction(
+        async (prisma) => {
+          const user = await prisma.user.create({
+            data: {
+              firstname: data.firstname,
+              lastname: data.lastname,
+              email: data.email,
+              password: hashedPassword,
+              subscriptionPlan: 'FREE',
+            },
+          });
 
-        await prisma.userSubscription.create({
-          data: {
-            userId: user.id,
-            subscriptionPlan: 'FREE',
-            isActive: true,
-          },
-        });
+          await prisma.userSubscription.create({
+            data: {
+              userId: user.id,
+              subscriptionPlan: 'FREE',
+              isActive: true,
+            },
+          });
 
-        return user;
-      });
+          return user;
+        },
+      );
 
       const { password, ...userWithoutPassword } = createdUser;
 
       return {
-        message: "User created successfully.",
-        user: userWithoutPassword
-      }
-      
+        message: 'User created successfully.',
+        user: userWithoutPassword,
+      };
     } catch (error: unknown) {
       if (error instanceof HttpException) {
         throw error;
       }
 
-      throw new InternalServerErrorException("An unexpected error occured while creating the user.", error instanceof Error ? error.message : undefined);
+      throw new InternalServerErrorException(
+        'An unexpected error occured while creating the user.',
+        error instanceof Error ? error.message : undefined,
+      );
     }
-    
   }
 
-  async findBy(search: 'email' | 'id', value: string){
-    try{
+  async findBy(search: 'email' | 'id', value: string) {
+    try {
       const user = await this.prismaService.user.findFirst({
-        where: { [search]: value }
+        where: { [search]: value },
       });
 
-      if(!user){
-        throw new BadRequestException(`User with ${search} ${value} not found.`);
+      if (!user) {
+        throw new BadRequestException(
+          `User with ${search} ${value} not found.`,
+        );
       }
 
       const { password, ...userWithoutPassword } = user;
 
       return userWithoutPassword;
     } catch (error: any) {
-      throw new InternalServerErrorException(`An unexpected error occured while retrieving the user with ${search}: ${value}`, error instanceof Error ? error.message : undefined)
+      throw new InternalServerErrorException(
+        `An unexpected error occured while retrieving the user with ${search}: ${value}`,
+        error instanceof Error ? error.message : undefined,
+      );
     }
+  }
+
+  async updateProfile(userId: string, data: UpdateProfileDto) {
+    try {
+      const user = await this.prismaService.user.update({
+        where: { id: userId },
+        data: {
+          firstname: data.firstname.trim(),
+          lastname: data.lastname.trim(),
+          email: data.email.trim().toLowerCase(),
+        },
+        select: {
+          id: true,
+          firstname: true,
+          lastname: true,
+          email: true,
+          accountType: true,
+        },
+      });
+
+      return { message: 'Profil mis à jour.', user };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException(
+          'Cette adresse e-mail est déjà utilisée.',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async changePassword(userId: string, data: ChangePasswordDto) {
+    if (data.newPassword !== data.confirmationPassword) {
+      throw new BadRequestException('Les mots de passe ne correspondent pas.');
+    }
+
+    const user = await this.prismaService.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { password: true },
+    });
+    const currentPasswordIsValid = await argon2.verify(
+      user.password,
+      data.currentPassword,
+    );
+    if (!currentPasswordIsValid) {
+      throw new BadRequestException('Le mot de passe actuel est incorrect.');
+    }
+
+    await this.prismaService.user.update({
+      where: { id: userId },
+      data: { password: await argon2.hash(data.newPassword) },
+    });
+
+    return { message: 'Mot de passe mis à jour.' };
   }
 }

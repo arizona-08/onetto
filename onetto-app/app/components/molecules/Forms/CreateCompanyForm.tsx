@@ -27,7 +27,8 @@ const emptyCompany: CreateCompanyDto = {
     subjectToVat: false,
     vatNumber: "",
     IBAN: "",
-  BIC: ""
+  BIC: "",
+  rcs: "",
 };
 
 function CreateCompanyForm({ companyToEdit, onSuccess, onCancel }: CreateCompanyFormProps) {

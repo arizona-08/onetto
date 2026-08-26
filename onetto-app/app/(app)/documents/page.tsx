@@ -37,8 +37,11 @@ async function DocumentsPage() {
     getInvoiceStatsServer(),
   ]);
 
-  if (!estimatesResponse.ok || !invoicesResponse.ok) {
-    console.error('Failed to fetch documents:', estimatesResponse.ok ? invoicesResponse.error : estimatesResponse.error);
+  if (!estimatesResponse.ok) {
+    console.error('Impossible de récupérer les devis :', estimatesResponse.error);
+  }
+  if (!invoicesResponse.ok) {
+    console.error('Impossible de récupérer les factures :', invoicesResponse.error);
   }
   // console.log('Documents response:', documentsResponse);
 

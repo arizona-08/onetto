@@ -15,7 +15,7 @@ function ServiceCard({ service, triggerEdit, triggerDelete }: ServiceCardProps) 
   const unitPriceValue = typeof service.unitPrice === 'number'
     ? service.unitPrice
     : Number(service.unitPrice);
-  const hasUnitPrice = service.unitPrice !== '' && Number.isFinite(unitPriceValue);
+  const hasUnitPrice = Number.isFinite(unitPriceValue);
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
   return (
