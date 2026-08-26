@@ -1,9 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
 import { DocumentService } from './document.service';
-import { InvoicePdfService } from '../pdf/pdf.service';
 import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BridgeApiService } from 'src/bridgeApi/bridgeApi.service';
+import { beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { PdfService } from 'src/pdf/pdf.service';
 
 const user = {
   id: 'user-1',
@@ -119,7 +120,7 @@ describe('DocumentService', () => {
         html: '<p>Devis</p>',
       }),
   } as unknown as MailService;
-  const pdf = { generate: jest.fn() } as unknown as InvoicePdfService;
+  const pdf = { generate: jest.fn() } as unknown as PdfService;
   const bridge = {
     getCallbackUrl: jest.fn().mockReturnValue('https://callback.test'),
     createPaymentLink: jest
