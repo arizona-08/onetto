@@ -726,7 +726,7 @@ export class DocumentService {
         },
       }),
       this.prismaService.document.findMany({
-        where: { companyId, type: 'ESTIMATE' },
+        where: { companyId, type: 'ESTIMATE', isLastVersion: true },
         select: { estimateStatus: true },
       }),
       this.prismaService.document.findMany({
@@ -876,7 +876,7 @@ export class DocumentService {
         select: { totalPrice: true, invoiceStatus: true },
       }),
       this.prismaService.document.findMany({
-        where: { companyId, type: 'ESTIMATE' },
+        where: { companyId, type: 'ESTIMATE', isLastVersion: true },
         select: { estimateStatus: true },
       }),
     ]);
