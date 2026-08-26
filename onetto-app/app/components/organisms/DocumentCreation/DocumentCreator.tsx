@@ -4,6 +4,7 @@ import { Client, Document, DocumentDates, ServiceLineItem } from '@/app/types';
 import { DocumentClientError, DocumentDateError, DocumentLineItemsError } from '@/shared/DocumentErrorsTypes';
 import { verifyClient, verifyDates, verifyLineItems } from '@/shared/InvoiceValidation';
 import { createDocument, sendDocumentToClient, updateDraftDocument } from '@/lib/documents/document';
+import { getActiveCompanyPlanAccess } from '@/lib/companies/companies';
 import { CheckCircle2, Send, X } from 'lucide-react';
 import DocumentForm from './DocumentForm';
 import DocumentPreview from './DocumentPreview';
@@ -55,6 +56,15 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
   const [paymentMode, setPaymentMode] = useState<'ONE_TIME' | 'INSTALMENTS'>('ONE_TIME');
   const [numberOfInstalments, setNumberOfInstalments] = useState<2 | 3>(2);
   const [firstDueDate, setFirstDueDate] = useState(() => addCalendarMonths(toDateInputValue(new Date()), 1));
+  const [canUseInstalments, setCanUseInstalments] = useState(false);
+
+  useEffect(() => {
+    async function loadPlanAccess() {
+      const response = await getActiveCompanyPlanAccess();
+      setCanUseInstalments(response.ok && response.data.features.instalments);
+    }
+    void loadPlanAccess();
+  }, []);
 
   useEffect(() => {
     if(document) {
@@ -264,6 +274,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
           lineItems={lineItems}
           documentDates={documentDates}
           showPaymentMode={isCreatingInvoice || isDraftInvoice}
+          canUseInstalments={canUseInstalments}
           paymentMode={paymentMode}
           numberOfInstalments={numberOfInstalments}
           firstDueDate={firstDueDate}

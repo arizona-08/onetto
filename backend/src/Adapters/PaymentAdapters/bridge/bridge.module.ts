@@ -5,17 +5,11 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { BridgeWebhookController } from './bridge-webhook.controller';
 import { BridgeProviderService } from './bridge-provider.service';
 import { BridgeWebhookHandler } from './webhook-handlers/webhook.handler';
-import { InvoicePaymentFeeModule } from 'src/payment-fee/invoice-payment-fee.module';
 import { BridgeStatusMatcherService } from './bridge-status-matcher.service';
 import { InvoicePaymentStatusModule } from 'src/invoice-payments/invoice-payment-status.module';
 
 @Module({
-  imports: [
-    PrismaModule,
-    InvoicePaymentFeeModule,
-    MailModule,
-    InvoicePaymentStatusModule,
-  ],
+  imports: [PrismaModule, MailModule, InvoicePaymentStatusModule],
   controllers: [BridgeWebhookController],
   providers: [
     BridgeProviderService,

@@ -30,13 +30,26 @@ export class UserService {
 
       const hashedPassword = await argon2.hash(data.password);
 
-      const createdUser = await this.prismaService.user.create({
-        data: {
-          firstname: data.firstname,
-          lastname: data.lastname,
-          email: data.email,
-          password: hashedPassword
-        }
+      const createdUser = await this.prismaService.$transaction(async (prisma) => {
+        const user = await prisma.user.create({
+          data: {
+            firstname: data.firstname,
+            lastname: data.lastname,
+            email: data.email,
+            password: hashedPassword,
+            subscriptionPlan: 'FREE',
+          },
+        });
+
+        await prisma.userSubscription.create({
+          data: {
+            userId: user.id,
+            subscriptionPlan: 'FREE',
+            isActive: true,
+          },
+        });
+
+        return user;
       });
 
       const { password, ...userWithoutPassword } = createdUser;

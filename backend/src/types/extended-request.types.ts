@@ -6,7 +6,8 @@ export type User = {
   id: string,
   firstname: string,
   lastname: string,
-  role: string,
+  accountType: string,
+  subscriptionPlan: string | null,
   lastConnectedCompanyId?: string
 }
 

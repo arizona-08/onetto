@@ -19,6 +19,7 @@ interface DocumentFormProps {
   }
   lockInvoiceContent?: boolean
   showPaymentMode?: boolean
+  canUseInstalments?: boolean
   paymentMode?: 'ONE_TIME' | 'INSTALMENTS'
   numberOfInstalments?: 2 | 3
   firstDueDate?: string
@@ -29,7 +30,7 @@ interface DocumentFormProps {
   onFirstDueDateChange?: (firstDueDate: string) => void
 }
 
-function DocumentForm({ client, lineItems, documentDates, onClientChange, onLineItemsChange, onDocumentDatesChange, errors, lockInvoiceContent = false, showPaymentMode = false, paymentMode = 'ONE_TIME', numberOfInstalments = 2, firstDueDate = '', minFirstDueDate, instalments = [], onPaymentModeChange, onNumberOfInstalmentsChange, onFirstDueDateChange }: DocumentFormProps) {
+function DocumentForm({ client, lineItems, documentDates, onClientChange, onLineItemsChange, onDocumentDatesChange, errors, lockInvoiceContent = false, showPaymentMode = false, canUseInstalments = false, paymentMode = 'ONE_TIME', numberOfInstalments = 2, firstDueDate = '', minFirstDueDate, instalments = [], onPaymentModeChange, onNumberOfInstalmentsChange, onFirstDueDateChange }: DocumentFormProps) {
   
   return (
     <div className="">
@@ -43,11 +44,15 @@ function DocumentForm({ client, lineItems, documentDates, onClientChange, onLine
               <input type="radio" name="paymentMode" value="ONE_TIME" checked={paymentMode === 'ONE_TIME'} onChange={() => onPaymentModeChange?.('ONE_TIME')} />
               <span>Unique</span>
             </label>
-            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-4 py-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-              <input type="radio" name="paymentMode" value="INSTALMENTS" checked={paymentMode === 'INSTALMENTS'} onChange={() => onPaymentModeChange?.('INSTALMENTS')} />
+            <label
+              title={!canUseInstalments ? 'Passer au plan PRO pour activer cette fonctionnalité' : undefined}
+              className={`flex items-center gap-2 rounded-md border border-zinc-200 px-4 py-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5 ${!canUseInstalments ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+            >
+              <input type="radio" name="paymentMode" value="INSTALMENTS" checked={paymentMode === 'INSTALMENTS'} disabled={!canUseInstalments} onChange={() => onPaymentModeChange?.('INSTALMENTS')} />
               <span>Plusieurs fois</span>
             </label>
           </div>
+          {!canUseInstalments && <p className="mt-3 rounded-md border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-500">Paiement en plusieurs fois — passer au plan PRO pour activer cette fonctionnalité.</p>}
 
           {paymentMode === 'INSTALMENTS' && (
             <div className="mt-5 border-t border-zinc-200 pt-5">

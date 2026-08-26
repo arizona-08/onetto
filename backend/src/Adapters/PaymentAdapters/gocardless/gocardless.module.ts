@@ -7,7 +7,6 @@ import { GoCardlessPayoutWebhookHandler } from './webhook-handlers/gocardless-pa
 import { GoCardlessSubscriptionWebhookHandler } from './webhook-handlers/gocardless-subscription-webhook.handler';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { MailModule } from 'src/mail/mail.module';
-import { InvoicePaymentFeeModule } from 'src/payment-fee/invoice-payment-fee.module';
 import { GoCardlessOAuthController } from './gocardless-oauth.controller';
 import { GoCardlessOAuthService } from './gocardless-oauth.service';
 import { GoCardlessStatusMatcherService } from './gocardless-status-matcher.service';
@@ -15,14 +14,10 @@ import { GoCardlessInstalmentSchedulesWebhookHandler } from './webhook-handlers/
 import { GoCardlessWebhookService } from './gocardless-webhook.service';
 import { GoCardlessBillingRequestWebhookHandler } from './webhook-handlers/gocardless-billing-request-webhook.handler';
 import { InvoicePaymentStatusModule } from 'src/invoice-payments/invoice-payment-status.module';
+import { PlanAccessModule } from 'src/plan-access/plan-access.module';
 
 @Module({
-  imports: [
-    PrismaModule,
-    MailModule,
-    InvoicePaymentFeeModule,
-    InvoicePaymentStatusModule,
-  ],
+  imports: [PrismaModule, MailModule, InvoicePaymentStatusModule, PlanAccessModule],
   controllers: [GoCardlessWebhookController, GoCardlessOAuthController],
   providers: [
     GoCardlessProviderService,

@@ -13,7 +13,7 @@ const INVOICES_STATUS: InvoiceSelectStatus[] = [
 ];
 
 const ESTIMATES_STATUS: EstimateSelectStatus[] = [
-  'Tout',
+  'Tous',
   'Brouillons',
   'Envoyés',
   'Acceptés',
