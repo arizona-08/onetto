@@ -6,6 +6,9 @@ const reminderTypes = [
   'INVOICE_BEFORE_DUE_DATE',
   'INVOICE_OVERDUE_FIRST',
   'INVOICE_OVERDUE_SECOND',
+  'INSTALMENT_MANDATE_AFTER_ISSUE',
+  'INSTALMENT_MANDATE_BEFORE_AUTHORIZATION_DEADLINE',
+  'INSTALMENT_PAYMENT_OVERDUE',
 ] as const;
 
 describe('MailService templates', () => {
@@ -78,6 +81,8 @@ describe('MailService templates', () => {
         clientName: 'Client',
         documentNumber: '#DOC-2026-0001',
         dueAt: new Date('2026-09-01'),
+        instalmentNumber: 1,
+        instalmentAmount: 50,
       },
       type,
     );

@@ -56,6 +56,8 @@ type ReminderMailInput = {
   documentNumber: string | null;
   dueAt: Date | null;
   action?: { label: string; url: string };
+  instalmentNumber?: number;
+  instalmentAmount?: number;
 };
 
 const formatAmount = (amount: number) => `${amount.toFixed(2)} €`;
@@ -135,7 +137,7 @@ export class MailService {
     input: ReminderMailInput,
     reminderType: ReminderType,
   ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
-    const content = this.getReminderContent(reminderType, input.documentNumber);
+    const content = this.getReminderContent(reminderType, input);
     const dueDate = input.dueAt ? formatDate(input.dueAt) : null;
 
     return {
@@ -214,7 +216,7 @@ export class MailService {
 
   private getReminderContent(
     reminderType: ReminderType,
-    documentNumber: string | null,
+    input: ReminderMailInput,
   ): {
     badge: string;
     title: string;
@@ -224,7 +226,7 @@ export class MailService {
     dueDateLabel: string;
     closing: string;
   } {
-    const document = documentNumber ?? 'concerné';
+    const document = input.documentNumber ?? 'concerné';
 
     switch (reminderType) {
       case 'ESTIMATE_PENDING':
@@ -279,6 +281,43 @@ export class MailService {
           closing:
             'Merci de procéder à son règlement dans les meilleurs délais.',
         };
+      case 'INSTALMENT_MANDATE_AFTER_ISSUE':
+        return {
+          badge: 'AUTORISATION REQUISE',
+          title: 'Finalisez votre paiement en plusieurs fois',
+          subject: `Autorisation de prélèvement requise — facture ${document}`,
+          text: `Pour mettre en place le paiement en plusieurs fois de la facture ${document}, vous devez encore autoriser le prélèvement.`,
+          html: `Pour mettre en place le paiement en plusieurs fois de la facture <strong>${document}</strong>, vous devez encore autoriser le prélèvement.`,
+          dueDateLabel: 'Autorisation attendue avant le',
+          closing: 'Merci de finaliser cette autorisation dès que possible.',
+        };
+      case 'INSTALMENT_MANDATE_BEFORE_AUTHORIZATION_DEADLINE':
+        return {
+          badge: 'AUTORISATION BIENTÔT ÉCHUE',
+          title: 'Votre autorisation de prélèvement est attendue',
+          subject: `Autorisez votre échéancier avant le délai — facture ${document}`,
+          text: `L’autorisation du prélèvement pour la facture ${document} doit être finalisée prochainement afin que votre échéancier puisse démarrer.`,
+          html: `L’autorisation du prélèvement pour la facture <strong>${document}</strong> doit être finalisée prochainement afin que votre échéancier puisse démarrer.`,
+          dueDateLabel: 'Date limite d’autorisation',
+          closing: 'Merci de finaliser cette autorisation avant cette date.',
+        };
+      case 'INSTALMENT_PAYMENT_OVERDUE': {
+        const instalment = input.instalmentNumber
+          ? `n°${input.instalmentNumber}`
+          : '';
+        const amount = input.instalmentAmount
+          ? ` de ${formatAmount(input.instalmentAmount)}`
+          : '';
+        return {
+          badge: 'ÉCHÉANCE IMPAYÉE',
+          title: 'Une échéance reste impayée',
+          subject: `Relance d’échéance ${instalment} — facture ${document}`,
+          text: `L’échéance ${instalment}${amount} de la facture ${document} n’a pas été réglée.`,
+          html: `L’échéance <strong>${instalment}${amount}</strong> de la facture <strong>${document}</strong> n’a pas été réglée.`,
+          dueDateLabel: 'Date prévue de règlement',
+          closing: 'Merci de régulariser cette échéance dès que possible.',
+        };
+      }
     }
   }
 

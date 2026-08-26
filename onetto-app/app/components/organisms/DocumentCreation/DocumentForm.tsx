@@ -32,6 +32,9 @@ interface DocumentFormProps {
 }
 
 function DocumentForm({ client, lineItems, documentDates, onClientChange, onLineItemsChange, onDocumentDatesChange, errors, lockInvoiceContent = false, showPaymentMode = false, canUseInstalments = false, paymentMode = 'ONE_TIME', numberOfInstalments = 2, firstDueDate = '', minFirstDueDate, instalments = [], onPaymentModeChange, onNumberOfInstalmentsChange, onFirstDueDateChange }: DocumentFormProps) {
+  const paymentLimitInformation = paymentMode === 'INSTALMENTS'
+    ? 'Par défaut, GoCardless limite chaque échéance à 5 000 €. Demandez un relèvement pour la devise EUR (SEPA) depuis votre tableau de bord GoCardless : Paramètres > Paramètres de la société > Transaction limits > Demander un relèvement. Il n’existe pas de plafond maximal fixe, mais un maximum de 100 000 € est recommandé.'
+    : 'Par défaut, GoCardless limite un paiement unique Open Banking à 1 000 €. Vous pouvez demander un relèvement jusqu’à 15 000 € pour la devise EUR Open Banking (SEPA) depuis votre tableau de bord GoCardless : Paramètres > Paramètres de la société > Transaction limits > Demander un relèvement.'
   
   return (
     <div className="">
@@ -55,7 +58,7 @@ function DocumentForm({ client, lineItems, documentDates, onClientChange, onLine
                 role="tooltip"
                 className="pointer-events-none absolute left-0 top-6 z-10 w-80 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-normal leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
               >
-                Par défaut, GoCardless limite un paiement unique Open Banking à 1&nbsp;000&nbsp;€. Vous pouvez demander un relèvement jusqu’à 15&nbsp;000&nbsp;€ depuis votre tableau de bord GoCardless : Paramètres &gt; Paramètres de la société &gt; Transaction limits &gt; Demander un relèvement.
+                {paymentLimitInformation}
               </div>
             </div>
           </div>

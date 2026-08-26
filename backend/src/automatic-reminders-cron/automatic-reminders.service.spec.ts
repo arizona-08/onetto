@@ -27,6 +27,10 @@ describe('AutomaticRemindersService', () => {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({}),
       },
+      processedInstalmentReminder: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+      },
       document: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const mail = {
@@ -101,5 +105,30 @@ describe('AutomaticRemindersService', () => {
     await service.sendReminders('INVOICE_OVERDUE_FIRST', [candidate]);
 
     expect(prisma.processedReminders.create).not.toHaveBeenCalled();
+  });
+
+  it('envoie une relance distincte pour une échéance impayée', async () => {
+    const { service, prisma, mail } = createService();
+
+    await (service as any).processOverdueInstalmentReminders([
+      {
+        id: 'instalment-1',
+        instalmentNumber: 2,
+        amountInCents: 5000,
+        dueDate: new Date('2026-09-01'),
+        invoiceInstalmentPlan: { invoice: candidate },
+      },
+    ]);
+
+    expect(mail.createReminderMail).toHaveBeenCalledWith(
+      expect.objectContaining({ instalmentNumber: 2, instalmentAmount: 50 }),
+      'INSTALMENT_PAYMENT_OVERDUE',
+    );
+    expect(prisma.processedInstalmentReminder.create).toHaveBeenCalledWith({
+      data: {
+        instalmentId: 'instalment-1',
+        reminderType: 'INSTALMENT_PAYMENT_OVERDUE',
+      },
+    });
   });
 });

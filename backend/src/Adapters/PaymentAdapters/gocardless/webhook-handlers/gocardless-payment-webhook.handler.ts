@@ -29,10 +29,15 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
 
     // The event only guarantees links.payment. Read the current resource rather
     // than relying on event ordering or an optional billing_request link.
-    const client = await this.gocardlessOAuthService.getClientForProviderAccount(webhookEvent.organisation_id);
+    const client =
+      await this.gocardlessOAuthService.getClientForProviderAccount(
+        webhookEvent.organisation_id,
+      );
     const payment = await client.payments.find(paymentId);
     if (!payment) {
-      this.logger.warn(`Payment ${paymentId} introuvable pour l'événement ${webhookEvent.id}.`);
+      this.logger.warn(
+        `Payment ${paymentId} introuvable pour l'événement ${webhookEvent.id}.`,
+      );
       return;
     }
 
@@ -40,10 +45,16 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       payment.links as { instalment_schedule?: string } | undefined
     )?.instalment_schedule;
     if (instalmentScheduleId) {
-      const instalment = await this.prismaService.invoicePaymentInstalment.findUnique({
-        where: { providerPaymentId: paymentId },
-        select: { id: true, instalmentStatus: true, invoiceInstalmentPlan: { select: { invoiceId: true } } },
-      });
+      const instalment =
+        await this.prismaService.invoicePaymentInstalment.findUnique({
+          where: { providerPaymentId: paymentId },
+          select: {
+            id: true,
+            amountInCents: true,
+            instalmentStatus: true,
+            invoiceInstalmentPlan: { select: { invoiceId: true } },
+          },
+        });
       if (instalment) {
         await this.syncInstalmentStatus(instalment, payment.status as string);
       } else {
@@ -62,7 +73,10 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       select: { id: true, payByBankPaymentId: true, paymentStatus: true },
     });
     if (attempt) {
-      await this.syncKnownPaymentAttemptStatus(attempt, payment.status as string);
+      await this.syncKnownPaymentAttemptStatus(
+        attempt,
+        payment.status as string,
+      );
       return;
     }
 
@@ -70,17 +84,25 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
     // identifier was persisted. It is not the primary routing mechanism.
     const billingRequestId = webhookEvent.links.billing_request;
     if (billingRequestId) {
-      const payByBankPayment = await this.prismaService.payByBankPayment.findUnique({
-        where: { providerReference: billingRequestId },
-        select: { id: true },
-      });
+      const payByBankPayment =
+        await this.prismaService.payByBankPayment.findUnique({
+          where: { providerReference: billingRequestId },
+          select: { id: true },
+        });
       if (payByBankPayment) {
-        await this.syncPaymentAttemptStatus(billingRequestId, payByBankPayment.id, paymentId, payment.status as string);
+        await this.syncPaymentAttemptStatus(
+          billingRequestId,
+          payByBankPayment.id,
+          paymentId,
+          payment.status as string,
+        );
         return;
       }
     }
 
-    this.logger.warn(`Payment GoCardless ${paymentId} non associé à un paiement Onetto.`);
+    this.logger.warn(
+      `Payment GoCardless ${paymentId} non associé à un paiement Onetto.`,
+    );
   }
 
   isRelevantAction(action: string): boolean {
@@ -90,26 +112,56 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
   }
 
   private canUpdateStatus(
-    existingStatus: 'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'OVERDUE' | null | undefined,
+    existingStatus:
+      | 'PENDING'
+      | 'PAYMENT_IN_PROGRESS'
+      | 'SUCCESS'
+      | 'FAILED'
+      | 'OVERDUE'
+      | null
+      | undefined,
     nextStatus: 'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED',
   ): boolean {
     if (existingStatus === nextStatus) return false;
-    if (existingStatus === 'SUCCESS' || existingStatus === 'FAILED') return false;
-    return !(existingStatus === 'PAYMENT_IN_PROGRESS' && nextStatus === 'PENDING');
+    if (existingStatus === 'SUCCESS' || existingStatus === 'FAILED')
+      return false;
+    return !(
+      existingStatus === 'PAYMENT_IN_PROGRESS' && nextStatus === 'PENDING'
+    );
   }
 
   private async syncInstalmentStatus(
-    instalment: { id: string; instalmentStatus: 'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'OVERDUE'; invoiceInstalmentPlan: { invoiceId: string } },
+    instalment: {
+      id: string;
+      amountInCents: number;
+      instalmentStatus:
+        | 'PENDING'
+        | 'PAYMENT_IN_PROGRESS'
+        | 'SUCCESS'
+        | 'FAILED'
+        | 'OVERDUE';
+      invoiceInstalmentPlan: { invoiceId: string };
+    },
     paymentStatus: string,
   ): Promise<void> {
-    const mappedStatus = this.gocardlessStatusMatcherService.matchPaymentAttemptStatus(paymentStatus);
-    if (!this.canUpdateStatus(instalment.instalmentStatus, mappedStatus)) return;
+    const mappedStatus =
+      this.gocardlessStatusMatcherService.matchPaymentAttemptStatus(
+        paymentStatus,
+      );
+    if (!this.canUpdateStatus(instalment.instalmentStatus, mappedStatus))
+      return;
 
     await this.prismaService.invoicePaymentInstalment.update({
       where: { id: instalment.id },
-      data: { instalmentStatus: mappedStatus, ...(mappedStatus === 'SUCCESS' ? { paidAt: new Date() } : {}) },
+      data: {
+        instalmentStatus: mappedStatus,
+        ...(mappedStatus === 'SUCCESS' ? { paidAt: new Date() } : {}),
+      },
     });
-    await this.invoicePaymentStatusService.refreshFromInstalment(instalment.invoiceInstalmentPlan.invoiceId);
+    await this.invoicePaymentStatusService.refreshFromInstalment(
+      instalment.invoiceInstalmentPlan.invoiceId,
+      mappedStatus === 'SUCCESS' ? instalment.amountInCents : undefined,
+    );
   }
 
   /**
@@ -118,7 +170,9 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
    * documented order in links.payments.
    */
   private async syncUnmappedInstalmentPayment(
-    client: Awaited<ReturnType<GoCardlessOAuthService['getClientForProviderAccount']>>,
+    client: Awaited<
+      ReturnType<GoCardlessOAuthService['getClientForProviderAccount']>
+    >,
     instalmentScheduleId: string,
     paymentId: string,
     paymentStatus: string,
@@ -129,16 +183,19 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
         invoiceId: true,
         invoicePaymentInstalments: {
           orderBy: { instalmentNumber: 'asc' },
-          select: { id: true, instalmentStatus: true },
+          select: { id: true, amountInCents: true, instalmentStatus: true },
         },
       },
     });
     if (!plan) {
-      this.logger.warn(`Instalment schedule GoCardless ${instalmentScheduleId} inconnu.`);
+      this.logger.warn(
+        `Instalment schedule GoCardless ${instalmentScheduleId} inconnu.`,
+      );
       return;
     }
 
-    const schedule = await client.instalmentSchedules.find(instalmentScheduleId);
+    const schedule =
+      await client.instalmentSchedules.find(instalmentScheduleId);
     const paymentIndex = schedule?.links?.payments?.indexOf(paymentId) ?? -1;
     const instalment = plan.invoicePaymentInstalments[paymentIndex];
     if (!instalment) {
@@ -159,14 +216,32 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
   }
 
   private async syncKnownPaymentAttemptStatus(
-    attempt: { id: string; payByBankPaymentId: string; paymentStatus: 'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | null },
+    attempt: {
+      id: string;
+      payByBankPaymentId: string;
+      paymentStatus:
+        | 'PENDING'
+        | 'PAYMENT_IN_PROGRESS'
+        | 'SUCCESS'
+        | 'FAILED'
+        | null;
+    },
     paymentStatus: string,
   ): Promise<void> {
-    const mappedStatus = this.gocardlessStatusMatcherService.matchPaymentAttemptStatus(paymentStatus);
+    const mappedStatus =
+      this.gocardlessStatusMatcherService.matchPaymentAttemptStatus(
+        paymentStatus,
+      );
     if (!this.canUpdateStatus(attempt.paymentStatus, mappedStatus)) return;
 
-    await this.prismaService.payByBankPaymentAttempt.update({ where: { id: attempt.id }, data: { paymentStatus: mappedStatus } });
-    await this.invoicePaymentStatusService.refreshFromPaymentAttempt(attempt.payByBankPaymentId, mappedStatus === 'SUCCESS');
+    await this.prismaService.payByBankPaymentAttempt.update({
+      where: { id: attempt.id },
+      data: { paymentStatus: mappedStatus },
+    });
+    await this.invoicePaymentStatusService.refreshFromPaymentAttempt(
+      attempt.payByBankPaymentId,
+      mappedStatus === 'SUCCESS',
+    );
   }
 
   async syncPaymentAttemptStatus(
@@ -185,19 +260,22 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
         where: {
           providerReference_providerPaymentId: {
             providerReference: billingRequestId,
-            providerPaymentId: paymentId
-          }
+            providerPaymentId: paymentId,
+          },
         },
       });
 
-    if (!this.canUpdateStatus(existingPaymentAttempt?.paymentStatus, mappedStatus)) return;
+    if (
+      !this.canUpdateStatus(existingPaymentAttempt?.paymentStatus, mappedStatus)
+    )
+      return;
 
     const paymentAttempt =
       await this.prismaService.payByBankPaymentAttempt.upsert({
         where: {
           providerReference_providerPaymentId: {
             providerReference: billingRequestId,
-            providerPaymentId: paymentId
+            providerPaymentId: paymentId,
           },
         },
         update: {

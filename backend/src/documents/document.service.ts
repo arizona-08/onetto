@@ -7,7 +7,7 @@ import {
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateDocumentDto } from './dtos/create-document.dto';
 import { SendDocumentToClientDto } from './dtos/send-document-to-client.dto';
-import { User } from 'src/types/extended-request.types';
+import { REMINDER_RULES, User } from 'src/types/extended-request.types';
 import { randomBytes } from 'crypto';
 import { MailService } from 'src/mail/mail.service';
 import { $Enums, Prisma } from '@prisma/client';
@@ -357,9 +357,16 @@ export class DocumentService {
         12,
       ),
     );
-    if (Number.isNaN(firstDueDate.getTime()) || firstDueDate < issueDate) {
+    const authorizationDeadline = new Date(
+      firstDueDate.getTime() -
+        REMINDER_RULES.INSTALMENT_AUTHORIZATION_LEAD_DAYS * 24 * 60 * 60 * 1000,
+    );
+    if (
+      Number.isNaN(firstDueDate.getTime()) ||
+      authorizationDeadline < issueDate
+    ) {
       throw new BadRequestException(
-        "La première échéance ne peut pas être antérieure à la date d'émission de la facture.",
+        "La première échéance doit laisser le temps nécessaire à l'autorisation du prélèvement.",
       );
     }
 
@@ -400,6 +407,7 @@ export class DocumentService {
         numberOfInstalments: instalmentsDetails.numberOfInstalments,
         amountPerInstalmentInCents,
         startDate: firstDueDate,
+        authorizationDeadline,
         // A provider reference is required by the current schema. It is an
         // internal placeholder until a future provider integration replaces it.
         providerReference: `onetto-${randomBytes(16).toString('hex')}`,
@@ -2007,7 +2015,7 @@ export class DocumentService {
 
     await this.prismaService.document.update({
       where: { id: documentId },
-      data
+      data,
     });
   }
 
