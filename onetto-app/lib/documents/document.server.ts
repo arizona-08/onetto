@@ -25,10 +25,61 @@ export type DashboardSummary = {
   pendingInvoicesCount: number;
   overdueInvoicesCount: number;
   pendingEstimatesCount: number;
+  recentInvoices: Array<{
+    id: string;
+    documentNumber: string | null;
+    totalPrice: number;
+    invoiceStatus: string;
+    createdAt: string;
+  }>;
+  pendingEstimates: Array<{
+    id: string;
+    documentNumber: string | null;
+    totalPrice: number;
+    createdAt: string;
+  }>;
+  recentActivity: Array<{
+    id: string;
+    type: 'INVOICE' | 'ESTIMATE';
+    documentNumber: string | null;
+    invoiceStatus: string;
+    estimateStatus: string;
+    createdAt: string;
+  }>;
+  starter: {
+    revenueByMonth: Array<{ label: string; amount: number }>;
+    commercialPerformance: {
+      sent: number;
+      accepted: number;
+      negotiating: number;
+      rejected: number;
+      acceptanceRate: number;
+    };
+    reminders: Array<{
+      id: string;
+      documentNumber: string | null;
+      invoiceStatus: string;
+      paymentDueAt: string;
+    }>;
+  };
 };
 
 export function getDashboardSummaryServer() {
   return apiServer<DashboardSummary>('api/documents/dashboard-summary');
+}
+
+export type ProDashboard = {
+  revenueByMonth: Array<{ label: string; billed: number; collected: number }>;
+  cashflowForecast: Array<{ month: string; amount: number }>;
+  paymentDistribution: { payByBankPercent: number; instalmentsPercent: number; twoInstalments: number; threePlusInstalments: number };
+  performance: { acceptanceRate: number; invoiceConversionRate: number; averageInvoiceAmount: number };
+  payments: { averageDelayDays: number | null; upcomingInstalments: number; overdueInstalments: number };
+  topClients: Array<{ name: string; amount: number }>;
+  alerts: { overdueInvoices: number; overdueInstalments: number; unansweredEstimates: number };
+};
+
+export function getProDashboardServer() {
+  return apiServer<ProDashboard>('api/documents/dashboard-pro');
 }
 
 type InvoiceStat = {

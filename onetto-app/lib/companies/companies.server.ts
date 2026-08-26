@@ -6,6 +6,12 @@ export type CompaniesResponse = {
   activeCompanyId: string | null;
 };
 
+export type CompanyPlanAccess = {
+  currentPlan: 'FREE' | 'STARTER' | 'PRO';
+  features: Record<string, boolean>;
+  maxOwnedCompanies: number;
+};
+
 export type CompanyService = {
   id: string;
   companyId: string;
@@ -32,6 +38,10 @@ export type CompanyClient = {
 
 export function getMyCompaniesServer() {
   return apiServer<CompaniesResponse>("api/companies");
+}
+
+export function getActiveCompanyPlanAccessServer() {
+  return apiServer<CompanyPlanAccess>('api/companies/active/plan-access');
 }
 
 export function getActiveCompanyServicesServer() {

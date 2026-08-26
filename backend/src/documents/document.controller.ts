@@ -71,6 +71,12 @@ export class DocumentController {
     return this.documentService.getAdvancedDashboard(req.user);
   }
 
+  @Get('dashboard-pro')
+  async getProDashboard(@Req() req: ExtendedRequest) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.documentService.getProDashboard(req.user);
+  }
+
   @Get('cashflow-forecast')
   async getCashflowForecast(@Req() req: ExtendedRequest) {
     if (!req.user) throw new UnauthorizedException('Non authentifié');

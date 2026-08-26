@@ -684,7 +684,15 @@ export class DocumentService {
 
   async getDashboardSummary(user: User) {
     const companyId = await this.getActiveCompanyId(user);
-    const [invoices, pendingEstimates] = await Promise.all([
+    const [
+      invoices,
+      pendingEstimates,
+      recentInvoices,
+      recentActivity,
+      estimates,
+      reminderInvoices,
+      monthlyInvoices,
+    ] = await Promise.all([
       this.prismaService.document.findMany({
         where: { companyId, type: 'INVOICE' },
         select: { totalPrice: true, invoiceStatus: true },
@@ -692,7 +700,78 @@ export class DocumentService {
       this.prismaService.document.count({
         where: { companyId, type: 'ESTIMATE', estimateStatus: 'SENT' },
       }),
+      this.prismaService.document.findMany({
+        where: { companyId, type: 'INVOICE' },
+        orderBy: { createdAt: 'desc' },
+        take: 3,
+        select: {
+          id: true,
+          documentNumber: true,
+          totalPrice: true,
+          invoiceStatus: true,
+          createdAt: true,
+        },
+      }),
+      this.prismaService.document.findMany({
+        where: { companyId },
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+        select: {
+          id: true,
+          type: true,
+          documentNumber: true,
+          invoiceStatus: true,
+          estimateStatus: true,
+          createdAt: true,
+        },
+      }),
+      this.prismaService.document.findMany({
+        where: { companyId, type: 'ESTIMATE' },
+        select: { estimateStatus: true },
+      }),
+      this.prismaService.document.findMany({
+        where: {
+          companyId,
+          type: 'INVOICE',
+          invoiceStatus: { in: ['PENDING', 'OVERDUE', 'PAYMENT_IN_PROGRESS'] },
+        },
+        orderBy: { paymentDueAt: 'asc' },
+        take: 3,
+        select: {
+          id: true,
+          documentNumber: true,
+          invoiceStatus: true,
+          paymentDueAt: true,
+        },
+      }),
+      this.prismaService.document.findMany({
+        where: {
+          companyId,
+          type: 'INVOICE',
+          invoiceStatus: { not: 'DRAFT' },
+          createdAt: {
+            gte: new Date(
+              new Date().getFullYear(),
+              new Date().getMonth() - 5,
+              1,
+            ),
+          },
+        },
+        select: { totalPrice: true, createdAt: true },
+      }),
     ]);
+
+    const pendingEstimateList = await this.prismaService.document.findMany({
+      where: { companyId, type: 'ESTIMATE', estimateStatus: 'SENT' },
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+      select: {
+        id: true,
+        documentNumber: true,
+        totalPrice: true,
+        createdAt: true,
+      },
+    });
 
     const collectedStatuses = new Set(['PAID', 'PAID_MANUALLY']);
     const outstandingStatuses = new Set([
@@ -711,6 +790,35 @@ export class DocumentService {
     const outstanding = invoices.filter((invoice) =>
       outstandingStatuses.has(invoice.invoiceStatus),
     );
+
+    const now = new Date();
+    const revenueByMonth = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(now.getFullYear(), now.getMonth() - 5 + index, 1);
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      return {
+        key,
+        label: date.toLocaleDateString('fr-FR', { month: 'short' }),
+        amount: 0,
+      };
+    });
+    for (const invoice of monthlyInvoices) {
+      const key = `${invoice.createdAt.getFullYear()}-${invoice.createdAt.getMonth()}`;
+      const month = revenueByMonth.find((item) => item.key === key);
+      if (month) month.amount += invoice.totalPrice;
+    }
+
+    const estimatesSent = estimates.filter(
+      (estimate) => estimate.estimateStatus === 'SENT',
+    ).length;
+    const estimatesAccepted = estimates.filter(
+      (estimate) => estimate.estimateStatus === 'ACCEPTED',
+    ).length;
+    const estimatesNegotiating = estimates.filter(
+      (estimate) => estimate.estimateStatus === 'SUPERSEDED',
+    ).length;
+    const estimatesRejected = estimates.filter(
+      (estimate) => estimate.estimateStatus === 'REJECTED',
+    ).length;
 
     return {
       billedAmount: billed.reduce(
@@ -732,6 +840,26 @@ export class DocumentService {
         (invoice) => invoice.invoiceStatus === 'OVERDUE',
       ).length,
       pendingEstimatesCount: pendingEstimates,
+      recentInvoices,
+      pendingEstimates: pendingEstimateList,
+      recentActivity,
+      starter: {
+        revenueByMonth: revenueByMonth.map(({ label, amount }) => ({
+          label,
+          amount,
+        })),
+        commercialPerformance: {
+          sent: estimatesSent,
+          accepted: estimatesAccepted,
+          negotiating: estimatesNegotiating,
+          rejected: estimatesRejected,
+          acceptanceRate:
+            estimates.length === 0
+              ? 0
+              : Math.round((estimatesAccepted / estimates.length) * 100),
+        },
+        reminders: reminderInvoices,
+      },
     };
   }
 
@@ -772,6 +900,221 @@ export class DocumentService {
           : acceptedEstimates.length / estimates.length,
       paidInvoicesCount: paidInvoices.length,
       invoicesCount: invoices.length,
+    };
+  }
+
+  async getProDashboard(user: User) {
+    const companyId = await this.getActiveCompanyId(user);
+    await this.planAccessService.assertFeatureAvailable(
+      companyId,
+      'advancedAnalytics',
+    );
+
+    const since = new Date(
+      new Date().getFullYear(),
+      new Date().getMonth() - 5,
+      1,
+    );
+    const [invoices, estimates] = await Promise.all([
+      this.prismaService.document.findMany({
+        where: { companyId, type: 'INVOICE', invoiceStatus: { not: 'DRAFT' } },
+        select: {
+          id: true,
+          clientName: true,
+          totalPrice: true,
+          createdAt: true,
+          paymentDueAt: true,
+          invoiceStatus: true,
+          sourceDocumentId: true,
+          payByBankPayments: {
+            select: { amountInCents: true, status: true, updatedAt: true },
+          },
+          invoiceInstalmentPlan: {
+            select: {
+              invoicePaymentInstalments: {
+                select: {
+                  amountInCents: true,
+                  dueDate: true,
+                  paidAt: true,
+                  instalmentStatus: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prismaService.document.findMany({
+        where: { companyId, type: 'ESTIMATE' },
+        select: { estimateStatus: true },
+      }),
+    ]);
+
+    const months = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(
+        new Date().getFullYear(),
+        new Date().getMonth() - 5 + index,
+        1,
+      );
+      return {
+        key: `${date.getFullYear()}-${date.getMonth()}`,
+        label: date.toLocaleDateString('fr-FR', { month: 'short' }),
+        billed: 0,
+        collected: 0,
+      };
+    });
+    const byKey = new Map(months.map((month) => [month.key, month]));
+    const clientTotals = new Map<string, number>();
+    let payByBankAmount = 0;
+    let instalmentAmount = 0;
+    let twoInstalments = 0;
+    let threePlusInstalments = 0;
+    let paymentDelayDaysTotal = 0;
+    let paymentDelayCount = 0;
+    let upcomingInstalments = 0;
+    let overdueInstalments = 0;
+    const now = new Date();
+    const forecast = new Map<string, number>();
+
+    for (const invoice of invoices) {
+      const month = byKey.get(
+        `${invoice.createdAt.getFullYear()}-${invoice.createdAt.getMonth()}`,
+      );
+      if (month && invoice.createdAt >= since)
+        month.billed += invoice.totalPrice;
+      const paidPayments = invoice.payByBankPayments.filter(
+        (payment) => payment.status === 'SUCCESS',
+      );
+      const paidInstalments =
+        invoice.invoiceInstalmentPlan?.invoicePaymentInstalments.filter(
+          (item) => item.instalmentStatus === 'SUCCESS',
+        ) ?? [];
+      const collectedAmount =
+        paidPayments.reduce(
+          (sum, payment) => sum + payment.amountInCents / 100,
+          0,
+        ) +
+        paidInstalments.reduce(
+          (sum, item) => sum + item.amountInCents / 100,
+          0,
+        );
+      const paidDate = [
+        ...paidPayments.map((payment) => payment.updatedAt),
+        ...paidInstalments.flatMap((item) =>
+          item.paidAt ? [item.paidAt] : [],
+        ),
+      ].sort((a, b) => b.getTime() - a.getTime())[0];
+      if (paidDate) {
+        const collectedMonth = byKey.get(
+          `${paidDate.getFullYear()}-${paidDate.getMonth()}`,
+        );
+        if (collectedMonth && paidDate >= since)
+          collectedMonth.collected += collectedAmount;
+        paymentDelayDaysTotal += Math.max(
+          0,
+          Math.round(
+            (paidDate.getTime() - invoice.createdAt.getTime()) / 86_400_000,
+          ),
+        );
+        paymentDelayCount += 1;
+      }
+      if (['PAID', 'PAID_MANUALLY'].includes(invoice.invoiceStatus))
+        clientTotals.set(
+          invoice.clientName,
+          (clientTotals.get(invoice.clientName) ?? 0) + invoice.totalPrice,
+        );
+      if (invoice.invoiceInstalmentPlan) {
+        instalmentAmount += invoice.totalPrice;
+        const count =
+          invoice.invoiceInstalmentPlan.invoicePaymentInstalments.length;
+        if (count === 2) twoInstalments += 1;
+        if (count >= 3) threePlusInstalments += 1;
+        for (const instalment of invoice.invoiceInstalmentPlan
+          .invoicePaymentInstalments) {
+          if (instalment.instalmentStatus === 'SUCCESS') continue;
+          if (instalment.dueDate < now) overdueInstalments += 1;
+          else upcomingInstalments += 1;
+          const key = `${instalment.dueDate.getFullYear()}-${String(instalment.dueDate.getMonth() + 1).padStart(2, '0')}`;
+          forecast.set(
+            key,
+            (forecast.get(key) ?? 0) + instalment.amountInCents / 100,
+          );
+        }
+      } else {
+        payByBankAmount += invoice.totalPrice;
+        if (!['PAID', 'PAID_MANUALLY'].includes(invoice.invoiceStatus)) {
+          const key = `${invoice.paymentDueAt.getFullYear()}-${String(invoice.paymentDueAt.getMonth() + 1).padStart(2, '0')}`;
+          forecast.set(key, (forecast.get(key) ?? 0) + invoice.totalPrice);
+        }
+      }
+    }
+
+    const acceptedEstimates = estimates.filter(
+      (estimate) => estimate.estimateStatus === 'ACCEPTED',
+    ).length;
+    const convertedInvoices = invoices.filter(
+      (invoice) => invoice.sourceDocumentId !== null,
+    ).length;
+    const totalPaymentAmount = payByBankAmount + instalmentAmount;
+
+    return {
+      revenueByMonth: months.map(({ label, billed, collected }) => ({
+        label,
+        billed,
+        collected,
+      })),
+      cashflowForecast: [...forecast.entries()]
+        .sort(([left], [right]) => left.localeCompare(right))
+        .slice(0, 3)
+        .map(([month, amount]) => ({
+          month: new Date(`${month}-01T00:00:00`).toLocaleDateString('fr-FR', {
+            month: 'long',
+          }),
+          amount,
+        })),
+      paymentDistribution: {
+        payByBankPercent: totalPaymentAmount
+          ? Math.round((payByBankAmount / totalPaymentAmount) * 100)
+          : 0,
+        instalmentsPercent: totalPaymentAmount
+          ? Math.round((instalmentAmount / totalPaymentAmount) * 100)
+          : 0,
+        twoInstalments,
+        threePlusInstalments,
+      },
+      performance: {
+        acceptanceRate: estimates.length
+          ? Math.round((acceptedEstimates / estimates.length) * 100)
+          : 0,
+        invoiceConversionRate: acceptedEstimates
+          ? Math.round((convertedInvoices / acceptedEstimates) * 100)
+          : 0,
+        averageInvoiceAmount: invoices.length
+          ? Math.round(
+              invoices.reduce((sum, invoice) => sum + invoice.totalPrice, 0) /
+                invoices.length,
+            )
+          : 0,
+      },
+      payments: {
+        averageDelayDays: paymentDelayCount
+          ? Math.round(paymentDelayDaysTotal / paymentDelayCount)
+          : null,
+        upcomingInstalments,
+        overdueInstalments,
+      },
+      topClients: [...clientTotals.entries()]
+        .sort(([, left], [, right]) => right - left)
+        .slice(0, 3)
+        .map(([name, amount]) => ({ name, amount })),
+      alerts: {
+        overdueInvoices: invoices.filter(
+          (invoice) => invoice.invoiceStatus === 'OVERDUE',
+        ).length,
+        overdueInstalments,
+        unansweredEstimates: estimates.filter(
+          (estimate) => estimate.estimateStatus === 'SENT',
+        ).length,
+      },
     };
   }
 
