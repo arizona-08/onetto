@@ -6,6 +6,18 @@ export type CompaniesResponse = {
   activeCompanyId: string | null;
 };
 
+export type CompanyPlanAccess = {
+  currentPlan: 'FREE' | 'STARTER' | 'PRO';
+  features: {
+    negotiation: boolean;
+    instalments: boolean;
+    advancedAnalytics: boolean;
+    automaticReminders: boolean;
+    cashflowForecast: boolean;
+  };
+  maxOwnedCompanies: number;
+};
+
 export function getMyCompanies() {
   return apiClient<CompaniesResponse>("api/companies");
 }
@@ -40,6 +52,10 @@ export function getGoCardlessVerificationStatusUrl(
 
 export function getMyActiveCompany() {
   return apiClient<Company | null>("api/companies/active");
+}
+
+export function getActiveCompanyPlanAccess() {
+  return apiClient<CompanyPlanAccess>('api/companies/active/plan-access');
 }
 
 export function createCompany(data: CreateCompanyDto) {

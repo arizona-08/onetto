@@ -98,18 +98,6 @@ async function DocumentsPage() {
             Cette entreprise est fermée : les factures existantes restent consultables, mais aucune nouvelle facture ne peut être créée.
           </div>
         )}
-        estimates={(
-          <section aria-labelledby="estimates-heading">
-            <h2 id="estimates-heading" className="text-xl font-semibold">Devis</h2>
-            <DocumentsTable
-              type="estimates"
-              documents={estimates}
-              currentDate={currentDate}
-              canCreate={activeCompany?.status !== 'CLOSED'}
-              initialPagination={estimatesResponse.ok ? estimatesResponse.data.pagination : undefined}
-            />
-          </section>
-        )}
         invoices={(
           <section aria-labelledby="invoices-heading">
             <h2 id="invoices-heading" className="text-xl font-semibold">Factures</h2>
@@ -120,6 +108,18 @@ async function DocumentsPage() {
               canCreate={activeCompany?.status !== 'CLOSED'}
               initialPagination={invoicesResponse.ok ? invoicesResponse.data.pagination : undefined}
             />
+          </section>
+        )}
+        estimates={(
+          <section aria-labelledby="estimates-heading">
+            <h2 id="estimates-heading" className="text-xl font-semibold">Devis</h2>
+            <DocumentsTable
+              type="estimates"
+              documents={estimates}
+              currentDate={currentDate}
+              canCreate={activeCompany?.status !== 'CLOSED'}
+              initialPagination={estimatesResponse.ok ? estimatesResponse.data.pagination : undefined}
+              />
           </section>
         )}
       />

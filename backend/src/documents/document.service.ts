@@ -15,6 +15,7 @@ import { ConfigService } from '@nestjs/config';
 import { CreatePaymentLinkInput } from 'src/Adapters/PaymentAdapters/Types/InputTypes/CreatePaymentLinkInput.types';
 import { PaymentService } from 'src/Adapters/PaymentAdapters/payment.service';
 import { PdfService } from 'src/pdf/pdf.service';
+import { PlanAccessService } from 'src/plan-access/plan-access.service';
 import {
   buildInstalmentSchedule,
   parseDateOnly,
@@ -30,6 +31,7 @@ export class DocumentService {
     private readonly pdfService: PdfService,
     private readonly paymentService: PaymentService,
     private readonly configService: ConfigService,
+    private readonly planAccessService: PlanAccessService,
   ) {
     this.callbackUrl =
       this.configService.get<string>('BRIDGE_CALLBACK_URL') || '';
@@ -39,6 +41,12 @@ export class DocumentService {
     try {
       const { lineItems, type = 'ESTIMATE', ...documentData } = data;
       const companyId = await this.getActiveCompanyId(user, true);
+      if (data.instalmentsDetails) {
+        await this.planAccessService.assertFeatureAvailable(
+          companyId,
+          'instalments',
+        );
+      }
       const documentNumber = await this.createDocumentNumber(type, companyId);
 
       if (type !== 'INVOICE' && data.instalmentsDetails) {
@@ -306,7 +314,12 @@ export class DocumentService {
 
   private async syncInvoiceInstalmentPlan(
     prisma: Prisma.TransactionClient,
-    invoice: { id: string; totalPrice: number; createdAt: Date },
+    invoice: {
+      id: string;
+      companyId: string;
+      totalPrice: number;
+      createdAt: Date;
+    },
     instalmentsDetails?: {
       numberOfInstalments: 2 | 3;
       firstDueDate: string;
@@ -328,6 +341,11 @@ export class DocumentService {
       });
       return;
     }
+
+    await this.planAccessService.assertFeatureAvailable(
+      invoice.companyId,
+      'instalments',
+    );
 
     const firstDueDate = parseDateOnly(instalmentsDetails.firstDueDate);
     const issuedAt = new Date(invoice.createdAt);
@@ -664,6 +682,155 @@ export class DocumentService {
     };
   }
 
+  async getDashboardSummary(user: User) {
+    const companyId = await this.getActiveCompanyId(user);
+    const [invoices, pendingEstimates] = await Promise.all([
+      this.prismaService.document.findMany({
+        where: { companyId, type: 'INVOICE' },
+        select: { totalPrice: true, invoiceStatus: true },
+      }),
+      this.prismaService.document.count({
+        where: { companyId, type: 'ESTIMATE', estimateStatus: 'SENT' },
+      }),
+    ]);
+
+    const collectedStatuses = new Set(['PAID', 'PAID_MANUALLY']);
+    const outstandingStatuses = new Set([
+      'PENDING',
+      'PAYMENT_IN_PROGRESS',
+      'PARTIALLY_PAID',
+      'OVERDUE',
+      'REJECTED',
+    ]);
+    const billed = invoices.filter(
+      (invoice) => invoice.invoiceStatus !== 'DRAFT',
+    );
+    const collected = invoices.filter((invoice) =>
+      collectedStatuses.has(invoice.invoiceStatus),
+    );
+    const outstanding = invoices.filter((invoice) =>
+      outstandingStatuses.has(invoice.invoiceStatus),
+    );
+
+    return {
+      billedAmount: billed.reduce(
+        (total, invoice) => total + invoice.totalPrice,
+        0,
+      ),
+      collectedAmount: collected.reduce(
+        (total, invoice) => total + invoice.totalPrice,
+        0,
+      ),
+      outstandingAmount: outstanding.reduce(
+        (total, invoice) => total + invoice.totalPrice,
+        0,
+      ),
+      pendingInvoicesCount: invoices.filter(
+        (invoice) => invoice.invoiceStatus === 'PENDING',
+      ).length,
+      overdueInvoicesCount: invoices.filter(
+        (invoice) => invoice.invoiceStatus === 'OVERDUE',
+      ).length,
+      pendingEstimatesCount: pendingEstimates,
+    };
+  }
+
+  async getAdvancedDashboard(user: User) {
+    const companyId = await this.getActiveCompanyId(user);
+    await this.planAccessService.assertFeatureAvailable(
+      companyId,
+      'advancedAnalytics',
+    );
+
+    const [invoices, estimates] = await Promise.all([
+      this.prismaService.document.findMany({
+        where: { companyId, type: 'INVOICE', invoiceStatus: { not: 'DRAFT' } },
+        select: { totalPrice: true, invoiceStatus: true },
+      }),
+      this.prismaService.document.findMany({
+        where: { companyId, type: 'ESTIMATE' },
+        select: { estimateStatus: true },
+      }),
+    ]);
+
+    const paidInvoices = invoices.filter((invoice) =>
+      ['PAID', 'PAID_MANUALLY'].includes(invoice.invoiceStatus),
+    );
+    const acceptedEstimates = estimates.filter(
+      (estimate) => estimate.estimateStatus === 'ACCEPTED',
+    );
+
+    return {
+      averageInvoiceAmount:
+        invoices.length === 0
+          ? 0
+          : invoices.reduce((total, invoice) => total + invoice.totalPrice, 0) /
+            invoices.length,
+      estimateAcceptanceRate:
+        estimates.length === 0
+          ? 0
+          : acceptedEstimates.length / estimates.length,
+      paidInvoicesCount: paidInvoices.length,
+      invoicesCount: invoices.length,
+    };
+  }
+
+  async getCashflowForecast(user: User) {
+    const companyId = await this.getActiveCompanyId(user);
+    await this.planAccessService.assertFeatureAvailable(
+      companyId,
+      'cashflowForecast',
+    );
+
+    const invoices = await this.prismaService.document.findMany({
+      where: {
+        companyId,
+        type: 'INVOICE',
+        invoiceStatus: {
+          in: ['PENDING', 'PAYMENT_IN_PROGRESS', 'PARTIALLY_PAID', 'OVERDUE'],
+        },
+      },
+      select: {
+        totalPrice: true,
+        paymentDueAt: true,
+        invoiceInstalmentPlan: {
+          select: {
+            invoicePaymentInstalments: {
+              where: { instalmentStatus: { not: 'SUCCESS' } },
+              select: { amountInCents: true, dueDate: true },
+            },
+          },
+        },
+      },
+    });
+
+    const forecast = new Map<string, number>();
+    for (const invoice of invoices) {
+      const instalments =
+        invoice.invoiceInstalmentPlan?.invoicePaymentInstalments ?? [];
+      const entries = instalments.length
+        ? instalments.map((instalment) => ({
+            amountInCents: instalment.amountInCents,
+            dueDate: instalment.dueDate,
+          }))
+        : [
+            {
+              amountInCents: Math.round(invoice.totalPrice * 100),
+              dueDate: invoice.paymentDueAt,
+            },
+          ];
+
+      for (const entry of entries) {
+        const key = `${entry.dueDate.getUTCFullYear()}-${String(entry.dueDate.getUTCMonth() + 1).padStart(2, '0')}`;
+        forecast.set(key, (forecast.get(key) ?? 0) + entry.amountInCents);
+      }
+    }
+
+    return [...forecast.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([month, amountInCents]) => ({ month, amountInCents }));
+  }
+
   async getDocumentById(
     documentId: string,
     user: User,
@@ -731,62 +898,93 @@ export class DocumentService {
   }
 
   async getNegociationByToken(negociationToken: string) {
-    return this.prismaService.estimateNegociation.findUnique({
-      where: { negociationToken },
-      select: {
-        id: true,
-        message: true,
-        proposedTotalPrice: true,
-        status: true,
-        document: {
-          select: {
-            id: true,
-            documentNumber: true,
-            type: true,
-            clientName: true,
-            clientEmail: true,
-            clientAddress: true,
-            clientCity: true,
-            clientPostalCode: true,
-            clientCountry: true,
-            totalPrice: true,
-            totalPriceExcludingTax: true,
-            createdAt: true,
-            sentAt: true,
-            paymentDueAt: true,
-            services: {
-              select: {
-                id: true,
-                description: true,
-                quantity: true,
-                unitPrice: true,
-                unit: true,
-                taxRate: true,
-                wtPrice: true,
-                totalPrice: true,
+    const negociation = await this.prismaService.estimateNegociation.findUnique(
+      {
+        where: { negociationToken },
+        select: {
+          id: true,
+          message: true,
+          proposedTotalPrice: true,
+          status: true,
+          document: {
+            select: {
+              id: true,
+              companyId: true,
+              documentNumber: true,
+              type: true,
+              clientName: true,
+              clientEmail: true,
+              clientAddress: true,
+              clientCity: true,
+              clientPostalCode: true,
+              clientCountry: true,
+              totalPrice: true,
+              totalPriceExcludingTax: true,
+              createdAt: true,
+              sentAt: true,
+              paymentDueAt: true,
+              services: {
+                select: {
+                  id: true,
+                  description: true,
+                  quantity: true,
+                  unitPrice: true,
+                  unit: true,
+                  taxRate: true,
+                  wtPrice: true,
+                  totalPrice: true,
+                },
               },
-            },
-            company: {
-              select: {
-                name: true,
-                email: true,
-                phoneNumber: true,
-                siren: true,
-                address: true,
-                postalCode: true,
-                city: true,
-                country: true,
-                subjectToVat: true,
-                vatNumber: true,
+              company: {
+                select: {
+                  name: true,
+                  email: true,
+                  phoneNumber: true,
+                  siren: true,
+                  address: true,
+                  postalCode: true,
+                  city: true,
+                  country: true,
+                  subjectToVat: true,
+                  vatNumber: true,
+                },
               },
             },
           },
         },
       },
-    });
+    );
+
+    if (!negociation) return null;
+    const access = await this.planAccessService.getCompanyAccess(
+      negociation.document.companyId,
+    );
+    const { companyId: _companyId, ...document } = negociation.document;
+
+    return {
+      ...negociation,
+      document,
+      canNegotiate: access.features.negotiation,
+    };
   }
 
   async renegociateByToken(negociationToken: string, message: string) {
+    const pendingNegociation =
+      await this.prismaService.estimateNegociation.findFirst({
+        where: {
+          negociationToken,
+          status: 'PENDING',
+          document: { type: 'ESTIMATE' },
+        },
+        select: { document: { select: { companyId: true } } },
+      });
+    if (!pendingNegociation) return null;
+
+    await this.planAccessService.assertFeatureAvailable(
+      pendingNegociation.document.companyId,
+      'negotiation',
+    );
+
     const result = await this.prismaService.$transaction(async (prisma) => {
       const negociation = await prisma.estimateNegociation.findFirst({
         where: {
@@ -985,6 +1183,16 @@ export class DocumentService {
     if (!user.lastConnectedCompanyId) {
       throw new BadRequestException(
         'Sélectionnez une entreprise avant de gérer des factures.',
+      );
+    }
+
+    const isCompanyUser = await this.isCompanyUser(
+      user.id,
+      user.lastConnectedCompanyId,
+    );
+    if (!isCompanyUser) {
+      throw new BadRequestException(
+        'Entreprise active introuvable ou accès non autorisé.',
       );
     }
 
@@ -1296,6 +1504,12 @@ export class DocumentService {
     user: User,
     instalmentsDetails: CreatePaymentLinkInput['instalments_details'],
   ): Promise<string> {
+    if (paymentMode === 'INSTALMENTS') {
+      await this.planAccessService.assertFeatureAvailable(
+        company.id,
+        'instalments',
+      );
+    }
     const paymentAccessToken = randomBytes(32).toString('hex');
     const paymentProvider = this.configService.get<'BRIDGE' | 'GOCARDLESS'>(
       'PAYMENT_PROVIDER',

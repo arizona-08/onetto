@@ -18,6 +18,19 @@ export type InvoiceStats = {
   draft: InvoiceStat;
 };
 
+export type DashboardSummary = {
+  billedAmount: number;
+  collectedAmount: number;
+  outstandingAmount: number;
+  pendingInvoicesCount: number;
+  overdueInvoicesCount: number;
+  pendingEstimatesCount: number;
+};
+
+export function getDashboardSummaryServer() {
+  return apiServer<DashboardSummary>('api/documents/dashboard-summary');
+}
+
 type InvoiceStat = {
   count: number;
   totalAmount: number;

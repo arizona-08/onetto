@@ -124,6 +124,7 @@ export type PublicNegociation = {
   message: string;
   proposedTotalPrice: number;
   status: "PENDING" | "ACCEPTED" | "RENEGOCIATED" | "REJECTED";
+  canNegotiate: boolean;
   document: Pick<Document, "id" | "documentNumber" | "type" | "clientName" | "clientEmail" | "clientAddress" | "clientCity" | "clientPostalCode" | "clientCountry" | "totalPrice" | "createdAt" | "sentAt" | "paymentDueAt"> & {
     totalPriceExcludingTax: number;
     services: DocumentService[];

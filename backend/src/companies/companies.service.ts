@@ -13,10 +13,14 @@ import { CreateCompanyClientDto } from './dtos/create-company-client.dto';
 import { CreateCompanyServiceDto } from './dtos/create-company-service.dto';
 import { UpdateCompanyClientDto } from './dtos/update-company-client.dto';
 import { UpdateCompanyServiceDto } from './dtos/update-company-service.dto';
+import { PlanAccessService } from 'src/plan-access/plan-access.service';
 
 @Injectable()
 export class CompaniesService {
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly planAccessService: PlanAccessService,
+  ) {}
 
   private async getOwnedCompany(companyId: string, userId: string) {
     const company = await this.prismaService.company.findFirst({
@@ -61,6 +65,7 @@ export class CompaniesService {
 
   async createCompany(data: CreateCompanyDto, ownerId: string) {
     try {
+      await this.planAccessService.assertCanCreateCompany(ownerId);
       const company = await this.prismaService.$transaction(async (prisma) => {
         const createdCompany = await prisma.company.create({
           data: {
@@ -177,6 +182,11 @@ export class CompaniesService {
     } catch (error) {
       this.handleDatabaseError(error, "récupération de l'entreprise active.");
     }
+  }
+
+  async getActiveCompanyPlanAccess(userId: string) {
+    const companyId = await this.getActiveCompanyIdForUser(userId);
+    return this.planAccessService.getCompanyAccess(companyId);
   }
 
   async getActiveCompanyServices(userId: string) {
@@ -387,7 +397,7 @@ export class CompaniesService {
   }
 
   async selectCompany(companyId: string, userId: string) {
-    const company = await this.getOwnedCompany(companyId, userId);
+    await this.getAccessibleCompany(companyId, userId);
 
     const companyUser = await this.prismaService.companyUser.findFirst({
       where: { companyId, userId },

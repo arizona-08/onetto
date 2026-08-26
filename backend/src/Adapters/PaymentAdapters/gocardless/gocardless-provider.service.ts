@@ -9,6 +9,7 @@ import { GoCardlessCreatePaymentRequestInput } from "./Interfaces/Requests/GoCar
 import { ConfigService } from "@nestjs/config";
 import { GoCardlessOAuthService } from "./gocardless-oauth.service";
 import { PrismaService } from "src/prisma/prisma.service";
+import { PlanAccessService } from 'src/plan-access/plan-access.service';
 
 const supportedOpenBankingSchemes = new Set([
   'faster_payments',
@@ -29,7 +30,8 @@ implements
   constructor(
     private readonly configService: ConfigService,
     private readonly gocardlessOAuthService: GoCardlessOAuthService,
-    private readonly prismaService: PrismaService
+    private readonly prismaService: PrismaService,
+    private readonly planAccessService: PlanAccessService,
   ) {}
 
   private buildPrefilledCustomer(customer: CreatePaymentLinkInput['customer']) {
@@ -189,6 +191,10 @@ implements
 
   async createInstalmentsPaymentLink(input: CreatePaymentLinkInput, paymentAccessToken: string): Promise<PaymentLinkResponse> {
     try {
+      await this.planAccessService.assertFeatureAvailable(
+        input.companyId,
+        'instalments',
+      );
       
       
       const client = await this.gocardlessOAuthService.getClientForCompany(input.companyId);

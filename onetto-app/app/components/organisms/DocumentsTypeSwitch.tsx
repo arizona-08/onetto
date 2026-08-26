@@ -11,16 +11,16 @@ interface DocumentsTypeSwitchProps {
 type DocumentType = 'estimates' | 'invoices';
 
 const options: Array<{ value: DocumentType; label: string }> = [
-  { value: 'estimates', label: 'Devis' },
   { value: 'invoices', label: 'Factures' },
+  { value: 'estimates', label: 'Devis' },
 ];
 
 export default function DocumentsTypeSwitch({
-  estimates,
   invoices,
+  estimates,
   notice,
 }: DocumentsTypeSwitchProps) {
-  const [activeType, setActiveType] = useState<DocumentType>('estimates');
+  const [activeType, setActiveType] = useState<DocumentType>('invoices');
 
   return (
     <div className="mt-6">

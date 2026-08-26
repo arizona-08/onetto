@@ -11,6 +11,7 @@ import { PublicPaymentController } from './public-payment.controller';
 import { PaymentProviderModule } from 'src/Adapters/PaymentAdapters/payment-provider.module';
 import { ConfigModule } from '@nestjs/config';
 import { PdfModule } from 'src/pdf/pdf.module';
+import { PlanAccessModule } from 'src/plan-access/plan-access.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { PdfModule } from 'src/pdf/pdf.module';
     JwtModule,
     MailModule,
     PdfModule,
+    PlanAccessModule,
     PaymentProviderModule,
   ],
   controllers: [

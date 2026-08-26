@@ -14,9 +14,10 @@ import { GoCardlessInstalmentSchedulesWebhookHandler } from './webhook-handlers/
 import { GoCardlessWebhookService } from './gocardless-webhook.service';
 import { GoCardlessBillingRequestWebhookHandler } from './webhook-handlers/gocardless-billing-request-webhook.handler';
 import { InvoicePaymentStatusModule } from 'src/invoice-payments/invoice-payment-status.module';
+import { PlanAccessModule } from 'src/plan-access/plan-access.module';
 
 @Module({
-  imports: [PrismaModule, MailModule, InvoicePaymentStatusModule],
+  imports: [PrismaModule, MailModule, InvoicePaymentStatusModule, PlanAccessModule],
   controllers: [GoCardlessWebhookController, GoCardlessOAuthController],
   providers: [
     GoCardlessProviderService,

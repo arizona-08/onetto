@@ -24,7 +24,7 @@ async function SubscriptionPage() {
           Formule{" "}
           {formatSubscriptionPlan(
             subscriptionResult.ok
-              ? subscriptionResult.data?.subscriptionPlan
+              ? (subscriptionResult.data?.subscriptionPlan as string | undefined)
               : undefined,
           )}
         </h1>
@@ -44,7 +44,13 @@ async function SubscriptionPage() {
         </p>
       </section>
 
-      <SubscriptionPlans />
+      {subscriptionResult.ok ? (
+        <SubscriptionPlans />
+      ) : (
+        <p className="text-sm text-zinc-500">
+          L’abonnement est géré par le propriétaire de l’entreprise.
+        </p>
+      )}
     </div>
   );
 }

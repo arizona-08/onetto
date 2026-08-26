@@ -59,6 +59,24 @@ export class DocumentController {
     return this.documentService.getInvoiceStats(user);
   }
 
+  @Get('dashboard-summary')
+  async getDashboardSummary(@Req() req: ExtendedRequest) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.documentService.getDashboardSummary(req.user);
+  }
+
+  @Get('dashboard-advanced')
+  async getAdvancedDashboard(@Req() req: ExtendedRequest) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.documentService.getAdvancedDashboard(req.user);
+  }
+
+  @Get('cashflow-forecast')
+  async getCashflowForecast(@Req() req: ExtendedRequest) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.documentService.getCashflowForecast(req.user);
+  }
+
   @Get(':documentId')
   async getDocumentById(
     @Param('documentId') documentId: string,

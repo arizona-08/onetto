@@ -1,7 +1,7 @@
 'use client';
 
 import { Company } from '@/lib/companies/dtos/create-company.dto';
-import { deleteCompany, getMyCompanies, performOwnedCompanyAction, performUserCompanyAction, selectCompany } from '@/lib/companies/companies';
+import { CompanyPlanAccess, deleteCompany, getActiveCompanyPlanAccess, getMyCompanies, performOwnedCompanyAction, performUserCompanyAction, selectCompany } from '@/lib/companies/companies';
 import { COMPANY_UPDATED_EVENT, notifyCompanyUpdated } from '@/lib/companies/company-events';
 import { Building2, Check, ChevronDown, ChevronRight, EllipsisVertical, Eye, EyeOff, Plus, Power, RotateCcw, Trash2, TriangleAlert } from 'lucide-react';
 import Link from 'next/link';
@@ -25,6 +25,7 @@ function MyCompanies() {
   const [showHiddenCompanies, setShowHiddenCompanies] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [planAccess, setPlanAccess] = React.useState<CompanyPlanAccess | null>(null);
 
   const loadCompanies = React.useCallback(async () => {
     setIsLoading(true);
@@ -38,6 +39,10 @@ function MyCompanies() {
 
     setCompanies(response.data.companies);
     setActiveCompanyId(response.data.activeCompanyId);
+    if (response.data.activeCompanyId) {
+      const accessResponse = await getActiveCompanyPlanAccess();
+      if (accessResponse.ok) setPlanAccess(accessResponse.data);
+    }
   }, []);
 
   React.useEffect(() => {
@@ -136,6 +141,8 @@ function MyCompanies() {
 
   const visibleCompanies = companies.filter((company) => !company.isHidden);
   const hiddenCompanies = companies.filter((company) => company.isHidden);
+  const ownedCompaniesCount = companies.filter((company) => company.ownerId === user?.id).length;
+  const canCreateCompany = !planAccess || ownedCompaniesCount < planAccess.maxOwnedCompanies;
 
   return (
     <div className="mx-auto w-full max-w-6xl p-4">
@@ -144,11 +151,11 @@ function MyCompanies() {
           <h1 className="mb-1 text-2xl font-title font-black">Mes entreprises</h1>
           <p className="text-gray-500">Choisissez l’entreprise utilisée pour vos prochaines factures.</p>
         </div>
-        {companies.length > 0 && (
+        {companies.length > 0 && (canCreateCompany ? (
           <Link href="/my-companies/create" className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white hover:bg-primary-hover">
             <Plus className="h-4 w-4" /> Ajouter une entreprise
           </Link>
-        )}
+        ) : <div title="Passer au plan PRO pour créer une entreprise supplémentaire" className="cursor-not-allowed opacity-50"><span className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white"><Plus className="h-4 w-4" /> Ajouter une entreprise</span><p className="mt-2 max-w-56 text-xs text-zinc-500">Passer au plan PRO pour créer jusqu’à 3 entreprises.</p></div>)}
       </div>
 
       {error && <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { PlanAccessService } from 'src/plan-access/plan-access.service';
 import Stripe from 'stripe';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class SubscriptionService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly configService: ConfigService,
+    private readonly planAccessService: PlanAccessService,
   ) {
     this.stripe = new Stripe(
       this.configService.getOrThrow<string>('STRIPE_SECRET_KEY'),
@@ -17,7 +19,8 @@ export class SubscriptionService {
   }
 
   async getSubscriptionForUser(userId: string) {
-    return this.prismaService.userSubscription.findUnique({
+    const [subscription, access] = await Promise.all([
+      this.prismaService.userSubscription.findUnique({
       where: { userId },
       select: {
         subscriptionPlan: true,
@@ -25,10 +28,15 @@ export class SubscriptionService {
         canceledAtPeriodEnd: true,
         willCancelAtPeriodEnd: true,
       },
-    });
+      }),
+      this.planAccessService.getUserAccess(userId),
+    ]);
+
+    return { ...subscription, ...access };
   }
 
   async createCheckoutSession(planProductId: string, userId: string) {
+    await this.planAccessService.getUserAccess(userId);
     const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
 
     const session = await this.stripe.checkout.sessions.create({

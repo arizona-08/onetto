@@ -37,8 +37,8 @@ model UserSubscription {
   id                    String           @id @default(uuid())
   userId                String           @unique
   user                  User             @relation(fields: [userId], references: [id])
-  customerId            String           @unique
-  subscriptionId        String
+  customerId            String?          @unique
+  subscriptionId        String?
   subscriptionPlan      SubscriptionPlan @default(FREE)
   isActive              Boolean          @default(true)
   createdAt             DateTime         @default(now())

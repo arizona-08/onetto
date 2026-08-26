@@ -49,6 +49,13 @@ export class CompaniesController {
     return this.companiesService.getMyActiveCompany(this.getUserId(req));
   }
 
+  @Get('active/plan-access')
+  getActiveCompanyPlanAccess(@Req() req: ExtendedRequest) {
+    return this.companiesService.getActiveCompanyPlanAccess(
+      this.getUserId(req),
+    );
+  }
+
   @Get('active/services')
   getActiveCompanyServices(@Req() req: ExtendedRequest) {
     return this.companiesService.getActiveCompanyServices(this.getUserId(req));
