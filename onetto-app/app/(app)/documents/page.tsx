@@ -4,15 +4,9 @@ import {
   InvoiceStats,
 } from '@/lib/documents/document.server';
 import { getMyCompaniesServer } from '@/lib/companies/companies.server';
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock3,
-  FileText,
-} from 'lucide-react';
-import type { ReactNode } from 'react';
 import DocumentsTable from '@/app/components/organisms/DocumentsTable';
 import DocumentsTypeSwitch from '@/app/components/organisms/DocumentsTypeSwitch';
+import InvoiceStatsOverview from '@/app/components/organisms/InvoiceStatsOverview';
 
 export const dynamic = 'force-dynamic'
 
@@ -22,13 +16,6 @@ const emptyStats: InvoiceStats = {
   overdue: { count: 0, totalAmount: 0 },
   draft: { count: 0, totalAmount: 0 },
 };
-
-function formatCurrency(amount: number) {
-  return amount.toLocaleString('fr-FR', {
-    style: 'currency',
-    currency: 'EUR',
-  });
-}
 
 async function DocumentsPage() {
   const [estimatesResponse, invoicesResponse, invoiceStatsResponse] = await Promise.all([
@@ -59,7 +46,7 @@ async function DocumentsPage() {
   
   return (
     <div className="mx-auto w-full max-w-6xl p-4">
-      <h1 className="text-4xl font-semibold font-title">Gérer mes factures et devis</h1>
+      <h1 className="text-2xl md:text-4xl font-semibold font-title">Gérer mes factures et devis</h1>
 
       {(!estimatesResponse.ok || !invoicesResponse.ok) && (
         // À modifier en production pour afficher un message d'erreur plus convivial
@@ -68,32 +55,7 @@ async function DocumentsPage() {
         </div>
       )}
 
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <InvoiceStatCard
-          label="Payées"
-          stat={invoiceStats.paid}
-          icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
-          iconClassName="bg-emerald-50 text-emerald-600"
-        />
-        <InvoiceStatCard
-          label="En attente"
-          stat={invoiceStats.pending}
-          icon={<Clock3 className="h-5 w-5" aria-hidden="true" />}
-          iconClassName="bg-amber-50 text-amber-600"
-        />
-        <InvoiceStatCard
-          label="En retard"
-          stat={invoiceStats.overdue}
-          icon={<AlertTriangle className="h-5 w-5" aria-hidden="true" />}
-          iconClassName="bg-red-50 text-red-600"
-        />
-        <InvoiceStatCard
-          label="Brouillons"
-          stat={invoiceStats.draft}
-          icon={<FileText className="h-5 w-5" aria-hidden="true" />}
-          iconClassName="bg-zinc-100 text-zinc-600"
-        />
-      </div>
+      <InvoiceStatsOverview stats={invoiceStats} />
 
       <DocumentsTypeSwitch
         notice={activeCompany?.status === 'CLOSED' && (
@@ -128,41 +90,6 @@ async function DocumentsPage() {
       />
     </div>
   )
-}
-
-interface InvoiceStatCardProps {
-  label: string;
-  stat: { count: number; totalAmount: number };
-  icon: ReactNode;
-  iconClassName: string;
-}
-
-function InvoiceStatCard({
-  label,
-  stat,
-  icon,
-  iconClassName,
-}: InvoiceStatCardProps) {
-  const invoiceLabel = stat.count > 1 ? 'factures' : 'facture';
-
-  return (
-    <article className="rounded-2xl border border-zinc-200 bg-white p-5 transition-shadow">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-zinc-500">{label}</p>
-          <p className="mt-2 font-title text-3xl font-semibold text-zinc-900">
-            {formatCurrency(stat.totalAmount)}
-          </p>
-        </div>
-        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${iconClassName}`}>
-          {icon}
-        </div>
-      </div>
-      <p className="mt-5 text-sm text-zinc-500">
-        {stat.count} {invoiceLabel}
-      </p>
-    </article>
-  );
 }
 
 export default DocumentsPage

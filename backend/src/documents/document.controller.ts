@@ -224,6 +224,18 @@ export class DocumentController {
     return await this.documentService.retryInvoicePayment(documentId, user);
   }
 
+  @Post(':documentId/resend-instalment-mandate-authorisation')
+  async resendInstalmentMandateAuthorisation(
+    @Param('documentId') documentId: string,
+    @Req() req: ExtendedRequest,
+  ) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.documentService.resendInstalmentMandateAuthorisation(
+      documentId,
+      req.user,
+    );
+  }
+
   @Get(':documentId/instalments/:instalmentNumber/retry-capability')
   async getInstalmentRetryCapability(
     @Param('documentId') documentId: string,

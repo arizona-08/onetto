@@ -107,6 +107,29 @@ export class MailService {
     };
   }
 
+  createInstalmentMandateRenewalMail(
+    input: InvoiceMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    return {
+      subject: `Nouvelle autorisation de prélèvement — facture ${input.documentNumber}`,
+      text: [
+        `Bonjour ${input.clientName},`,
+        '',
+        `Le mandat de prélèvement associé à votre facture ${input.documentNumber} n’est plus valide.`,
+        'Une nouvelle autorisation est nécessaire pour régler les échéances restantes.',
+        '',
+        'Autoriser le prélèvement sécurisé :',
+        input.paymentLink,
+        '',
+        'Merci.',
+      ].join('\n'),
+      html: this.createInvoiceTemplate({
+        ...input,
+        paymentLink: input.paymentLink,
+      }),
+    };
+  }
+
   createPaymentConfirmationMail(
     input: PaymentConfirmationMailInput,
   ): Pick<MailOptions, 'subject' | 'text' | 'html'> {

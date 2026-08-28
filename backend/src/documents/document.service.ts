@@ -16,6 +16,7 @@ import { CreatePaymentLinkInput } from 'src/Adapters/PaymentAdapters/Types/Input
 import { PaymentService } from 'src/Adapters/PaymentAdapters/payment.service';
 import { PdfService } from 'src/pdf/pdf.service';
 import { PlanAccessService } from 'src/plan-access/plan-access.service';
+import { GoCardlessInstalmentRetryService } from 'src/Adapters/PaymentAdapters/gocardless/gocardless-instalment-retry.service';
 import {
   buildInstalmentSchedule,
   parseDateOnly,
@@ -32,6 +33,7 @@ export class DocumentService {
     private readonly paymentService: PaymentService,
     private readonly configService: ConfigService,
     private readonly planAccessService: PlanAccessService,
+    private readonly gocardlessInstalmentRetryService: GoCardlessInstalmentRetryService,
   ) {
     this.callbackUrl =
       this.configService.get<string>('BRIDGE_CALLBACK_URL') || '';
@@ -1787,6 +1789,58 @@ export class DocumentService {
         'Une erreur est survenue lors de la relance du paiement.',
       );
     }
+  }
+
+  async resendInstalmentMandateAuthorisation(documentId: string, user: User) {
+    const document = await this.getDocumentById(documentId, user, true);
+    if (document.type !== 'INVOICE') {
+      throw new BadRequestException('Cette action est réservée aux factures.');
+    }
+
+    const { paymentMode, instalmentsDetails } =
+      await this.getPaymentModeDetails(documentId);
+    if (paymentMode !== 'INSTALMENTS') {
+      throw new BadRequestException(
+        'Cette facture ne comporte pas de paiement en plusieurs fois.',
+      );
+    }
+    if (
+      !(await this.gocardlessInstalmentRetryService.requiresMandateReauthorisation(
+        documentId,
+        user,
+      ))
+    ) {
+      throw new BadRequestException(
+        'Aucune nouvelle autorisation de mandat n’est requise pour cette facture.',
+      );
+    }
+
+    const company = await this.getInvoiceCompany(document.companyId);
+    const paymentLink = await this.createInvoicePaymentLink(
+      paymentMode,
+      document,
+      company,
+      user,
+      instalmentsDetails,
+    );
+    const mailContent = this.mailService.createInstalmentMandateRenewalMail({
+      clientName: document.clientName,
+      documentNumber: document.documentNumber,
+      totalPrice: document.totalPrice,
+      paymentDueAt: document.paymentDueAt,
+      companyName: company.name,
+      companyEmail: company.email,
+      paymentLink,
+    });
+    await this.mailService.sendMail({
+      to: document.clientEmail,
+      ...mailContent,
+    });
+
+    return {
+      success: true,
+      message: 'Une nouvelle autorisation de prélèvement a été envoyée au client.',
+    };
   }
 
   async getPaymentModeDetails(documentId: string): Promise<{

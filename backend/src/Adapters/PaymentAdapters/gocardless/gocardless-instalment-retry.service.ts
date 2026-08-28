@@ -147,6 +147,28 @@ export class GoCardlessInstalmentRetryService {
     };
   }
 
+  async requiresMandateReauthorisation(
+    documentId: string,
+    user: User,
+  ): Promise<boolean> {
+    const instalment = await this.prismaService.invoicePaymentInstalment.findFirst({
+      where: {
+        instalmentStatus: { in: ['FAILED', 'OVERDUE'] },
+        invoiceInstalmentPlan: { invoiceId: documentId },
+      },
+      select: { instalmentNumber: true },
+      orderBy: { instalmentNumber: 'asc' },
+    });
+    if (!instalment) return false;
+
+    const capability = await this.getCapability(
+      documentId,
+      instalment.instalmentNumber,
+      user,
+    );
+    return capability.mandateActionRequired;
+  }
+
   private async getCapabilityForInstalment(
     instalment: InstalmentWithPlan,
   ): Promise<InstalmentRetryCapability> {

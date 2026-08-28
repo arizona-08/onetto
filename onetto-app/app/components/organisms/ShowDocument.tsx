@@ -1,11 +1,11 @@
 'use client'
 import { Document, DocumentNegociation } from '@/app/types'
 import { convertEstimateToInvoice, createNewDocumentVersion, downloadDocumentPdf, getDocumentNegociations, retryInvoicePayment, sendDocumentToClient } from '@/lib/documents/document';
-import { Download, Edit, ExternalLink, FileChartColumnIncreasing, MessageSquareText, RotateCcw, Send, Trash } from 'lucide-react';
+import { Download, Edit, Ellipsis, ExternalLink, FileChartColumnIncreasing, MessageSquareText, RotateCcw, Send, Trash } from 'lucide-react';
 import DocumentDisplayComponent from '../molecules/DocumentDisplayComponent/DocumentDisplayComponent';
 import Link from 'next/link';
 import { useToast } from '../context/ToastContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface ShowDocumentProps {
@@ -18,6 +18,8 @@ function ShowDocument({ document }: ShowDocumentProps) {
   const [isCreatingVersion, setIsCreatingVersion] = useState(false);
   const [isRetryingPayment, setIsRetryingPayment] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
+  const moreActionsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   const isEstimate = document.type === "ESTIMATE";
@@ -44,6 +46,17 @@ function ShowDocument({ document }: ShowDocumentProps) {
 
     void loadNegociations();
   }, [document.id]);
+
+  useEffect(() => {
+    function closeMoreActions(event: MouseEvent) {
+      if (!moreActionsRef.current?.contains(event.target as Node)) {
+        setIsMoreActionsOpen(false);
+      }
+    }
+
+    window.addEventListener('mousedown', closeMoreActions);
+    return () => window.removeEventListener('mousedown', closeMoreActions);
+  }, []);
 
   async function handleSendDocument(){
     let response;
@@ -119,33 +132,45 @@ function ShowDocument({ document }: ShowDocumentProps) {
   }
 
   return (
-    <div className="p-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold font-title">Détails {isEstimate ? "du devis" : "de la facture"} {document.documentNumber}</h1>
-        
-        {/* actions */}
-        <div className="flex items-center justify-between gap-12 text-sm">
-          {(isDraftEstimate || isDraftInvoice) && (
-            <button
-              className="px-4 py-2 text-red-500 border border-red-500 hover:bg-red-500 hover:text-white rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
-            >
-              Supprimer <Trash className="w-4 h-4" />
-            </button>
+    <div className="p-0 sm:p-3 lg:p-5">
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="max-w-xl text-2xl font-semibold font-title text-zinc-900">
+          Détails {isEstimate ? "du devis" : "de la facture"}{' '}
+          <span className="whitespace-nowrap">{document.documentNumber}</span>
+        </h1>
+        <div ref={moreActionsRef} className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsMoreActionsOpen((open) => !open)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-zinc-200 text-zinc-700 transition-colors hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            aria-label="Plus d’actions"
+            aria-expanded={isMoreActionsOpen}
+            aria-haspopup="menu"
+          >
+            <Ellipsis className="h-5 w-5" aria-hidden="true" />
+          </button>
+          {isMoreActionsOpen && (
+            <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-zinc-200 bg-white p-1.5 text-left shadow-lg" role="menu">
+              <button type="button" onClick={() => { setIsMoreActionsOpen(false); void handleDownloadPdf(); }} disabled={isDownloading} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50" role="menuitem">
+                <Download className="h-4 w-4" aria-hidden="true" />
+                {isDownloading ? 'Téléchargement…' : 'Télécharger le PDF'}
+              </button>
+              {(isDraftEstimate || isDraftInvoice) && (
+                <button type="button" onClick={() => setIsMoreActionsOpen(false)} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50" role="menuitem">
+                  <Trash className="h-4 w-4" aria-hidden="true" />
+                  Supprimer le brouillon
+                </button>
+              )}
+            </div>
           )}
+        </div>
+      </div>
 
-          <div className="modify-and-confirm flex items-center justify-between gap-4">
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={isDownloading}
-              className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              {isDownloading ? 'Téléchargement…' : 'Télécharger le PDF'}
-            </button>
+      <div className="mt-12 flex w-full justify-center text-sm">
+          <div className="modify-and-confirm flex w-full flex-wrap justify-center gap-2">
             {isSupersededEstimate && (
               <button
-                className="px-4 py-2 text-white bg-primary border border-primary hover:bg-primary/90 rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150 disabled:opacity-50"
+                className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-primary bg-primary px-4 py-2 text-center text-white transition-all duration-150 hover:bg-primary/90 disabled:opacity-50"
                 onClick={handleCreateNewVersion}
                 disabled={isCreatingVersion}
               >
@@ -153,24 +178,12 @@ function ShowDocument({ document }: ShowDocumentProps) {
               </button>
             )}
 
-            {(isDraftEstimate || isDraftInvoice) && (
-              <Link
-                href={isDraftInvoice
-                  ? `/documents/${document.id}/update-invoice`
-                  : `/documents/${document.id}/update-draft`}
-                className="px-4 py-2 text-primary border border-primary hover:bg-primary hover:text-white rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
-              >
-                Modifier
-                <Edit className="w-4 h-4" />
-              </Link>
-            )}
-
             {isRejectedInvoice && (
               <button
                 type="button"
                 onClick={handleRetryInvoicePayment}
                 disabled={isRetryingPayment}
-                className="flex items-center gap-2 rounded-md border border-primary px-3 py-2 text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-primary px-3 py-2 text-center text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 title="Générer et envoyer un nouveau lien de paiement"
               >
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
@@ -180,24 +193,36 @@ function ShowDocument({ document }: ShowDocumentProps) {
 
             {(isDraftEstimate || isDraftInvoice) && (
               <button
-                className="px-4 py-2 text-white bg-primary border border-primary hover:bg-primary/90 rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
+                className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-primary bg-primary px-4 py-2 text-center text-white transition-all duration-150 hover:bg-primary/90"
                 onClick={handleSendDocument}
               >
                 Confirmer et envoyer <Send />
               </button>
             )}
 
+            {(isDraftEstimate || isDraftInvoice) && (
+              <Link
+                href={isDraftInvoice
+                  ? `/documents/${document.id}/update-invoice`
+                  : `/documents/${document.id}/update-draft`}
+                className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-primary px-4 py-2 text-center text-primary transition-all duration-150 hover:bg-primary hover:text-white"
+              >
+                Modifier
+                <Edit className="w-4 h-4" />
+              </Link>
+            )}
+
             {isAcceptedEstimate && !hasConvertedInvoice && (
               <button
                 onClick={handleCreateInvoiceFromEstimate}
-                className="px-4 py-2 text-white bg-primary border border-primary hover:bg-primary/90 rounded-md flex items-center gap-1 cursor-pointer transition-all duration-150"
+                className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-primary bg-primary px-4 py-2 text-center text-white transition-all duration-150 hover:bg-primary/90"
               >
                 Transformer en facture <FileChartColumnIncreasing className="w-5 h-5" />
               </button>
             )}
+
           </div>
         </div>
-      </div>
 
       {negociations.length > 0 && (
         <section className="mt-5 rounded-xl border border-primary/15 bg-primary/5 p-4">

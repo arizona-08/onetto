@@ -58,24 +58,36 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
         },
         invoicePaymentInstalments: {
           orderBy: { instalmentNumber: 'asc' },
-          select: { amountInCents: true },
+          select: {
+            instalmentNumber: true,
+            amountInCents: true,
+            dueDate: true,
+            instalmentStatus: true,
+          },
         },
       }
     });
 
     if(existingInstalmentPlan){
       if(billingRequest.status === 'fulfilled'){
-        if (existingInstalmentPlan.providerScheduledId) {
+        const remainingInstalments =
+          existingInstalmentPlan.invoicePaymentInstalments.filter(
+            (instalment) => instalment.instalmentStatus !== 'SUCCESS',
+          );
+        if (remainingInstalments.length === 0) {
           return;
         }
         await this.createInstalmentSchedule({
           name: `Instalment plan for invoice ${existingInstalmentPlan.invoice.documentNumber}`,
           totalAmountInCents: existingInstalmentPlan.totalAmountInCents,
-          startDate: existingInstalmentPlan.startDate.toISOString().slice(0, 10),
+          startDate: remainingInstalments[0].dueDate.toISOString().slice(0, 10),
           intervalUnit: existingInstalmentPlan.invoice.invoicePaymentMode?.paymentModeFrequency as $Enums.PaymentModeFrequency,
           interval: 1,
-          amountsInCents: existingInstalmentPlan.invoicePaymentInstalments.map(
+          amountsInCents: remainingInstalments.map(
             (instalment) => instalment.amountInCents,
+          ),
+          instalmentNumbers: remainingInstalments.map(
+            (instalment) => instalment.instalmentNumber,
           ),
           mandateId: billingRequest.links?.mandate_request_mandate as string
         }, billingRequestId, client);
@@ -104,6 +116,7 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
     intervalUnit: $Enums.PaymentModeFrequency;
     interval: number;
     amountsInCents: number[];
+    instalmentNumbers: number[];
     mandateId: string;
   } ,
     billingRequestId: string,
@@ -148,6 +161,7 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
         createdSchedule.id as string,
         input.mandateId,
         instalmentSchedule?.links?.payments,
+        input.instalmentNumbers,
       )
     } catch (error) {
       console.error("Erreur lors de la création du instalment schedule", error);
@@ -155,7 +169,7 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
     }
   }
 
-  async updateCreatedInstalmentPlan(billingRequestId: string, providerScheduledId: string, providerMandateId: string, payments?: string[]){
+  async updateCreatedInstalmentPlan(billingRequestId: string, providerScheduledId: string, providerMandateId: string, payments?: string[], instalmentNumbers?: number[]){
     try{
       const existingInstalmentPlan = await this.prismaService.invoiceInstalmentPlan.findUnique({
         where: {
@@ -190,7 +204,7 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
 
       await this.prismaService.$transaction(async (prisma) => {
         for(let i = 0; i < payments.length; i++){
-          const paymentNumber = i + 1;
+          const paymentNumber = instalmentNumbers?.[i] ?? i + 1;
 
           await prisma.invoicePaymentInstalment.update({
             where: {

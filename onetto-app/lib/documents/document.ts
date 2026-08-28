@@ -109,6 +109,13 @@ export async function retryInstalmentPayment(
   );
 }
 
+export async function resendInstalmentMandateAuthorisation(documentId: string) {
+  return apiClient<{ success: true; message: string }>(
+    `api/documents/${documentId}/resend-instalment-mandate-authorisation`,
+    { method: 'POST' },
+  );
+}
+
 export async function markInvoiceAsPaidManually(documentId: string) {
   return apiClient<{ success: true; message: string }>(
     `api/documents/${documentId}/mark-as-paid-manually`,

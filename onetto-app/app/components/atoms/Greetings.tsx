@@ -5,7 +5,7 @@ import { useAuthUser } from '../context/AuthUserContext'
 function Greetings() {
   const { user } = useAuthUser();
   return (
-    <span className="font-title text-2xl font-semibold text-zinc-900">Bonjour{user ? `, ${user.firstname}` : ""}</span>
+    <span className="font-title text-2xl md:text-4xl font-semibold text-zinc-900">Bonjour{user ? `, ${user.firstname}` : ""}</span>
   )
 }
 
