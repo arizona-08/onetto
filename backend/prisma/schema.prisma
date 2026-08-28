@@ -391,6 +391,7 @@ model InvoicePaymentInstalment {
   amountInCents           Int
   dueDate                 DateTime
   instalmentStatus        InvoicePaymentInstalmentStatus @default(PENDING)
+  automaticRetryScheduled Boolean                        @default(false)
   paidAt                  DateTime?
   processedReminders      ProcessedInstalmentReminder[]
 

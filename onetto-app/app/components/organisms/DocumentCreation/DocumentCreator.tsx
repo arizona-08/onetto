@@ -258,7 +258,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
     <div className="relative bg-white p-4 rounded-md w-full max-w-6xl mx-auto overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-1 bg-primary opacity-75"></div>
 
-      {document && <div className="mb-5 flex items-center justify-between gap-4"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="edit" />{!isEditable && <p className="text-sm font-medium text-zinc-500">Cette version est en lecture seule.</p>}</div>}
+      {document && <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="edit" />{!isEditable && <p className="text-sm font-medium text-zinc-500">Cette version est en lecture seule.</p>}</div>}
 
       <fieldset disabled={!canEditDocument}>
         <DocumentForm
@@ -322,7 +322,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-5 right-5 z-50 flex w-[calc(100%-2.5rem)] max-w-sm items-start gap-3 rounded-xl border border-emerald-400/40 bg-emerald-600 px-4 py-3.5 text-white-[0_18px_45px_-15px_rgba(5,150,105,0.65)] animate-in slide-in-from-bottom-3 fade-in duration-300 sm:bottom-6 sm:right-6"
+          className="fixed bottom-5 right-5 z-50 flex w-[calc(100%-2.5rem)] max-w-sm items-start gap-3 rounded-xl border border-emerald-400/40 bg-emerald-600 px-4 py-3.5 text-white animate-in slide-in-from-bottom-3 fade-in duration-300 sm:bottom-6 sm:right-6"
         >
           <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/20">
             <CheckCircle2 className="h-5 w-5" aria-hidden="true" />

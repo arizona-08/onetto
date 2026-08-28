@@ -7,6 +7,8 @@ import { PaymentService } from "./payment.service";
 @Module({
   imports:[GoCardlessModule, BridgeModule],
   providers: [PaymentProviderFactory, PaymentService],
-  exports: [PaymentService],
+  // Re-export the module rather than one of its providers: Nest only permits
+  // a module to export its own providers or imported modules.
+  exports: [PaymentService, GoCardlessModule],
 })
 export class PaymentProviderModule {}

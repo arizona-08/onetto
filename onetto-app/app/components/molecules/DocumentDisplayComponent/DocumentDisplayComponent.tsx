@@ -67,7 +67,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
 
   return (
     <>
-      <article className="mx-auto mt-6 w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950-[0_24px_70px_-45px_rgba(15,23,42,0.45)] print:mt-0 print:max-w-none print:rounded-none print:">
+      <article className="mx-auto mt-6 w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950 print:mt-0 print:max-w-none print:rounded-none">
         <div className="flex justify-end px-7 pt-5 print:hidden"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="display" /></div>
         <header className="px-7 py-6">
           <div className="flex items-start justify-between gap-6">

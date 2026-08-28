@@ -117,7 +117,7 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
       {isVisible && (
         <>
           <div className="fixed inset-0 z-50 bg-black/25 backdrop-blur-xl"></div>
-          <div className="w-full max-w-180 fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 bg-white p-6 rounded-md">
+          <div className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-180 -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-md bg-white p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-title font-semibold mb-4">Ajouter un service</h2>
               {/* service dropdown */}
@@ -127,7 +127,7 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
               >
                 <ChevronDown/> <span className={`${preSelectedService ? 'text-gray-700' : 'text-gray-400'}`}>{preSelectedService?.name || "Choisir un service"}</span>
 
-                <ul className={`absolute top-full right-0 w-75 bg-white border border-gray-300 rounded-md  mt-1 z-10  ${isDropdownOpen ? 'block' : 'hidden'}`}>
+                <ul className={`absolute top-full right-0 z-10 mt-1 w-75 max-w-[calc(100vw-2rem)] bg-white border border-gray-300 rounded-md ${isDropdownOpen ? 'block' : 'hidden'}`}>
                   <li
                     className="px-3 py-1 text-gray-400 hover:bg-gray-200"
                     onClick={() => handleServiceSelect(null)}

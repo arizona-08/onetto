@@ -12,8 +12,8 @@ import { COMPANY_UPDATED_EVENT, notifyCompanyUpdated } from '@/lib/companies/com
 
 const links = [
   { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboardIcon />  },
-  {name: 'Mes entreprises', href: '/my-companies', icon: <Building />},
   { name: 'Devis & Factures', href: '/documents', icon: <FileChartColumnIncreasing />  },
+  { name: 'Mes entreprises', href: '/my-companies', icon: <Building />},
   { name: 'Mes Clients', href: '/customers', icon: <UserIcon />  },
   { name: 'Mes Services', href: '/services', icon: <Waypoints /> },
   { name: 'Paramètres', href: '/settings/account', icon: <SettingsIcon />  },

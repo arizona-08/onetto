@@ -133,4 +133,64 @@ describe('GoCardlessPaymentWebhookHandler', () => {
     expect(prisma.invoicePaymentInstalment.update).not.toHaveBeenCalled();
     expect(invoiceStatus.refreshFromInstalment).not.toHaveBeenCalled();
   });
+
+  it('conserve le retry automatique GoCardless sans exposer un nouveau Payment', async () => {
+    client.payments.find.mockResolvedValue({
+      id: 'PM1',
+      status: 'failed',
+      links: { instalment_schedule: 'IS1' },
+    });
+    matcher.matchPaymentAttemptStatus.mockReturnValue('FAILED');
+    prisma.invoicePaymentInstalment.findUnique.mockResolvedValue({
+      id: 'instalment-1',
+      amountInCents: 5000,
+      instalmentStatus: 'PENDING',
+      automaticRetryScheduled: false,
+      invoiceInstalmentPlan: { invoiceId: 'invoice-1' },
+    });
+
+    await handler.handleWebhook({
+      ...event,
+      id: 'EV-auto-retry',
+      action: 'failed',
+      details: { will_attempt_retry: true },
+    });
+
+    expect(prisma.invoicePaymentInstalment.update).toHaveBeenCalledWith({
+      where: { id: 'instalment-1' },
+      data: {
+        instalmentStatus: 'FAILED',
+        automaticRetryScheduled: true,
+      },
+    });
+  });
+
+  it('remet une échéance en cours lors de resubmission_requested', async () => {
+    client.payments.find.mockResolvedValue({
+      id: 'PM1',
+      status: 'failed',
+      links: { instalment_schedule: 'IS1' },
+    });
+    prisma.invoicePaymentInstalment.findUnique.mockResolvedValue({
+      id: 'instalment-1',
+      amountInCents: 5000,
+      instalmentStatus: 'FAILED',
+      automaticRetryScheduled: true,
+      invoiceInstalmentPlan: { invoiceId: 'invoice-1' },
+    });
+
+    await handler.handleWebhook({
+      ...event,
+      id: 'EV-resubmission',
+      action: 'resubmission_requested',
+    });
+
+    expect(prisma.invoicePaymentInstalment.update).toHaveBeenCalledWith({
+      where: { id: 'instalment-1' },
+      data: {
+        instalmentStatus: 'PAYMENT_IN_PROGRESS',
+        automaticRetryScheduled: false,
+      },
+    });
+  });
 });

@@ -34,7 +34,7 @@ function DocumentPreview({ type, client, lineItems, documentDates, creationDate 
         <span>Aperçu {type === 'invoice' ? 'de la facture' : 'du devis'}</span>
       </div>
 
-      <article className="mx-auto w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950-[0_24px_70px_-45px_rgba(15,23,42,0.45)]">
+      <article className="mx-auto w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950">
         <header className="px-7 py-6">
           <div className="flex items-start justify-between gap-6">
             <div className="-space-y-4">

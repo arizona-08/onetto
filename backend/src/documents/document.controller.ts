@@ -18,11 +18,15 @@ import { CreateDocumentDto } from './dtos/create-document.dto';
 import { SendDocumentToClientDto } from './dtos/send-document-to-client.dto';
 import type { ExtendedRequest, User } from 'src/types/extended-request.types';
 import { AuthGuard } from 'src/auth/auth.guard';
+import { GoCardlessInstalmentRetryService } from 'src/Adapters/PaymentAdapters/gocardless/gocardless-instalment-retry.service';
 
 @UseGuards(AuthGuard)
 @Controller('api/documents')
 export class DocumentController {
-  constructor(private readonly documentService: DocumentService) {}
+  constructor(
+    private readonly documentService: DocumentService,
+    private readonly gocardlessInstalmentRetryService: GoCardlessInstalmentRetryService,
+  ) {}
 
   @Get('mines')
   async getMyDocuments(
@@ -218,6 +222,34 @@ export class DocumentController {
     }
 
     return await this.documentService.retryInvoicePayment(documentId, user);
+  }
+
+  @Get(':documentId/instalments/:instalmentNumber/retry-capability')
+  async getInstalmentRetryCapability(
+    @Param('documentId') documentId: string,
+    @Param('instalmentNumber') instalmentNumber: string,
+    @Req() req: ExtendedRequest,
+  ) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.gocardlessInstalmentRetryService.getCapability(
+      documentId,
+      Number(instalmentNumber),
+      req.user,
+    );
+  }
+
+  @Post(':documentId/instalments/:instalmentNumber/retry')
+  async retryInstalmentPayment(
+    @Param('documentId') documentId: string,
+    @Param('instalmentNumber') instalmentNumber: string,
+    @Req() req: ExtendedRequest,
+  ) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.gocardlessInstalmentRetryService.retry(
+      documentId,
+      Number(instalmentNumber),
+      req.user,
+    );
   }
 
   @Post(':documentId/create-version')

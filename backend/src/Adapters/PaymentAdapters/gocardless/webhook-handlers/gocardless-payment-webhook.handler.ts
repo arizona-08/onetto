@@ -52,11 +52,17 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
             id: true,
             amountInCents: true,
             instalmentStatus: true,
+            automaticRetryScheduled: true,
             invoiceInstalmentPlan: { select: { invoiceId: true } },
           },
         });
       if (instalment) {
-        await this.syncInstalmentStatus(instalment, payment.status as string);
+        await this.syncInstalmentStatus(
+          instalment,
+          payment.status as string,
+          webhookEvent.action,
+          webhookEvent.details.will_attempt_retry === true,
+        );
       } else {
         await this.syncUnmappedInstalmentPayment(
           client,
@@ -106,7 +112,14 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
   }
 
   isRelevantAction(action: string): boolean {
-    const relevantActions = ['created', 'submitted', 'confirmed', 'failed'];
+    const relevantActions = [
+      'created',
+      'submitted',
+      'confirmed',
+      'paid_out',
+      'failed',
+      'resubmission_requested',
+    ];
 
     return relevantActions.includes(action);
   }
@@ -123,8 +136,9 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
     nextStatus: 'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED',
   ): boolean {
     if (existingStatus === nextStatus) return false;
-    if (existingStatus === 'SUCCESS' || existingStatus === 'FAILED')
-      return false;
+    if (existingStatus === 'SUCCESS') return false;
+    if (nextStatus === 'SUCCESS' || nextStatus === 'PAYMENT_IN_PROGRESS')
+      return true;
     return !(
       existingStatus === 'PAYMENT_IN_PROGRESS' && nextStatus === 'PENDING'
     );
@@ -140,27 +154,49 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
         | 'SUCCESS'
         | 'FAILED'
         | 'OVERDUE';
+      automaticRetryScheduled: boolean;
       invoiceInstalmentPlan: { invoiceId: string };
     },
     paymentStatus: string,
+    eventAction?: string,
+    willAttemptRetry = false,
   ): Promise<void> {
     const mappedStatus =
-      this.gocardlessStatusMatcherService.matchPaymentAttemptStatus(
-        paymentStatus,
-      );
-    if (!this.canUpdateStatus(instalment.instalmentStatus, mappedStatus))
+      eventAction === 'resubmission_requested'
+        ? 'PAYMENT_IN_PROGRESS'
+        : this.gocardlessStatusMatcherService.matchPaymentAttemptStatus(
+            paymentStatus,
+          );
+    const automaticRetryScheduled =
+      eventAction === 'failed' && willAttemptRetry
+        ? true
+        : eventAction === 'resubmission_requested'
+          ? false
+          : instalment.automaticRetryScheduled;
+    const canUpdateStatus = this.canUpdateStatus(
+      instalment.instalmentStatus,
+      mappedStatus,
+    );
+    if (
+      !canUpdateStatus &&
+      instalment.automaticRetryScheduled === automaticRetryScheduled
+    ) {
       return;
+    }
 
     await this.prismaService.invoicePaymentInstalment.update({
       where: { id: instalment.id },
       data: {
-        instalmentStatus: mappedStatus,
+        ...(canUpdateStatus ? { instalmentStatus: mappedStatus } : {}),
+        automaticRetryScheduled,
         ...(mappedStatus === 'SUCCESS' ? { paidAt: new Date() } : {}),
       },
     });
     await this.invoicePaymentStatusService.refreshFromInstalment(
       instalment.invoiceInstalmentPlan.invoiceId,
-      mappedStatus === 'SUCCESS' ? instalment.amountInCents : undefined,
+      canUpdateStatus && mappedStatus === 'SUCCESS'
+        ? instalment.amountInCents
+        : undefined,
     );
   }
 
@@ -210,7 +246,11 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       data: { providerPaymentId: paymentId },
     });
     await this.syncInstalmentStatus(
-      { ...instalment, invoiceInstalmentPlan: { invoiceId: plan.invoiceId } },
+      {
+        ...instalment,
+        automaticRetryScheduled: false,
+        invoiceInstalmentPlan: { invoiceId: plan.invoiceId },
+      },
       paymentStatus,
     );
   }

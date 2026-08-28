@@ -54,10 +54,20 @@ export default function StarterRevenueChart({ points }: { points: Array<{ label:
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#231942',
+          backgroundColor: '#FFFFFF',
+          titleColor: '#231942',
+          bodyColor: '#52525B',
+          borderColor: 'rgba(69, 74, 222, 0.22)',
+          borderWidth: 1,
+          cornerRadius: 8,
+          caretSize: 6,
+          caretPadding: 8,
           padding: 10,
+          titleMarginBottom: 5,
           displayColors: false,
-          callbacks: { label: (context) => `${Number(context.raw).toLocaleString('fr-FR')} €` },
+          titleFont: { family: 'Poppins', size: 12, weight: 600 },
+          bodyFont: { family: 'Poppins', size: 12, weight: 500 },
+          callbacks: { label: (context) => `CA facturé · ${Number(context.raw).toLocaleString('fr-FR')} €` },
         },
       },
       scales: {
