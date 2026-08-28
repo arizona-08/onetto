@@ -12,13 +12,13 @@ function AuthShell({ title, subtitle, children }: AuthShellProps) {
     <main className="min-h-screen bg-background px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center justify-center">
         <section className="w-full max-w-2xl">
-          <Link href="/" className="mb-5 block font-title text-center text-3xl font-black text-primary">
+          <Link href="/" className="mb-5 block font-title text-center text-3xl font-bold text-primary">
             ONETTO
           </Link>
 
-          <div className="rounded-lg bg-white p-6 shadow-md sm:p-8">
+          <div className="rounded-lg bg-white p-6 sm:p-8">
             <div className="mb-8">
-              <h1 className="font-title text-3xl font-black text-zinc-800">{title}</h1>
+              <h1 className="font-title text-3xl font-semibold text-zinc-800">{title}</h1>
               <p className="mt-2 text-sm leading-6 text-zinc-500">{subtitle}</p>
             </div>
 

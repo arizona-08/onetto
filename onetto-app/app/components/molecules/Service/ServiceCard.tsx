@@ -19,7 +19,7 @@ function ServiceCard({ service, triggerEdit, triggerDelete }: ServiceCardProps) 
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
   return (
-    <article className="group relative h-full overflow-visible rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md">
+    <article className="group relative h-full overflow-visible rounded-2xl border border-zinc-200 bg-white p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -37,7 +37,7 @@ function ServiceCard({ service, triggerEdit, triggerDelete }: ServiceCardProps) 
           triggerDelete={triggerDelete}
         />
       </div>
-      <h4 className="mt-5 text-lg font-bold text-zinc-900">{service.name}</h4>
+      <h4 className="mt-5 text-lg font-semibold text-zinc-900">{service.name}</h4>
       <p className="mt-2 min-h-10 text-sm leading-5 text-zinc-500">
         {service.description || 'Aucune description renseignée.'}
       </p>
@@ -46,7 +46,7 @@ function ServiceCard({ service, triggerEdit, triggerDelete }: ServiceCardProps) 
           <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">
             Prix unitaire
           </p>
-          <p className="mt-1 text-lg font-bold text-zinc-900">
+          <p className="mt-1 text-lg font-semibold text-zinc-900">
             {hasUnitPrice ? unitPriceValue.toFixed(2) : 'N/A'} €
             <span className="ml-1 text-sm font-medium text-zinc-400">/ {service.unit}</span>
           </p>

@@ -29,9 +29,9 @@ export const STRIPE_PRODUCTS: StripeProduct[] = [
       }
     },
     features: [
-      "Génération de factures illimitée",
-      "Transformation de devis en devis en factures",
-      "Négociation de devis avec vos clients"
+      "1 entreprise",
+      "Devis et factures illimités",
+      "Paiement sécurisé et suivi des documents"
     ]
   },
   {
@@ -48,9 +48,9 @@ export const STRIPE_PRODUCTS: StripeProduct[] = [
       }
     },
     features: [
-      "Génération de factures illimitée",
-      "Transformation de devis en devis en factures",
-      "Négociation de devis avec vos clients"
+      "Tout le plan Free",
+      "Négociation de devis avec vos clients",
+      "Relances automatiques"
     ]
   },
   {
@@ -67,10 +67,10 @@ export const STRIPE_PRODUCTS: StripeProduct[] = [
       }
     },
     features: [
-      "Toutes les fonctionnalités du plan Starter",
-      "Gestion multi-utilisateurs",
-      "Gestion multi-entreprises",
-      "Support prioritaire"
+      "Tout le plan Starter",
+      "Paiement en 2 ou 3 fois",
+      "Jusqu’à 3 entreprises",
+      "Analyses avancées et prévisions d’encaissement"
     ]
   }
 ]

@@ -8,11 +8,25 @@ import {
   LineElement,
   LinearScale,
   PointElement,
+  ScriptableContext,
   Tooltip,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
+
+function areaGradient(context: ScriptableContext<'line'>) {
+  const { chart } = context;
+  const { ctx } = chart;
+  const chartArea = chart.chartArea;
+  if (!chartArea) return 'rgba(69, 74, 222, 0.14)';
+
+  const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+  gradient.addColorStop(0, 'rgba(69, 74, 222, 0.28)');
+  gradient.addColorStop(0.65, 'rgba(69, 74, 222, 0.07)');
+  gradient.addColorStop(1, 'rgba(69, 74, 222, 0)');
+  return gradient;
+}
 
 export default function StarterRevenueChart({ points }: { points: Array<{ label: string; amount: number }> }) {
   return <Line
@@ -21,20 +35,39 @@ export default function StarterRevenueChart({ points }: { points: Array<{ label:
       datasets: [{
         label: 'CA facturé',
         data: points.map((point) => point.amount),
-        borderColor: '#5b4bdb',
-        backgroundColor: 'rgba(91, 75, 219, 0.12)',
+        borderColor: '#454ADE',
+        backgroundColor: areaGradient,
         fill: true,
-        tension: 0.35,
-        pointRadius: 3,
+        tension: 0.4,
+        borderWidth: 2.5,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        pointHoverBackgroundColor: '#454ADE',
+        pointHoverBorderColor: '#FFFFFF',
+        pointHoverBorderWidth: 2,
       }],
     }}
     options={{
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#231942',
+          padding: 10,
+          displayColors: false,
+          callbacks: { label: (context) => `${Number(context.raw).toLocaleString('fr-FR')} €` },
+        },
+      },
       scales: {
-        y: { ticks: { callback: (value) => `${value} €` }, grid: { color: '#f1f1f1' } },
-        x: { grid: { display: false } },
+        y: {
+          beginAtZero: true,
+          border: { display: false },
+          ticks: { callback: (value) => `${value} €`, color: '#A1A1AA', font: { size: 11 } },
+          grid: { color: '#F4F4F5', drawTicks: false },
+        },
+        x: { border: { display: false }, ticks: { color: '#A1A1AA', font: { size: 11 } }, grid: { display: false } },
       },
     }}
   />;

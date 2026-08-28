@@ -127,7 +127,7 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
               >
                 <ChevronDown/> <span className={`${preSelectedService ? 'text-gray-700' : 'text-gray-400'}`}>{preSelectedService?.name || "Choisir un service"}</span>
 
-                <ul className={`absolute top-full right-0 w-75 bg-white border border-gray-300 rounded-md  mt-1 shadow-lg z-10  ${isDropdownOpen ? 'block' : 'hidden'}`}>
+                <ul className={`absolute top-full right-0 w-75 bg-white border border-gray-300 rounded-md  mt-1 z-10  ${isDropdownOpen ? 'block' : 'hidden'}`}>
                   <li
                     className="px-3 py-1 text-gray-400 hover:bg-gray-200"
                     onClick={() => handleServiceSelect(null)}
@@ -161,7 +161,7 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
                   id="description"
                   name="description"
                   placeholder="Développement application"
-                  className=" p-3 mt-1 block w-full border border-gray-300 rounded-md shadow-sm outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  className=" p-3 mt-1 block w-full border border-gray-300 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
                   value={lineItemDetails.description}
                   onChange={handleChange}
                 />

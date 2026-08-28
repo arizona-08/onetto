@@ -59,7 +59,7 @@ async function DocumentsPage() {
   
   return (
     <div className="mx-auto w-full max-w-6xl p-4">
-      <h1 className="text-2xl font-black font-title">Gérer mes factures et devis</h1>
+      <h1 className="text-4xl font-semibold font-title">Gérer mes factures et devis</h1>
 
       {(!estimatesResponse.ok || !invoicesResponse.ok) && (
         // À modifier en production pour afficher un message d'erreur plus convivial
@@ -146,11 +146,11 @@ function InvoiceStatCard({
   const invoiceLabel = stat.count > 1 ? 'factures' : 'facture';
 
   return (
-    <article className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+    <article className="rounded-2xl border border-zinc-200 bg-white p-5 transition-shadow">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-zinc-500">{label}</p>
-          <p className="mt-2 font-title text-3xl font-black text-zinc-900">
+          <p className="mt-2 font-title text-3xl font-semibold text-zinc-900">
             {formatCurrency(stat.totalAmount)}
           </p>
         </div>

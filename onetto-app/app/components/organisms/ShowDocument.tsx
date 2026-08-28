@@ -121,7 +121,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
   return (
     <div className="p-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black font-title">Détails {isEstimate ? "du devis" : "de la facture"} {document.documentNumber}</h1>
+        <h1 className="text-2xl font-semibold font-title">Détails {isEstimate ? "du devis" : "de la facture"} {document.documentNumber}</h1>
         
         {/* actions */}
         <div className="flex items-center justify-between gap-12 text-sm">
@@ -203,7 +203,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
         <section className="mt-5 rounded-xl border border-primary/15 bg-primary/5 p-4">
           <div className="flex items-center gap-2 text-primary">
             <MessageSquareText className="h-5 w-5" />
-            <h2 className="font-title font-black">Négociation{negociations.length > 1 ? 's' : ''} du devis</h2>
+            <h2 className="font-title font-semibold">Négociation{negociations.length > 1 ? 's' : ''} du devis</h2>
           </div>
           <div className="mt-3 space-y-3">
             {negociations.map((negociation) => (

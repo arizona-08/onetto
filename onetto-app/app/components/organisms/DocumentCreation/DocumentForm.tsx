@@ -56,7 +56,7 @@ function DocumentForm({ client, lineItems, documentDates, onClientChange, onLine
               <div
                 id="gocardless-payment-limit-info"
                 role="tooltip"
-                className="pointer-events-none absolute left-0 top-6 z-10 w-80 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-normal leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                className="pointer-events-none absolute left-0 top-6 z-10 w-80 rounded-lg bg-zinc-900 px-3 py-2 text-xs font-normal leading-5 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
               >
                 {paymentLimitInformation}
               </div>

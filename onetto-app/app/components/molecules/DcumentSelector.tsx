@@ -31,7 +31,7 @@ function DocumentSelector({ type, selectedStatus, onSelectStatus }: DocumentSele
     : ESTIMATES_STATUS;
 
   return (
-    <div className="flex items-center gap-1 w-fit bg-gray-600/10 p-1 rounded-lg shadow-sm">
+    <div className="flex items-center gap-1 w-fit bg-gray-600/10 p-1 rounded-lg">
       {statusOptions.map((status) => (
         <button
           key={status}

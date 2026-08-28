@@ -24,7 +24,7 @@ export default async function PaymentPage({ searchParams }: {
 function PaymentError({ message }: { message: string }) {
   return (
     <main className="grid min-h-screen place-items-center bg-zinc-50 p-6">
-      <p className="rounded-xl bg-white px-5 py-4 text-sm text-zinc-600 shadow-sm">{message}</p>
+      <p className="rounded-xl bg-white px-5 py-4 text-sm text-zinc-600">{message}</p>
     </main>
   );
 }

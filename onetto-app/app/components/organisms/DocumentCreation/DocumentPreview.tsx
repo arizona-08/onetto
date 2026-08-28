@@ -34,7 +34,7 @@ function DocumentPreview({ type, client, lineItems, documentDates, creationDate 
         <span>Aperçu {type === 'invoice' ? 'de la facture' : 'du devis'}</span>
       </div>
 
-      <article className="mx-auto w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)]">
+      <article className="mx-auto w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950-[0_24px_70px_-45px_rgba(15,23,42,0.45)]">
         <header className="px-7 py-6">
           <div className="flex items-start justify-between gap-6">
             <div className="-space-y-4">
@@ -66,7 +66,7 @@ function DocumentPreview({ type, client, lineItems, documentDates, creationDate 
           <div className="mt-7 grid gap-6 md:grid-cols-2">
             <section className="">
               <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-black">{activeCompany?.name ?? ''}</p>
+                <p className="min-h-5 font-title text-lg font-semibold">{activeCompany?.name ?? ''}</p>
                 <p>Statut: Micro-entreprise</p>
                 <p>SIREN : {activeCompany?.siren ?? ''}</p>
                 <p>TVA intracommunautaire : {activeCompany?.vatNumber ?? ''}</p>
@@ -78,9 +78,9 @@ function DocumentPreview({ type, client, lineItems, documentDates, creationDate 
             </section>
 
             <section className="text-right">
-              <p className="mb-2 font-bold uppercase text-zinc-500">À l'attention de</p>
+              <p className="mb-2 font-semibold uppercase text-zinc-500">À l'attention de</p>
               <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-black">{client?.name ?? 'John Doe'}</p>
+                <p className="min-h-5 font-title text-lg font-semibold">{client?.name ?? 'John Doe'}</p>
                 <p>{client?.email ?? 'john.doe@example.com'}</p>
                 <p>{client?.address ?? '10 rue de la Paix'}</p>
                 <p>{client?.postalCode ?? '75000'}, {client?.city ?? 'Paris'}, {client?.country ?? 'France'}</p>
@@ -102,7 +102,7 @@ function DocumentPreview({ type, client, lineItems, documentDates, creationDate 
                 <col className="w-[12%]" />
               </colgroup>
               <thead className="whitespace-nowrap bg-primary/10">
-                <tr className="border-b border-zinc-200 font-bold uppercase text-zinc-600">
+                <tr className="border-b border-zinc-200 font-semibold uppercase text-zinc-600">
                   <th className="py-2.5 pl-1 pr-1.5">Description</th>
                   <th className="px-1.5 py-2.5">Qté</th>
                   <th className="px-1.5 py-2.5">Prix HT</th>
@@ -158,7 +158,7 @@ function DocumentPreview({ type, client, lineItems, documentDates, creationDate 
 
           <footer className="mt-7 grid gap-6 border-t border-zinc-200 pt-5 md:grid-cols-[1.1fr,0.9fr]">
             <section>
-              <div className="mb-3 flex items-center gap-2 font-title font-black">
+              <div className="mb-3 flex items-center gap-2 font-title font-semibold">
                 <Landmark className="h-4 w-4 text-primary"/>
                 <h2>Coordonnées bancaires</h2>
               </div>

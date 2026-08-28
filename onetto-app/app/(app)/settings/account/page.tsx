@@ -32,8 +32,8 @@ export default function AccountPage() {
   }
 
   return <main className="mx-auto w-full max-w-3xl p-4 sm:p-6">
-    <header className="mb-6"><p className="text-sm font-medium text-primary">Paramètres</p><h1 className="mt-1 font-title text-2xl font-black text-zinc-900">Mon profil</h1><p className="mt-2 text-sm text-zinc-600">Gérez les informations associées à votre compte Onetto.</p></header>
-    <form onSubmit={handleSubmit} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6">
+    <header className="mb-6"><p className="text-sm font-medium text-primary">Paramètres</p><h1 className="mt-1 font-title text-2xl font-semibold text-zinc-900">Mon profil</h1><p className="mt-2 text-sm text-zinc-600">Gérez les informations associées à votre compte Onetto.</p></header>
+    <form onSubmit={handleSubmit} className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6">
       <div className="flex items-start gap-3 border-b border-zinc-100 pb-5"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><UserRound className="h-5 w-5" /></div><div><h2 className="font-semibold text-zinc-900">Informations personnelles</h2><p className="mt-1 text-sm text-zinc-500">Ces informations servent à identifier votre compte.</p></div></div>
       {error && <p role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       <div className="mt-6 grid gap-5 sm:grid-cols-2"><Field label="Prénom" value={profile.firstname} onChange={(firstname) => setProfile((current) => ({ ...current, firstname }))} /><Field label="Nom" value={profile.lastname} onChange={(lastname) => setProfile((current) => ({ ...current, lastname }))} /></div>

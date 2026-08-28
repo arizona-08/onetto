@@ -18,8 +18,8 @@
   --color-primary: #454ADE;
   --color-primary-hover: #3c40b8;
   --color-secondary: #1B1725;
-  --font-title: var(--font-manrope);
-  --font-body: var(--font-inter);
+  --font-title: var(--font-poppins);
+  --font-body: var(--font-poppins);
 }
 
 @media (prefers-color-scheme: dark) {

@@ -67,7 +67,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
 
   return (
     <>
-      <article className="mx-auto mt-6 w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] print:mt-0 print:max-w-none print:rounded-none print:shadow-none">
+      <article className="mx-auto mt-6 w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950-[0_24px_70px_-45px_rgba(15,23,42,0.45)] print:mt-0 print:max-w-none print:rounded-none print:">
         <div className="flex justify-end px-7 pt-5 print:hidden"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="display" /></div>
         <header className="px-7 py-6">
           <div className="flex items-start justify-between gap-6">
@@ -102,7 +102,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
           <div className="mt-7 grid gap-6 md:grid-cols-2">
             <section>
               <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-black">{companyName}</p>
+                <p className="min-h-5 font-title text-lg font-semibold">{companyName}</p>
                 <p>Statut : Micro-entreprise</p>
                 <p>SIREN : {companySiren}</p>
                 <p>TVA intracommunautaire : {companyVatNumber}</p>
@@ -116,9 +116,9 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
             </section>
 
             <section className="text-right">
-              <p className="mb-2 font-bold uppercase text-zinc-500">À l’attention de</p>
+              <p className="mb-2 font-semibold uppercase text-zinc-500">À l’attention de</p>
               <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-black">{document.clientName}</p>
+                <p className="min-h-5 font-title text-lg font-semibold">{document.clientName}</p>
                 <p>{document.clientEmail}</p>
                 <p>{document.clientAddress}</p>
                 <p>
@@ -143,7 +143,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <p className="font-semibold text-zinc-900">{description}</p>
-                    <p className="shrink-0 font-title text-sm font-black text-primary">
+                    <p className="shrink-0 font-title text-sm font-semibold text-primary">
                       {currency(lineTotalTTC)}
                     </p>
                   </div>
@@ -175,7 +175,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
                 <col className="w-[12%]" />
               </colgroup>
               <thead className="whitespace-nowrap bg-primary/10">
-                <tr className="border-b border-zinc-200 font-bold uppercase text-zinc-600">
+                <tr className="border-b border-zinc-200 font-semibold uppercase text-zinc-600">
                   <th className="py-2.5 pl-1 pr-1.5">Description</th>
                   <th className="px-1.5 py-2.5">Qté</th>
                   <th className="px-1.5 py-2.5">Prix HT</th>
@@ -238,7 +238,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
 
           <footer className="mt-7 grid gap-6 border-t border-zinc-200 pt-5 md:grid-cols-[1.1fr,0.9fr]">
             <section>
-              <div className="mb-3 flex items-center gap-2 font-title font-black">
+              <div className="mb-3 flex items-center gap-2 font-title font-semibold">
                 <Landmark className="h-4 w-4 text-primary" />
                 <h2>Coordonnées bancaires</h2>
               </div>

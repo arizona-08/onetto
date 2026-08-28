@@ -484,7 +484,7 @@ function DocumentsTable({
                   ? "/documents/create?type=invoice"
                   : "/documents/create"
               }
-              className="shadow-md flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer"
+              className=" flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer"
             >
               <CirclePlusIcon />
               <span className="text-sm font-medium">
@@ -612,7 +612,7 @@ function DocumentsTable({
       </div>
 
       {/* Tableau de facture pour tablet et desktop */}
-      <div className="hidden md:block mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm">
+      <div className="hidden md:block mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
         <table className="min-w-185 w-full border-collapse text-left">
           <thead className="bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
             <tr>
@@ -826,10 +826,10 @@ function DocumentsTable({
           aria-modal="true"
           aria-labelledby="manual-payment-title"
         >
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-lg bg-white p-6">
             <h2
               id="manual-payment-title"
-              className="font-title text-xl font-black text-zinc-900"
+              className="font-title text-xl font-semibold text-zinc-900"
             >
               Confirmer le paiement manuel
             </h2>
@@ -873,10 +873,10 @@ function DocumentsTable({
           aria-modal="true"
           aria-labelledby="delete-documents-title"
         >
-          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col rounded-lg bg-white p-6 shadow-xl">
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col rounded-lg bg-white p-6">
             <h2
               id="delete-documents-title"
-              className="font-title text-xl font-black text-zinc-900"
+              className="font-title text-xl font-semibold text-zinc-900"
             >
               Supprimer les documents sélectionnés ?
             </h2>

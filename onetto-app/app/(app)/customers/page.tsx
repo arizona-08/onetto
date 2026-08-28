@@ -27,7 +27,7 @@ async function clients() {
 
   return (
     <div className="mx-auto w-full max-w-6xl p-4">
-      <h1 className="text-4xl font-black font-title">Mon catalogue de clients</h1>
+      <h1 className="text-4xl font-semibold font-title">Mon catalogue de clients</h1>
 
       <p className="text-gray-500 max-w-90 mt-3">Gérer vos clients et gagnez du temps lors de la création de vos factures.</p>
 

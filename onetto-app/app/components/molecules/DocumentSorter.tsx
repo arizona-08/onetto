@@ -20,7 +20,7 @@ function DocumentSorter({sortMethod, setSortMethod, isOpen, setIsOpen}: Document
         <SortDesc className="text-zinc-400 cursor-pointer" />
         <span className="text-zinc-400 text-sm">Trier</span>
       </div>
-      <div className={`${isOpen ? 'block' : 'hidden'} absolute top-full right-0 p-1 min-w-35 rounded-lg bg-white text-sm border border-gray-100 shadow-sm`}>
+      <div className={`${isOpen ? 'block' : 'hidden'} absolute top-full right-0 p-1 min-w-35 rounded-lg bg-white text-sm border border-gray-100`}>
         <ul className="space-y-1">
           <li className={`px-3 py-1 rounded-md hover:bg-gray-200 ${sortMethod === 'date' ? 'bg-gray-200' : ''}`} onClick={() => {
             setSortMethod('date')

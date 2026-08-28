@@ -1,19 +1,15 @@
 import type { Metadata } from "next";
-import { Inter, Manrope } from "next/font/google";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 import { AuthUserProvider } from "./components/context/AuthUserContext";
 import { ToastProvider } from "./components/context/ToastContext";
 import ActiveCompanyProvider from "./components/context/ActiveCompanyContext";
 
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
 });
 
 export const metadata: Metadata = {
@@ -29,7 +25,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${manrope.variable} ${inter.variable} antialiased`}
+      className={`${poppins.variable} antialiased`}
     >
       <body className="font-body relative">
         <ToastProvider>

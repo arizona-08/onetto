@@ -52,7 +52,7 @@ export default function InvoiceInstalmentProgress({
               />
               <span
                 role="tooltip"
-                className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-52 -translate-x-1/2 rounded-lg bg-zinc-900 px-3 py-2 text-xs leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus:opacity-100"
+                className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 w-max max-w-52 -translate-x-1/2 rounded-lg bg-zinc-900 px-3 py-2 text-xs leading-5 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100"
               >
                 <span className="block font-semibold">Échéance {instalment.instalmentNumber}</span>
                 <span className="block">{formatCurrency(instalment.amountInCents / 100)}</span>

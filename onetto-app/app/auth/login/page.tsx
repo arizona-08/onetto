@@ -53,7 +53,7 @@ function LoginPage() {
           type="button"
           className="flex w-full items-center justify-center gap-3 rounded-md border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition-colors hover:bg-custom-gray-light"
         >
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white font-title text-sm font-black text-primary">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white font-title text-sm font-semibold text-primary">
             G
           </span>
           Continuer avec Google
