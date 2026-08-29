@@ -1,63 +1,104 @@
 'use client'
+
+import Link from 'next/link'
+import React from 'react'
+import { Check, CreditCard, ExternalLink, Sparkles } from 'lucide-react'
 import { getCheckoutSession } from '@/lib/subscription/subscription'
 import { STRIPE_PRODUCTS } from '@/shared/constants'
 import { formatCurrency } from '@/shared/utils'
-import React from 'react'
 import { useToast } from '../context/ToastContext'
-import Link from 'next/link'
 
-function SubscriptionPlans() {
-  const { showToast } = useToast();
+type SubscriptionPlansProps = {
+  currentPlan: string
+}
 
-  async function purchaseSubscriptionPlan(e: React.MouseEvent<HTMLButtonElement>, planProductId: string){
-    e.preventDefault();
+function getProductPlan(productName: string) {
+  return productName.toUpperCase()
+}
+
+function SubscriptionPlans({ currentPlan }: SubscriptionPlansProps) {
+  const { showToast } = useToast()
+
+  async function purchaseSubscriptionPlan(
+    event: React.MouseEvent<HTMLButtonElement>,
+    planProductId: string,
+  ) {
+    event.preventDefault()
     try {
-      const responseUrl = await getCheckoutSession(planProductId);
-      if(!responseUrl.ok){
-        showToast("Une erreur est survenue lors de la création de la session de checkout.", "error");
-        return;
+      const responseUrl = await getCheckoutSession(planProductId)
+      if (!responseUrl.ok) {
+        showToast('Une erreur est survenue lors de la création de la session de paiement.', 'error')
+        return
       }
-      window.location.assign(responseUrl.data.url);
-    } catch (error) {
-      showToast("Une erreur est survenue lors de la création de la session de checkout.", "error");
+      window.location.assign(responseUrl.data.url)
+    } catch {
+      showToast('Une erreur est survenue lors de la création de la session de paiement.', 'error')
     }
   }
 
   return (
     <>
-    <section>
-      <h2>Les différents abonnements:</h2>
-
-      <ul>
-        {STRIPE_PRODUCTS.map((product) => (
-        <li key={product.id} className="mb-4">
-          <div className="bg-white p-4">
-            <h4>{product.name}</h4>
-            <p>{formatCurrency(product.prices.monthlyPrice.priceInCents / 100)}/mois</p>
-            <p className="text-xs">{formatCurrency(product.prices.yearlyPrice.priceInCents / 100)}/an</p>
-            <div className="flex gap-2 items-center mt-4">
-              <button
-                onClick={(e) => purchaseSubscriptionPlan(e, product.prices.monthlyPrice.id)}
-                className="px-4 py-2 bg-white text-primary border border-primary rounded-lg cursor-pointer"
-              >
-                Choisir Mensuel
-              </button>
-              <button
-                onClick={(e) => purchaseSubscriptionPlan(e, product.prices.yearlyPrice.id)}
-                className="px-4 py-2 bg-primary text-white rounded-lg cursor-pointer"
-              >
-                Choisir Annuel
-              </button>
-            </div>
+      <section aria-labelledby="plans-heading">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 id="plans-heading" className="font-title text-xl font-semibold text-zinc-900">Choisir la formule adaptée</h2>
+            <p className="mt-1 text-sm text-zinc-600">Les fonctionnalités évoluent avec votre activité. Vous serez redirigé vers Stripe pour finaliser votre choix.</p>
           </div>
-        </li>
-        ))}
-      </ul>
-    </section>
+          <span className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-zinc-500"><CreditCard className="h-4 w-4" aria-hidden="true" /> Paiement sécurisé</span>
+        </div>
 
-    <section>
-      <Link href="https://billing.stripe.com/p/login/test_00w9AS62pdfn5WxbNg5EY00" className="inline-block bg-white border border-primary p-4">Gérer mon abonnement</Link>
-    </section>
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          {STRIPE_PRODUCTS.map((product) => {
+            const productPlan = getProductPlan(product.name)
+            const isCurrentPlan = currentPlan === productPlan || currentPlan.startsWith(`${productPlan}_`)
+            const isRecommended = productPlan === 'PRO'
+            const isFree = productPlan === 'FREE'
+
+            return (
+              <article key={product.id} className={`relative flex min-h-full flex-col rounded-2xl border bg-white p-5 ${isRecommended ? 'border-primary ring-1 ring-primary/15' : 'border-zinc-200'}`}>
+                {isRecommended && <span className="absolute -top-3 left-5 inline-flex items-center gap-1 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-white"><Sparkles className="h-3.5 w-3.5" aria-hidden="true" /> Le plus complet</span>}
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="font-title text-lg font-semibold text-zinc-900">{product.name}</h3>
+                    {isCurrentPlan && <span className="shrink-0 whitespace-nowrap rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">Formule actuelle</span>}
+                  </div>
+                  <p className="mt-1 text-sm text-zinc-500">{isFree ? 'Pour démarrer simplement' : productPlan === 'STARTER' ? 'Pour automatiser votre suivi' : 'Pour piloter toute votre activité'}</p>
+                </div>
+
+                <div className="mt-6 border-y border-zinc-100 py-4">
+                  <p className="font-title text-3xl font-semibold tracking-tight text-zinc-900">{formatCurrency(product.prices.monthlyPrice.priceInCents / 100)}<span className="ml-1 text-sm font-medium tracking-normal text-zinc-500">/ mois</span></p>
+                  <p className="mt-1 text-sm text-zinc-500">ou {formatCurrency(product.prices.yearlyPrice.priceInCents / 100)} facturés annuellement</p>
+                </div>
+
+                <ul className="mt-5 space-y-3 text-sm text-zinc-700">
+                  {product.features.map((feature) => <li key={feature} className="flex gap-2.5"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" /><span>{feature}</span></li>)}
+                </ul>
+
+                <div className="mt-auto flex w-full flex-col gap-2 pt-7">
+                  {isFree ? (
+                    <div className="flex min-h-11 w-full items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm font-semibold text-zinc-600">{isCurrentPlan ? 'Formule actuelle' : 'Formule incluse'}</div>
+                  ) : isCurrentPlan ? (
+                    <div className="flex min-h-11 w-full items-center justify-center rounded-xl border border-primary/20 bg-primary/5 px-4 text-sm font-semibold text-primary">Votre formule actuelle</div>
+                  ) : (
+                    <>
+                      <button onClick={(event) => purchaseSubscriptionPlan(event, product.prices.monthlyPrice.id)} className="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800 transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20">Choisir mensuel</button>
+                      <button onClick={(event) => purchaseSubscriptionPlan(event, product.prices.yearlyPrice.id)} className="min-h-11 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20">Choisir annuel</button>
+                    </>
+                  )}
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="font-title text-base font-semibold text-zinc-900">Gérer ma facturation</h2>
+          <p className="mt-1 text-sm text-zinc-600">Retrouvez vos factures, votre moyen de paiement et les détails de votre abonnement.</p>
+        </div>
+        <Link href="https://billing.stripe.com/p/login/test_00w9AS62pdfn5WxbNg5EY00" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800 transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20">Ouvrir le portail Stripe <ExternalLink className="h-4 w-4" aria-hidden="true" /></Link>
+      </section>
     </>
   )
 }

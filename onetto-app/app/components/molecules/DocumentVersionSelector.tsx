@@ -31,7 +31,7 @@ export default function DocumentVersionSelector({ documentId, versionNumber, mod
       <select
         value={documentId}
         onChange={(event) => router.push(mode === 'edit' ? `/documents/${event.target.value}/update-draft` : `/documents/${event.target.value}`)}
-        className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm font-bold text-primary outline-none focus:border-primary"
+        className="rounded-md border border-zinc-200 bg-white px-2 py-1.5 text-sm font-semibold text-primary outline-none focus:border-primary"
       >
         {versions.map((version) => (
           <option key={version.id} value={version.id}>v{version.versionNumber}{version.versionNumber === versionNumber ? ' — actuelle' : ''}</option>

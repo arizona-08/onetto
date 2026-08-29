@@ -6,12 +6,12 @@ async function NegociationPage({ searchParams }: { searchParams: Promise<Record<
   const negociationToken = typeof params.token === 'string' ? params.token : undefined
 
   if (!negociationToken) {
-    return <main className="grid min-h-screen place-items-center bg-background p-6"><p className="rounded-xl bg-white px-5 py-4 text-sm shadow-sm">Token de négociation invalide ou requis.</p></main>
+    return <main className="grid min-h-screen place-items-center bg-background p-6"><p className="rounded-xl bg-white px-5 py-4 text-sm">Token de négociation invalide ou requis.</p></main>
   }
 
   const response = await getNegociationByTokenServer(negociationToken)
   if (!response.ok) {
-    return <main className="grid min-h-screen place-items-center bg-background p-6"><p className="rounded-xl bg-white px-5 py-4 text-sm shadow-sm">Cette négociation est introuvable ou n’est plus disponible.</p></main>
+    return <main className="grid min-h-screen place-items-center bg-background p-6"><p className="rounded-xl bg-white px-5 py-4 text-sm">Cette négociation est introuvable ou n’est plus disponible.</p></main>
   }
 
   return <NegociationView negociation={response.data} token={negociationToken} />

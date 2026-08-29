@@ -119,7 +119,7 @@ implements
         throw error;
       }
 
-      console.error("Error creating billing request:", error);
+      console.error("Error creating billing request:", (error as any).errors[0].metadata);
       throw new BadRequestException("Erreur lors de la création de la demande de facturationnnn.", ( error as Error));
     }
   }

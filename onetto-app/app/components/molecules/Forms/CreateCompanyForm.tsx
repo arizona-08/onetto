@@ -27,7 +27,8 @@ const emptyCompany: CreateCompanyDto = {
     subjectToVat: false,
     vatNumber: "",
     IBAN: "",
-  BIC: ""
+  BIC: "",
+  rcs: "",
 };
 
 function CreateCompanyForm({ companyToEdit, onSuccess, onCancel }: CreateCompanyFormProps) {
@@ -99,7 +100,7 @@ function CreateCompanyForm({ companyToEdit, onSuccess, onCancel }: CreateCompany
 
   return (
     <form className="space-y-5 p-6 bg-white rounded-md" onSubmit={handleSubmit}>
-      <h2 className="text-lg font-bold text-zinc-800">Renseignez les informations de votre entreprise</h2>
+      <h2 className="text-lg font-semibold text-zinc-800">Renseignez les informations de votre entreprise</h2>
 
       {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 

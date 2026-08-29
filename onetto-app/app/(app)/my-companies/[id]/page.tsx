@@ -119,7 +119,7 @@ function MyCompanyPage() {
 
       {company && (
         <>
-          <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -129,7 +129,7 @@ function MyCompanyPage() {
                   <p className="text-sm font-medium text-zinc-500">
                     Entreprise
                   </p>
-                  <h1 className="mt-1 font-title text-2xl font-black text-zinc-900">
+                  <h1 className="mt-1 font-title text-2xl font-semibold text-zinc-900">
                     {company.name}
                   </h1>
                   <p className="mt-1 text-sm text-zinc-600">{company.email}</p>
@@ -173,7 +173,7 @@ function MyCompanyPage() {
                     <Landmark className="h-5 w-5" aria-hidden="true" />
                   </div>
                   <div>
-                    <h2 className="font-title text-lg font-bold text-zinc-900">
+                    <h2 className="font-title text-lg font-semibold text-zinc-900">
                       Connectez votre compte GoCardless
                     </h2>
                     <p className="mt-1 text-sm leading-6 text-zinc-700">
@@ -207,7 +207,7 @@ function MyCompanyPage() {
               company.companyPaymentAccount?.verificationStatus ===
                 "NOT_VERIFIED" && (
                 <div className="mt-6 rounded-lg border border-orange-100 bg-orange-50/70 p-5">
-                  <h2 className="font-title text-lg font-bold text-zinc-900">
+                  <h2 className="font-title text-lg font-semibold text-zinc-900">
                     Compte GoCardless non vérifié
                   </h2>
                   <p className="mt-2 text-sm text-zinc-600">
@@ -241,7 +241,7 @@ function MyCompanyPage() {
               company.companyPaymentAccount?.verificationStatus ===
                 "IN_REVIEW" && (
                 <div className="mt-6 rounded-lg border border-blue-100 bg-blue-50/70 p-5">
-                  <h2 className="font-title text-lg font-bold text-zinc-900">
+                  <h2 className="font-title text-lg font-semibold text-zinc-900">
                     Vérification GoCardless en cours
                   </h2>
                   <p className="mt-2 text-sm text-zinc-600">
@@ -254,7 +254,7 @@ function MyCompanyPage() {
 
           {company.status === "CLOSED" && (
             <div className="mt-6 rounded-lg border border-red-100 bg-red-50/70 p-5">
-              <h2 className="font-title text-lg font-bold text-zinc-900">
+              <h2 className="font-title text-lg font-semibold text-zinc-900">
                 Entreprise fermée
               </h2>
               <p className="mt-2 text-sm text-zinc-600">
@@ -272,7 +272,7 @@ function MyCompanyPage() {
 
           {company.status !== "CLOSED" && (
             <section className="mt-6">
-              <h2 className="font-title text-xl font-black text-zinc-900">
+              <h2 className="font-title text-xl font-semibold text-zinc-900">
                 Modifier l’entreprise
               </h2>
               <p className="mt-1 text-sm text-zinc-500">

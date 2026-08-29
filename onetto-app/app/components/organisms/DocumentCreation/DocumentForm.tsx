@@ -1,4 +1,5 @@
 import React from 'react'
+import { Info } from 'lucide-react'
 import CustomerDetails from '../../molecules/DocumentFormComponents/CustomerDetails'
 import ServiceLineItems from '../../molecules/DocumentFormComponents/ServiceLineItems'
 import { Client, DocumentDates, ServiceLineItem } from '@/app/types';
@@ -31,6 +32,9 @@ interface DocumentFormProps {
 }
 
 function DocumentForm({ client, lineItems, documentDates, onClientChange, onLineItemsChange, onDocumentDatesChange, errors, lockInvoiceContent = false, showPaymentMode = false, canUseInstalments = false, paymentMode = 'ONE_TIME', numberOfInstalments = 2, firstDueDate = '', minFirstDueDate, instalments = [], onPaymentModeChange, onNumberOfInstalmentsChange, onFirstDueDateChange }: DocumentFormProps) {
+  const paymentLimitInformation = paymentMode === 'INSTALMENTS'
+    ? 'Par défaut, GoCardless limite chaque échéance à 5 000 €. Demandez un relèvement pour la devise EUR (SEPA) depuis votre tableau de bord GoCardless : Paramètres > Paramètres de la société > Transaction limits > Demander un relèvement. Il n’existe pas de plafond maximal fixe, mais un maximum de 100 000 € est recommandé.'
+    : 'Par défaut, GoCardless limite un paiement unique Open Banking à 1 000 €. Vous pouvez demander un relèvement jusqu’à 15 000 € pour la devise EUR Open Banking (SEPA) depuis votre tableau de bord GoCardless : Paramètres > Paramètres de la société > Transaction limits > Demander un relèvement.'
   
   return (
     <div className="">
@@ -38,7 +42,26 @@ function DocumentForm({ client, lineItems, documentDates, onClientChange, onLine
       <ServiceLineItems hydratedLineItems={lineItems} hydratedDocumentDates={documentDates} onLineItemsChange={onLineItemsChange} onDocumentDatesChange={onDocumentDatesChange} documentDateErrors={errors?.documentDateErrors} documentLineItemsErrors={errors?.documentLineItemsErrors} disabled={lockInvoiceContent} />
       {showPaymentMode && (
         <section className="mx-auto mt-8 w-full max-w-2xl rounded-lg border border-zinc-200 p-5">
-          <h2 className="text-lg font-semibold text-zinc-900">Mode de paiement</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-zinc-900">Mode de paiement</h2>
+            <div className="group relative">
+              <button
+                type="button"
+                aria-label="Information sur le plafond des paiements uniques GoCardless"
+                aria-describedby="gocardless-payment-limit-info"
+                className="flex rounded-full text-zinc-500 outline-none transition-colors hover:text-primary focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              >
+                <Info className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <div
+                id="gocardless-payment-limit-info"
+                role="tooltip"
+                className="pointer-events-none absolute left-0 top-6 z-10 w-80 max-w-[calc(100vw-2rem)] rounded-lg bg-zinc-900 px-3 py-2 text-xs font-normal leading-5 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+              >
+                {paymentLimitInformation}
+              </div>
+            </div>
+          </div>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-4 py-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
               <input type="radio" name="paymentMode" value="ONE_TIME" checked={paymentMode === 'ONE_TIME'} onChange={() => onPaymentModeChange?.('ONE_TIME')} />

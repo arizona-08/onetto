@@ -82,6 +82,40 @@ export async function retryInvoicePayment(documentId: string) {
   );
 }
 
+export type InstalmentRetryCapability = {
+  canRetryManually: boolean;
+  automaticRetryScheduled: boolean;
+  mandateActionRequired: boolean;
+  nextChargeDate?: string;
+  message: string;
+};
+
+export async function getInstalmentRetryCapability(
+  documentId: string,
+  instalmentNumber: number,
+) {
+  return apiClient<InstalmentRetryCapability>(
+    `api/documents/${documentId}/instalments/${instalmentNumber}/retry-capability`,
+  );
+}
+
+export async function retryInstalmentPayment(
+  documentId: string,
+  instalmentNumber: number,
+) {
+  return apiClient<InstalmentRetryCapability>(
+    `api/documents/${documentId}/instalments/${instalmentNumber}/retry`,
+    { method: 'POST' },
+  );
+}
+
+export async function resendInstalmentMandateAuthorisation(documentId: string) {
+  return apiClient<{ success: true; message: string }>(
+    `api/documents/${documentId}/resend-instalment-mandate-authorisation`,
+    { method: 'POST' },
+  );
+}
+
 export async function markInvoiceAsPaidManually(documentId: string) {
   return apiClient<{ success: true; message: string }>(
     `api/documents/${documentId}/mark-as-paid-manually`,

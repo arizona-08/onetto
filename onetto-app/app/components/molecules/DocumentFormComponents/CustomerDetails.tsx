@@ -102,7 +102,7 @@ function CustomerDetails({ client, onClientChange, documentClientErrors, disable
             <div className='relative inline-block border border-gray-300 rounded-md px-2 py-1 cursor-pointer' onClick={() => !disabled && setIsDropdownOpen(!isDropdownOpen)}>
               <span className="flex items-center gap-2 text-sm font-medium  tracking-wider"> <ChevronDown className="w-4 h-4" />  {selectedClient ? selectedClient.name : 'Sélectionner un client'}</span>
 
-              <ul className={`absolute right-0 mt-2 w-48 bg-white border border-gray-300 rounded-md shadow-lg z-10 ${isDropdownOpen ? 'block' : 'hidden'}`}>
+              <ul className={`absolute right-0 mt-2 w-48 bg-white border border-gray-300 rounded-md z-10 ${isDropdownOpen ? 'block' : 'hidden'}`}>
                 <li className="px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 cursor-pointer" onClick={() => {
                   setSelectedClient(null);
                   setClientInfos({

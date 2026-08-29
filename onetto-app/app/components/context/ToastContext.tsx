@@ -21,9 +21,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
       {toast && (
         <div className="fixed right-4 top-4 z-50 w-[calc(100%-2rem)] max-w-sm" role={toast.type === 'error' ? 'alert' : 'status'}>
-          <div className={`flex items-start justify-between gap-4 rounded-lg border p-4 text-sm shadow-lg ${toast.type === 'success' ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
+          <div className={`flex items-start justify-between gap-4 rounded-lg border p-4 text-sm ${toast.type === 'success' ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800'}`}>
             <p>{toast.message}</p>
-            <button type="button" aria-label="Fermer la notification" onClick={() => setToast(null)} className="font-bold">×</button>
+            <button type="button" aria-label="Fermer la notification" onClick={() => setToast(null)} className="font-semibold">×</button>
           </div>
         </div>
       )}

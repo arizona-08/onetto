@@ -8,6 +8,7 @@ import {
   CirclePlusIcon,
   FileChartColumnIncreasing,
   RotateCcw,
+  Send,
   Trash,
 } from "lucide-react";
 import Link from "next/link";
@@ -23,6 +24,7 @@ import {
   markInvoiceAsPendingManually,
   massDeleteDocuments,
   retryInvoicePayment,
+  resendInstalmentMandateAuthorisation,
 } from "@/lib/documents/document";
 import { useToast } from "@/app/components/context/ToastContext";
 import { useRouter } from "next/navigation";
@@ -53,6 +55,16 @@ function getStatusPresentation(status: string) {
       dotClassName: "bg-zinc-400",
     }
   );
+}
+
+function getDocumentIssueLabel(document: Document) {
+  const issuedAt = document.sentAt ?? document.createdAt;
+  const verb = document.type === 'INVOICE' ? 'Émise' : 'Émis';
+  return `${verb} le ${new Intl.DateTimeFormat('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(issuedAt))}`;
 }
 
 const invoiceStatusFilterMatcher: Partial<Record<InvoiceSelectStatus, string>> =
@@ -125,6 +137,8 @@ function DocumentsTable({
   const [retryingDocumentIds, setRetryingDocumentIds] = React.useState<
     string[]
   >([]);
+  const [resendingMandateDocumentIds, setResendingMandateDocumentIds] =
+    React.useState<string[]>([]);
   const [updatingManualPaymentIds, setUpdatingManualPaymentIds] =
     React.useState<string[]>([]);
   const [manualPaymentDocument, setManualPaymentDocument] =
@@ -305,6 +319,25 @@ function DocumentsTable({
     return true;
   }
 
+  async function handleResendMandateAuthorisation(documentId: string) {
+    setResendingMandateDocumentIds((ids) => [...ids, documentId]);
+    const response = await resendInstalmentMandateAuthorisation(documentId);
+    setResendingMandateDocumentIds((ids) =>
+      ids.filter((id) => id !== documentId),
+    );
+
+    if (!response.ok) {
+      showToast(
+        typeof response.error.message === 'string'
+          ? response.error.message
+          : "Impossible d'envoyer une nouvelle autorisation de prélèvement.",
+        'error',
+      );
+      return;
+    }
+    showToast(response.data.message, 'success');
+  }
+
   function canUpdateManualPaymentStatus(document: Document): boolean {
     return (
       isInvoiceType &&
@@ -350,6 +383,52 @@ function DocumentsTable({
           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
         )}
       </button>
+    );
+  }
+
+  function hasUnpaidFailedInstalment(document: Document) {
+    return (
+      document.invoicePaymentMode?.paymentMode === 'INSTALMENTS' &&
+      document.invoiceInstalmentPlan?.invoicePaymentInstalments.some(
+        (instalment) =>
+          instalment.instalmentStatus === 'FAILED' ||
+          instalment.instalmentStatus === 'OVERDUE',
+      )
+    );
+  }
+
+  function renderDocumentActions(document: Document) {
+    const isRetrying = retryingDocumentIds.includes(document.id);
+    const isResendingMandate = resendingMandateDocumentIds.includes(document.id);
+    const isOneTimeRejected =
+      isInvoiceType &&
+      document.invoiceStatus === 'REJECTED' &&
+      document.invoicePaymentMode?.paymentMode !== 'INSTALMENTS';
+
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {isOneTimeRejected && (
+          <button type="button" onClick={() => void handleRetryInvoicePayment(document.id)} disabled={isRetrying} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60" title="Envoyer un nouveau lien de paiement sécurisé">
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            {isRetrying ? 'Envoi…' : 'Nouveau lien'}
+          </button>
+        )}
+        {isInvoiceType && hasUnpaidFailedInstalment(document) && (
+          <button type="button" onClick={() => void handleResendMandateAuthorisation(document.id)} disabled={isResendingMandate} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60" title="Envoyer une nouvelle autorisation de mandat si le mandat est expiré">
+            <Send className="h-3.5 w-3.5" aria-hidden="true" />
+            {isResendingMandate ? 'Envoi…' : 'Autorisation'}
+          </button>
+        )}
+        {renderManualPaymentStatusButton(document)}
+        {canConvertEstimate(document) && (
+          <button type="button" onClick={() => void handleConvertEstimateToInvoice(document.id)} disabled={convertingDocumentIds.includes(document.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50" title="Transformer en facture" aria-label="Transformer en facture">
+            <FileChartColumnIncreasing className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
+        {!isOneTimeRejected && !hasUnpaidFailedInstalment(document) && !canUpdateManualPaymentStatus(document) && !canConvertEstimate(document) && (
+          <span className="px-2 text-xs text-zinc-400">—</span>
+        )}
+      </div>
     );
   }
 
@@ -484,7 +563,7 @@ function DocumentsTable({
                   ? "/documents/create?type=invoice"
                   : "/documents/create"
               }
-              className="shadow-md flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer"
+              className=" flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer"
             >
               <CirclePlusIcon />
               <span className="text-sm font-medium">
@@ -493,7 +572,7 @@ function DocumentsTable({
             </Link>
           )}
         </div>
-        <div className="flex flex-col-reverse items-end justify-start sm:flex-row sm:items-center sm:justify-between flex-wrap gap-5">
+        <div className="flex w-full flex-col-reverse items-stretch justify-start gap-4 sm:w-auto sm:flex-row sm:items-center sm:justify-between sm:flex-wrap sm:gap-5">
           <div>
             {hasCheckedDocuments && (
               <button
@@ -508,7 +587,7 @@ function DocumentsTable({
             )}
           </div>
 
-          <div className="flex items-center justify-start flex-wrap gap-5">
+          <div className="flex w-full items-center justify-start gap-3 sm:w-auto sm:flex-wrap sm:gap-5">
             <DocumentSelector
               type={isInvoiceType ? "invoices" : "estimates"}
               selectedStatus={selectedStatus}
@@ -530,31 +609,31 @@ function DocumentsTable({
         <ul className="mt-4 space-y-3">
           {masterDocumentsList.map((document) => (
             <li key={document.id}>
-              <div className="bg-white px-3 py-5 rounded-md flex items-start justify-between">
-                {/* left part */}
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold">{document.clientName}</p>
-                  <div className="text-gray-600 text-xs flex items-center gap-1">
+              <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 space-y-1">
+                    <p className="truncate text-sm font-semibold text-zinc-900">{document.clientName}</p>
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-zinc-600">
                     <Link
                       href={`/documents/${document.id}`}
-                      className="underline hover:text-primary"
+                      className="font-semibold text-primary hover:underline"
                     >
                       {document.documentNumber}
                     </Link>
                     <span className="inline-block w-1 h-1 rounded-full bg-zinc-600"></span>
                     <span>{formatDate(document.paymentDueAt)}</span>
+                    </div>
+                    <p className="text-xs text-zinc-500">{getDocumentIssueLabel(document)}</p>
                   </div>
-                </div>
 
-                {/* right part */}
-                <div className="flex flex-col items-end gap-1">
-                  <p className="text-sm font-semibold">
+                  <div className="shrink-0 text-right">
+                    <p className="text-base font-semibold text-zinc-900">
                     {document.totalPrice.toLocaleString("fr-FR", {
                       style: "currency",
                       currency: "EUR",
                     })}
                   </p>
-                  <span className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-700">
+                    <span className="mt-1 inline-flex items-center gap-2 text-xs font-semibold text-zinc-700">
                     <span
                       className={`h-2 w-2 rounded-full ${getStatusPresentation(isInvoiceType ? document.invoiceStatus : document.estimateStatus).dotClassName}`}
                     />
@@ -566,44 +645,18 @@ function DocumentsTable({
                       ).label
                     }
                   </span>
-                  {isInvoiceType && (
+                  </div>
+                </div>
+                {isInvoiceType && (
+                  <div className="mt-3">
                     <InvoiceInstalmentProgress
                       document={document}
-                      className="mt-2 w-32"
+                      className="w-full"
                     />
-                  )}
-                  {isInvoiceType && document.invoiceStatus === "REJECTED" && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void handleRetryInvoicePayment(document.id)
-                      }
-                      disabled={retryingDocumentIds.includes(document.id)}
-                      className="mt-2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      title="Générer et envoyer un nouveau lien de paiement"
-                      aria-label="Relancer le paiement"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
-                  )}
-                  {renderManualPaymentStatusButton(document)}
-                  {canConvertEstimate(document) && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void handleConvertEstimateToInvoice(document.id)
-                      }
-                      disabled={convertingDocumentIds.includes(document.id)}
-                      className="mt-2 inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                      title="Transformer en facture"
-                      aria-label="Transformer en facture"
-                    >
-                      <FileChartColumnIncreasing
-                        className="h-3.5 w-3.5"
-                        aria-hidden="true"
-                      />
-                    </button>
-                  )}
+                  </div>
+                )}
+                <div className="mt-3 flex justify-end">
+                  {renderDocumentActions(document)}
                 </div>
               </div>
             </li>
@@ -612,9 +665,9 @@ function DocumentsTable({
       </div>
 
       {/* Tableau de facture pour tablet et desktop */}
-      <div className="hidden md:block mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm">
+      <div className="hidden md:block mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
         <table className="min-w-185 w-full border-collapse text-left">
-          <thead className="bg-zinc-50 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
             <tr>
               <th className="w-12 px-5 py-4">
                 <input
@@ -624,14 +677,14 @@ function DocumentsTable({
                   onChange={() => toggleCheckAll()}
                 />
               </th>
-              <th className="px-5 py-4">
+              <th className="px-5 py-4 font-semibold">
                 {isInvoiceType ? "Facture" : "Devis"}
               </th>
-              <th className="px-5 py-4">Client</th>
-              <th className="px-5 py-4">Date d&apos;émission</th>
-              <th className="px-5 py-4">Date d&apos;échéance</th>
-              <th className="px-5 py-4">Montant</th>
-              <th className="px-5 py-4">Statut</th>
+              <th className="px-5 py-4 font-semibold">Client</th>
+              <th className="px-5 py-4 font-semibold">Date d&apos;échéance</th>
+              <th className="px-5 py-4 font-semibold">Montant</th>
+              <th className="px-5 py-4 font-semibold">Statut</th>
+              <th className="px-5 py-4 text-right font-semibold">Action</th>
             </tr>
           </thead>
           <tbody className="text-sm text-zinc-700">
@@ -665,7 +718,9 @@ function DocumentsTable({
                         {document.documentNumber}
                       </p>
                     </Link>
-                    {/* <p className="text-xs text-zinc-500">Type {isInvoiceType ? "de la facture" : "du devis"}</p> */}
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {getDocumentIssueLabel(document)}
+                    </p>
                   </td>
                   <td className="px-5 py-5 align-center">
                     <div className="flex items-center gap-3">
@@ -678,11 +733,6 @@ function DocumentsTable({
                       <div className="font-medium text-zinc-900">
                         {document.clientName}
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-5 align-center">
-                    <div className="font-medium text-zinc-900">
-                      {formatDate(document.createdAt)}
                     </div>
                   </td>
                   <td className="px-5 py-5 align-center">
@@ -729,7 +779,8 @@ function DocumentsTable({
                           />
                         )}
                       </div>
-                      {isInvoiceType &&
+                      {/* Actions are rendered in the dedicated final column. */}
+                      {false && isInvoiceType &&
                         document.invoiceStatus === "REJECTED" && (
                           <button
                             type="button"
@@ -744,8 +795,8 @@ function DocumentsTable({
                             <RotateCcw className="h-4 w-4" aria-hidden="true" />
                           </button>
                         )}
-                      {renderManualPaymentStatusButton(document)}
-                      {canConvertEstimate(document) && (
+                      {false && renderManualPaymentStatusButton(document)}
+                      {false && canConvertEstimate(document) && (
                         <button
                           type="button"
                           onClick={() =>
@@ -763,6 +814,9 @@ function DocumentsTable({
                         </button>
                       )}
                     </div>
+                  </td>
+                  <td className="px-5 py-5 align-center">
+                    {renderDocumentActions(document)}
                   </td>
                 </tr>
               ))}
@@ -826,10 +880,10 @@ function DocumentsTable({
           aria-modal="true"
           aria-labelledby="manual-payment-title"
         >
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-lg bg-white p-6">
             <h2
               id="manual-payment-title"
-              className="font-title text-xl font-black text-zinc-900"
+              className="font-title text-xl font-semibold text-zinc-900"
             >
               Confirmer le paiement manuel
             </h2>
@@ -873,10 +927,10 @@ function DocumentsTable({
           aria-modal="true"
           aria-labelledby="delete-documents-title"
         >
-          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col rounded-lg bg-white p-6 shadow-xl">
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col rounded-lg bg-white p-6">
             <h2
               id="delete-documents-title"
-              className="font-title text-xl font-black text-zinc-900"
+              className="font-title text-xl font-semibold text-zinc-900"
             >
               Supprimer les documents sélectionnés ?
             </h2>

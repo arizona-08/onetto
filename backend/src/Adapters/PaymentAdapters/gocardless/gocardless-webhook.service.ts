@@ -30,28 +30,40 @@ export class GoCardlessWebhookService {
     const events = webhook.events;
     for (const event of events) {
       try {
-        const alreadyProcessed = await this.isAlreadyProcessed(
-          $Enums.PaymentProvider.GOCARDLESS,
-          event.id,
-        );
-        if (alreadyProcessed) {
+        const claimed = await this.claimEvent(event.id);
+        if (!claimed) {
           console.log(
             `Webhook event with ID ${event.id} has already been processed. Skipping.`,
           );
           continue;
         }
   
-        switch (event.resource_type) {
-          case 'billing_request':
-          case 'billing_requests':
-            await this.billingRequestHandler.handleWebhook(event);
-            break;
-          case 'mandates':
-            await this.mandateHandler.handleWebhook(event);
-            break;
-          case 'payments':
-            await this.paymentHandler.handleWebhook(event);
-            break;
+        try {
+          switch (event.resource_type) {
+            case 'billing_request':
+            case 'billing_requests':
+              await this.billingRequestHandler.handleWebhook(event);
+              break;
+            case 'mandates':
+              await this.mandateHandler.handleWebhook(event);
+              break;
+            case 'payments':
+              await this.paymentHandler.handleWebhook(event);
+              break;
+            case 'instalment_schedules':
+              await this.instalmentSchedulesHandler.handleWebhook(event);
+              break;
+          }
+        } catch (error) {
+          await this.prismaService.processedWebhookEvents.delete({
+            where: {
+              provider_providerEventId: {
+                provider: $Enums.PaymentProvider.GOCARDLESS,
+                providerEventId: event.id,
+              },
+            },
+          });
+          throw error;
         }
       } catch (error) {
         this.logger.error(
@@ -76,5 +88,27 @@ export class GoCardlessWebhookService {
         },
       });
     return !!existingEvent;
+  }
+
+  private async claimEvent(eventId: string): Promise<boolean> {
+    try {
+      await this.prismaService.processedWebhookEvents.create({
+        data: {
+          provider: $Enums.PaymentProvider.GOCARDLESS,
+          providerEventId: eventId,
+        },
+      });
+      return true;
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'P2002'
+      ) {
+        return false;
+      }
+      throw error;
+    }
   }
 }

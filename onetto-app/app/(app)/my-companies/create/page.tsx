@@ -14,7 +14,7 @@ function CreateCompanyPage() {
         <ArrowLeft className="h-4 w-4" /> Retour aux entreprises
       </Link>
       <div className="mt-5 max-w-4xl">
-        <h1 className="font-title text-2xl font-black">Ajouter une entreprise</h1>
+        <h1 className="font-title text-2xl font-semibold">Ajouter une entreprise</h1>
         <p className="mt-1 text-sm text-zinc-500">Cette entreprise deviendra votre entreprise active après sa création.</p>
         <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50">
           <CreateCompanyForm

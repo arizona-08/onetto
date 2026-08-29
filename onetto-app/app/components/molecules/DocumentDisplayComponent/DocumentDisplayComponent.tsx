@@ -67,15 +67,15 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
 
   return (
     <>
-      <article className="mx-auto mt-6 w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950 shadow-[0_24px_70px_-45px_rgba(15,23,42,0.45)] print:mt-0 print:max-w-none print:rounded-none print:shadow-none">
-        <div className="flex justify-end px-7 pt-5 print:hidden"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="display" /></div>
-        <header className="px-7 py-6">
-          <div className="flex items-start justify-between gap-6">
-            <div className="-space-y-4">
-              <p className="flex flex-col font-title text-7xl font-medium uppercase tracking-tighter text-primary">
+      <article className="mx-auto mt-5 w-full max-w-2xl overflow-hidden rounded-xl bg-white text-xs leading-relaxed text-zinc-950 sm:mt-6 sm:rounded-md print:mt-0 print:max-w-none print:rounded-none">
+        <div className="flex justify-end px-4 pt-4 sm:px-7 sm:pt-5 print:hidden"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="display" /></div>
+        <header className="px-4 py-5 sm:px-7 sm:py-6">
+          <div className="flex items-start justify-between gap-3 sm:gap-6">
+            <div className="min-w-0">
+              <p className="font-title text-5xl font-medium uppercase leading-none tracking-tighter text-primary sm:text-7xl">
                 {isInvoice ? 'Facture' : 'Devis'}
               </p>
-              <span className="inline-block rounded-full border border-black bg-white px-2 py-1 text-xs">
+              <span className="mt-2 inline-block max-w-full break-all rounded-full border border-black bg-white px-2 py-1 text-xs">
                 n° {document.documentNumber}
               </span>
 
@@ -94,15 +94,15 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
               </div>
             </div>
 
-            <div className="h-20 w-20 rounded-md bg-primary" />
+            <div className="h-14 w-14 shrink-0 rounded-md bg-primary sm:h-20 sm:w-20" />
           </div>
 
           <hr className="mt-10 inline-block w-full text-primary" />
 
-          <div className="mt-7 grid gap-6 md:grid-cols-2">
+          <div className="mt-7 grid gap-6 sm:grid-cols-2">
             <section>
               <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-black">{companyName}</p>
+                <p className="min-h-5 font-title text-lg font-semibold">{companyName}</p>
                 <p>Statut : Micro-entreprise</p>
                 <p>SIREN : {companySiren}</p>
                 <p>TVA intracommunautaire : {companyVatNumber}</p>
@@ -115,12 +115,12 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
               </div>
             </section>
 
-            <section className="text-right">
-              <p className="mb-2 font-bold uppercase text-zinc-500">À l’attention de</p>
+            <section className="min-w-0 text-left sm:text-right">
+              <p className="mb-2 font-semibold uppercase text-zinc-500">À l’attention de</p>
               <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-black">{document.clientName}</p>
-                <p>{document.clientEmail}</p>
-                <p>{document.clientAddress}</p>
+                <p className="min-h-5 font-title text-lg font-semibold">{document.clientName}</p>
+                <p className="break-words">{document.clientEmail}</p>
+                <p className="break-words">{document.clientAddress}</p>
                 <p>
                   {document.clientPostalCode}, {document.clientCity}, {document.clientCountry}
                 </p>
@@ -129,7 +129,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
           </div>
         </header>
 
-        <div className="px-7 py-6">
+        <div className="px-4 py-5 sm:px-7 sm:py-6">
           <div className="space-y-3 sm:hidden">
             {services.length > 0 ? services.map((serviceLine) => {
               const { description, quantity, unitPrice, unit, taxRate } = getServiceValues(serviceLine)
@@ -143,7 +143,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
                 >
                   <div className="flex items-start justify-between gap-4">
                     <p className="font-semibold text-zinc-900">{description}</p>
-                    <p className="shrink-0 font-title text-sm font-black text-primary">
+                    <p className="shrink-0 font-title text-sm font-semibold text-primary">
                       {currency(lineTotalTTC)}
                     </p>
                   </div>
@@ -175,7 +175,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
                 <col className="w-[12%]" />
               </colgroup>
               <thead className="whitespace-nowrap bg-primary/10">
-                <tr className="border-b border-zinc-200 font-bold uppercase text-zinc-600">
+                <tr className="border-b border-zinc-200 font-semibold uppercase text-zinc-600">
                   <th className="py-2.5 pl-1 pr-1.5">Description</th>
                   <th className="px-1.5 py-2.5">Qté</th>
                   <th className="px-1.5 py-2.5">Prix HT</th>
@@ -238,22 +238,22 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
 
           <footer className="mt-7 grid gap-6 border-t border-zinc-200 pt-5 md:grid-cols-[1.1fr,0.9fr]">
             <section>
-              <div className="mb-3 flex items-center gap-2 font-title font-black">
+              <div className="mb-3 flex items-center gap-2 font-title font-semibold">
                 <Landmark className="h-4 w-4 text-primary" />
                 <h2>Coordonnées bancaires</h2>
               </div>
 
               <div className="grid gap-x-8 gap-y-2 sm:grid-cols-2">
-                <p className="flex justify-between gap-4">
+                <p className="flex min-w-0 justify-between gap-4 break-all">
                   <b>Titulaire : {companyName}</b>
                 </p>
-                <p className="flex justify-between gap-4">
+                <p className="flex min-w-0 justify-between gap-4 break-all">
                   <b>IBAN : {companyIban}</b>
                 </p>
-                <p className="flex justify-between gap-4">
+                <p className="flex min-w-0 justify-between gap-4 break-all">
                   <b>Banque : {companyName}</b>
                 </p>
-                <p className="flex justify-between gap-4">
+                <p className="flex min-w-0 justify-between gap-4 break-all">
                   <b>BIC : {companyBic}</b>
                 </p>
               </div>

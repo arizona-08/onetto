@@ -65,7 +65,10 @@ export class InvoicePaymentStatusService {
   }
 
   /** Recalculates the invoice status when one of its instalments changes. */
-  async refreshFromInstalment(invoiceId: string): Promise<void> {
+  async refreshFromInstalment(
+    invoiceId: string,
+    paidInstalmentAmountInCents?: number,
+  ): Promise<void> {
     const document = await this.prismaService.document.findUnique({
       where: { id: invoiceId },
       select: { id: true, invoiceStatus: true },
@@ -80,6 +83,12 @@ export class InvoicePaymentStatusService {
         where: { id: document.id },
         data: { invoiceStatus: nextStatus },
       });
+    }
+    if (paidInstalmentAmountInCents !== undefined) {
+      await this.sendPaymentReceipt(
+        document.id,
+        paidInstalmentAmountInCents / 100,
+      );
     }
     if (justPaid) {
       await this.sendInvoicePaidConfirmation(document.id);
@@ -201,7 +210,10 @@ export class InvoicePaymentStatusService {
     return 'PENDING';
   }
 
-  private async sendPaymentReceipt(documentId: string): Promise<void> {
+  private async sendPaymentReceipt(
+    documentId: string,
+    amount?: number,
+  ): Promise<void> {
     const document = await this.prismaService.document.findUniqueOrThrow({
       where: { id: documentId },
       select: {
@@ -215,7 +227,7 @@ export class InvoicePaymentStatusService {
     const mailContent = this.mailService.createPaymentReceiptMail({
       clientName: document.clientName,
       documentNumber: document.documentNumber,
-      amount: document.totalPrice,
+      amount: amount ?? document.totalPrice,
       companyName: document.company.name,
       companyEmail: document.company.email,
     });

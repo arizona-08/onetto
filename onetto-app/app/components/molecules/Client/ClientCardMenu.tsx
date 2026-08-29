@@ -46,7 +46,7 @@ function ClientCardMenu({ isOpen, setIsOpen, clientId, triggerEdit, triggerDelet
         <EllipsisVertical className="h-5 w-5" />
       </button>
 
-      <div className={`${isOpen ? 'block' : 'hidden'} absolute right-0 top-full z-10 mt-1 w-40 rounded-xl border border-zinc-200 bg-white p-1 shadow-lg`}>
+      <div className={`${isOpen ? 'block' : 'hidden'} absolute right-0 top-full z-10 mt-1 w-40 rounded-xl border border-zinc-200 bg-white p-1`}>
         <button className="block w-full text-left px-4 py-2 text-sm text-zinc-700 rounded-md hover:bg-zinc-100" onClick={() => {
           setIsOpen(false);
           triggerEdit?.(clientId);

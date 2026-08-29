@@ -12,8 +12,8 @@ import { COMPANY_UPDATED_EVENT, notifyCompanyUpdated } from '@/lib/companies/com
 
 const links = [
   { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboardIcon />  },
-  {name: 'Mes entreprises', href: '/my-companies', icon: <Building />},
-  { name: 'Devis & Factures', href: '/documents', icon: <FileChartColumnIncreasing />  },
+  { name: 'Factures & Devis', href: '/documents', icon: <FileChartColumnIncreasing />  },
+  { name: 'Mes entreprises', href: '/my-companies', icon: <Building />},
   { name: 'Mes Clients', href: '/customers', icon: <UserIcon />  },
   { name: 'Mes Services', href: '/services', icon: <Waypoints /> },
   { name: 'Paramètres', href: '/settings/account', icon: <SettingsIcon />  },
@@ -81,26 +81,26 @@ function TopSidebar() {
   }
 
   return (
-    <header className="bg-white relative w-full border-b border-zinc-200 shadow-xs lg:w-64 lg:h-screen p-4 lg:flex lg:flex-col">
+    <header className="bg-white relative w-full border-b border-zinc-200 lg:w-64 lg:h-screen p-4 lg:flex lg:flex-col">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <BurgerMenu trigger={() => setIsOpen(!isOpen)} />
-          <h1 className="font-title text-2xl font-black text-primary" onClick={() => setIsOpen(true)}>ONETTO</h1>
+          <h1 className="font-title text-2xl font-bold text-primary" onClick={() => setIsOpen(true)}>ONETTO</h1>
         </div>
 
         <div className="relative">
           {/* profile pic */}
-          <button type="button" aria-label="Ouvrir le menu du compte" className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary lg:hidden" onClick={() => setShowMobileCompaniesMenu(!showMobileCompaniesMenu)}>
+          <button type="button" aria-label="Ouvrir le menu du compte" className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary lg:hidden" onClick={() => setShowMobileCompaniesMenu(!showMobileCompaniesMenu)}>
             {activeCompany ? getInitials(activeCompany.name) : 'O'}
           </button>
 
           {/* mobile companies menu */}
-          <div className="lg:hidden absolute right-0 top-full z-20 mt-2 w-56 rounded-lg bg-white shadow-lg">
+          <div className="lg:hidden absolute right-0 top-full z-20 mt-2 w-56 rounded-lg bg-white">
             {showMobileCompaniesMenu && (
               <div>
                 <div className="px-4 py-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{activeCompany ? getInitials(activeCompany.name) : 'O'}</div>
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{activeCompany ? getInitials(activeCompany.name) : 'O'}</div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-zinc-800">{activeCompany?.name ?? 'Aucune entreprise sélectionnée'}</p>
                       <p className="truncate text-xs text-zinc-500">{activeCompany?.email ?? 'Gérer mes entreprises'}</p>
@@ -115,7 +115,7 @@ function TopSidebar() {
                   {otherCompanies.map((company) => (
                     <li key={company.id} className="cursor-pointer overflow-hidden px-4 py-2 hover:bg-zinc-50" onClick={() => void handleCompanySelection(company.id)}>
                       <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{getInitials(company.name)}</div>
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{getInitials(company.name)}</div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate">{company.name}</p>
                           <p className="truncate text-xs text-zinc-500">{company.email}</p>
@@ -151,7 +151,7 @@ function TopSidebar() {
               <li key={link.name} className="mb-2">
                 <a
                   href={link.href}
-                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${isCurrentPathName ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-700 hover:bg-zinc-200'}`}
+                  className={`flex items-center gap-3 px-4 py-2 rounded-lg font-normal transition-colors ${isCurrentPathName ? 'bg-zinc-200 text-zinc-900 font-medium' : 'text-zinc-600 hover:bg-zinc-200'}`}
                 >
                   {link.icon}
                   {link.name}
@@ -163,11 +163,11 @@ function TopSidebar() {
 
         <div className="hidden lg:block relative w-full rounded-lg p-2 transition-colors hover:bg-zinc-100 group duration-300">
           <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-full opacity-0 invisible group-hover:visible group-hover:opacity-100 transition-all duration-150 space-y-2">
-            <ul className="bg-white border border-zinc-200 rounded-lg shadow-sm">
+            <ul className="bg-white border border-zinc-200 rounded-lg">
               {otherCompanies.map((company) => (
                 <li key={company.id} className="cursor-pointer overflow-hidden px-2 py-2 hover:bg-zinc-50" onClick={() => void handleCompanySelection(company.id)}>
                   <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">{getInitials(company.name)}</div>
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">{getInitials(company.name)}</div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{company.name}</p>
                       <p className="truncate text-xs text-zinc-500">{company.email}</p>
@@ -179,7 +179,7 @@ function TopSidebar() {
           </div>
           <div className="space-y-3 cursor-pointer">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                 {activeCompany ? getInitials(activeCompany.name) : 'O'}
               </div>
               <div className="min-w-0">

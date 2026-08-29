@@ -40,7 +40,7 @@ export default function DocumentsTypeSwitch({
               aria-pressed={isActive}
               className={`rounded-lg px-5 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
                 isActive
-                  ? 'bg-white text-zinc-900 shadow-sm'
+                  ? 'bg-white text-zinc-900'
                   : 'text-zinc-500 hover:text-zinc-900'
               }`}
             >

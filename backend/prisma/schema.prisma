@@ -170,6 +170,7 @@ model Document {
   convertedDocuments Document[] @relation("DocumentConversion")
 
   urlDocumentPdf        String?
+  answerDueAt           DateTime?              @default(now())
   paymentDueAt          DateTime
   invoiceStatus         InvoiceStatus          @default(DRAFT)
   estimateStatus        EstimateStatus         @default(DRAFT)
@@ -181,6 +182,7 @@ model Document {
   invoiceInstalmentPlan InvoiceInstalmentPlan?
   invoicePaymentMode    InvoicePaymentMode?
   invoicePublicAccess   InvoicePublicAccess?
+  processedReminders    ProcessedReminders[]
 
   @@unique([companyId, documentNumber, versionNumber])
 }
@@ -369,6 +371,7 @@ model InvoiceInstalmentPlan {
   numberOfInstalments        Int
   amountPerInstalmentInCents Int
   startDate                  DateTime @default(now())
+  authorizationDeadline      DateTime
   providerReference          String   @unique
   providerScheduledId        String?
   providerMandateId          String?
@@ -388,7 +391,9 @@ model InvoicePaymentInstalment {
   amountInCents           Int
   dueDate                 DateTime
   instalmentStatus        InvoicePaymentInstalmentStatus @default(PENDING)
+  automaticRetryScheduled Boolean                        @default(false)
   paidAt                  DateTime?
+  processedReminders      ProcessedInstalmentReminder[]
 
   @@unique([invoiceInstalmentPlanId, instalmentNumber])
 }
@@ -441,4 +446,35 @@ model CompanyClient {
   country    String
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model ProcessedReminders {
+  id           String       @id @default(uuid())
+  documentId   String
+  document     Document     @relation(fields: [documentId], references: [id])
+  reminderType ReminderType
+  processedAt  DateTime     @default(now())
+
+  @@unique([documentId, reminderType])
+}
+
+model ProcessedInstalmentReminder {
+  id           String                   @id @default(uuid())
+  instalmentId String
+  instalment   InvoicePaymentInstalment @relation(fields: [instalmentId], references: [id], onDelete: Cascade)
+  reminderType ReminderType
+  processedAt  DateTime                 @default(now())
+
+  @@unique([instalmentId, reminderType])
+}
+
+enum ReminderType {
+  ESTIMATE_PENDING
+  ESTIMATE_PENDING_BEFORE_DUE_DATE
+  INVOICE_BEFORE_DUE_DATE
+  INVOICE_OVERDUE_FIRST
+  INVOICE_OVERDUE_SECOND
+  INSTALMENT_MANDATE_AFTER_ISSUE
+  INSTALMENT_MANDATE_BEFORE_AUTHORIZATION_DEADLINE
+  INSTALMENT_PAYMENT_OVERDUE
 }

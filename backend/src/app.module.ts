@@ -10,9 +10,12 @@ import { CompaniesModule } from './companies/companies.module';
 import { MailModule } from './mail/mail.module';
 import { PaymentProviderModule } from './Adapters/PaymentAdapters/payment-provider.module';
 import { SubscriptionModule } from './subscription/subscription.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { AutomaticRemindersModule } from './automatic-reminders-cron/automatic-remineders.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({
+  imports: [
+    ConfigModule.forRoot({
       isGlobal: true,
     }),
     PrismaModule,
@@ -22,7 +25,9 @@ import { SubscriptionModule } from './subscription/subscription.module';
     CompaniesModule,
     MailModule, // custom mail module for sending emails
     PaymentProviderModule,
-    SubscriptionModule
+    SubscriptionModule,
+    AutomaticRemindersModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [AppService],

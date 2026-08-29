@@ -118,13 +118,13 @@ function ServiceLineItems({ hydratedLineItems, hydratedDocumentDates, onLineItem
           <table className="w-full border-collapse text-left min-w-140">
             <thead className="border-b border-gray-200  text-sm text-gray-500">
               <tr className="">
-                <th className="pb-5 font-bold font-title tracking-wide">Description</th>
-                <th className="pb-5 font-bold font-title tracking-wide">Quantité</th>
-                <th className="pb-5 font-bold font-title tracking-wide">Prix unitaire</th>
-                <th className="pb-5 font-bold font-title tracking-wide">TVA</th>
-                <th className="pb-5 font-bold font-title tracking-wide">Total HT</th>
-                <th className="pb-5 font-bold font-title tracking-wide">Total TTC</th>
-                <th className="pb-5 font-bold font-title tracking-wide">Actions</th>
+                <th className="pb-5 font-semibold font-title tracking-wide">Description</th>
+                <th className="pb-5 font-semibold font-title tracking-wide">Quantité</th>
+                <th className="pb-5 font-semibold font-title tracking-wide">Prix unitaire</th>
+                <th className="pb-5 font-semibold font-title tracking-wide">TVA</th>
+                <th className="pb-5 font-semibold font-title tracking-wide">Total HT</th>
+                <th className="pb-5 font-semibold font-title tracking-wide">Total TTC</th>
+                <th className="pb-5 font-semibold font-title tracking-wide">Actions</th>
               </tr>
             </thead>
             <tbody>

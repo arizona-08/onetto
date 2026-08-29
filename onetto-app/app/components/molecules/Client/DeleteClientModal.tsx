@@ -12,8 +12,8 @@ interface DeleteClientModalProps {
 
 function DeleteClientModal({ client, isDeleting, onConfirm, onCancel }: DeleteClientModalProps) {
   return (
-    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-      <h3 id="delete-client-title" className="font-title text-lg font-bold text-zinc-800">
+    <div className="w-full max-w-md rounded-2xl bg-white p-6">
+      <h3 id="delete-client-title" className="font-title text-lg font-semibold text-zinc-800">
         Supprimer le client
       </h3>
       <p className="text-sm text-zinc-500 mt-2">

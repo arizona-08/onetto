@@ -7,7 +7,7 @@ async function CreateDocumentPage({ searchParams }: { searchParams: Promise<{ ty
 
   return (
     <div className="mx-auto w-full max-w-6xl p-4">
-      <h1 className="text-2xl font-title font-black mb-1">
+      <h1 className="text-2xl font-title font-semibold mb-1">
         Création d&apos;une {isInvoice ? 'facture' : 'devis'}
       </h1>
       <p className="text-gray-500 mb-6">

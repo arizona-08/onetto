@@ -47,6 +47,7 @@ export type Document = {
   clientCity: string;
   clientCountry: string;
   clientPostalCode: string;
+  totalPriceExcludingTax: number;
   totalPrice: number;
   authorId: string;
   createdAt: string;
