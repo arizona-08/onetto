@@ -1,6 +1,6 @@
 'use client'
 import { Document, DocumentNegociation } from '@/app/types'
-import { convertEstimateToInvoice, createNewDocumentVersion, deleteDraftDocument, downloadDocumentPdf, getDocumentNegociations, retryInvoicePayment, sendDocumentToClient, submitB2CEreporting } from '@/lib/documents/document';
+import { convertEstimateToInvoice, createNewDocumentVersion, deleteDraftDocument, downloadDocumentPdf, downloadFacturX, getDocumentNegociations, retryInvoicePayment, sendDocumentToClient, submitB2CEreporting } from '@/lib/documents/document';
 import { Download, Edit, Ellipsis, ExternalLink, FileChartColumnIncreasing, MessageSquareText, RotateCcw, Send, Trash } from 'lucide-react';
 import DocumentDisplayComponent from '../molecules/DocumentDisplayComponent/DocumentDisplayComponent';
 import Link from 'next/link';
@@ -18,6 +18,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
   const [isCreatingVersion, setIsCreatingVersion] = useState(false);
   const [isRetryingPayment, setIsRetryingPayment] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloadingFacturX, setIsDownloadingFacturX] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [isSubmittingEreporting, setIsSubmittingEreporting] = useState(false);
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
@@ -135,6 +136,24 @@ function ShowDocument({ document }: ShowDocumentProps) {
     }
   }
 
+  async function handleDownloadFacturX() {
+    setIsDownloadingFacturX(true);
+    try {
+      const file = await downloadFacturX(document.id);
+      const url = URL.createObjectURL(file);
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = `factur-x-${document.documentNumber}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast('Factur-X généré et validé par le convertisseur SuperPDP.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Impossible de générer le Factur-X.', 'error');
+    } finally {
+      setIsDownloadingFacturX(false);
+    }
+  }
+
   async function handleDeleteDraft() {
     setIsDeletingDraft(true);
     const response = await deleteDraftDocument(document.id);
@@ -185,6 +204,12 @@ function ShowDocument({ document }: ShowDocumentProps) {
                 <Download className="h-4 w-4" aria-hidden="true" />
                 {isDownloading ? 'Téléchargement…' : 'Télécharger le PDF'}
               </button>
+              {document.type === 'INVOICE' && (
+                <button type="button" onClick={() => { setIsMoreActionsOpen(false); void handleDownloadFacturX(); }} disabled={isDownloadingFacturX} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50" role="menuitem">
+                  <FileChartColumnIncreasing className="h-4 w-4" aria-hidden="true" />
+                  {isDownloadingFacturX ? 'Génération…' : 'Télécharger le Factur-X'}
+                </button>
+              )}
               {(isDraftEstimate || isDraftInvoice) && (
                 <button type="button" onClick={() => { setIsMoreActionsOpen(false); void handleDeleteDraft(); }} disabled={isDeletingDraft} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50" role="menuitem">
                   <Trash className="h-4 w-4" aria-hidden="true" />

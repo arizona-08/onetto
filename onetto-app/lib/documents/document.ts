@@ -164,6 +164,22 @@ export async function downloadDocumentPdf(documentId: string) {
   return response.blob();
 }
 
+export async function downloadFacturX(documentId: string) {
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/api/electronic-invoicing/factur-x/documents/${documentId}/download`,
+    { credentials: 'include' },
+  );
+  if (!response.ok) {
+    let message = 'Impossible de générer le Factur-X.';
+    try {
+      const body = await response.json() as { message?: string | string[] };
+      message = Array.isArray(body.message) ? body.message.join(', ') : body.message ?? message;
+    } catch { /* The API can return a non-JSON error page. */ }
+    throw new Error(message);
+  }
+  return response.blob();
+}
+
 export async function getDocumentNegociations(documentId: string) {
   return apiClient<DocumentNegociation[]>(
     `api/documents/${documentId}/negociations`,
