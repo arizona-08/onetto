@@ -75,7 +75,8 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
         address: document.clientAddress,
         city: document.clientCity,
         postalCode: document.clientPostalCode,
-        country: document.clientCountry
+        country: document.clientCountry,
+        clientType: document.clientType === 'BUSINESS' ? 'BUSINESS' : 'CLIENT',
       });
 
       setLineItems(document.services ? document.services?.map(service => ({
@@ -177,8 +178,8 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       return null;
     }
 
-    const { name, email, address, city, postalCode, country } = client as Client;
-    const clientData = { name, email, address, city, postalCode, country };
+    const { name, email, address, city, postalCode, country, clientType } = client as Client;
+    const clientData = { name, email, address, city, postalCode, country, clientType };
 
     let response;
 

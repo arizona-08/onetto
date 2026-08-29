@@ -22,6 +22,7 @@ async function clients() {
         city: client.city,
         postalCode: client.postalCode,
         country: client.country,
+        clientType: client.clientType,
       }))
     : [];
 

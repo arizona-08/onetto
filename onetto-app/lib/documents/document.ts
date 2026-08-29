@@ -60,6 +60,13 @@ export async function massDeleteDocuments(documentIds: string[]) {
   });
 }
 
+export async function deleteDraftDocument(documentId: string) {
+  return apiClient<{ success: true; message: string }>(
+    `api/documents/${documentId}/draft`,
+    { method: 'DELETE' },
+  );
+}
+
 export async function sendDocumentToClient(
   documentId: string,
   data?: SendDocumentToClientDto,
@@ -79,6 +86,16 @@ export async function retryInvoicePayment(documentId: string) {
     {
       method: "POST",
     },
+  );
+}
+
+export async function submitB2CEreporting(
+  companyId: string,
+  documentId: string,
+) {
+  return apiClient<{ status: 'SUBMITTED' | 'ACCEPTED' | 'FAILED' }>(
+    `api/electronic-invoicing/superpdp/companies/${companyId}/documents/${documentId}/b2c-transaction`,
+    { method: 'POST' },
   );
 }
 

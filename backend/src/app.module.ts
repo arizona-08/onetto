@@ -12,11 +12,14 @@ import { PaymentProviderModule } from './Adapters/PaymentAdapters/payment-provid
 import { SubscriptionModule } from './subscription/subscription.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AutomaticRemindersModule } from './automatic-reminders-cron/automatic-remineders.module';
+import { ElectronicInvoicingModule } from './electronic-invoicing/electronic-invoicing.module';
+import { validateSuperPdpConfiguration } from './electronic-invoicing/superpdp.config';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validate: validateSuperPdpConfiguration,
     }),
     PrismaModule,
     AuthModule,
@@ -27,6 +30,7 @@ import { AutomaticRemindersModule } from './automatic-reminders-cron/automatic-r
     PaymentProviderModule,
     SubscriptionModule,
     AutomaticRemindersModule,
+    ElectronicInvoicingModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [AppController],

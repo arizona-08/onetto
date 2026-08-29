@@ -193,6 +193,18 @@ export class DocumentController {
     return await this.documentService.massDeleteDocuments(documentIds, user);
   }
 
+  @Delete(':documentId/draft')
+  async deleteDraftDocument(
+    @Param('documentId') documentId: string,
+    @Req() req: ExtendedRequest,
+  ) {
+    if (!req.user) {
+      throw new UnauthorizedException('Non authentifié');
+    }
+
+    return this.documentService.deleteDraftDocument(documentId, req.user);
+  }
+
   @Post(':documentId/send-to-client')
   async sendDocumentToClient(
     @Param('documentId') documentId: string,

@@ -28,6 +28,7 @@ function AddClientForm({ isActive, setIsActive, onClose, handleAddClient, client
     city: "",
     postalCode: "",
     country: "",
+    clientType: 'CLIENT',
   });
 
   React.useEffect(() => {
@@ -52,6 +53,7 @@ function AddClientForm({ isActive, setIsActive, onClose, handleAddClient, client
       city: "",
       postalCode: "",
       country: "",
+      clientType: 'CLIENT',
     });
   }
 
@@ -76,6 +78,19 @@ function AddClientForm({ isActive, setIsActive, onClose, handleAddClient, client
             
             {/* Champs principaux */}
             <div className='space-y-4'>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Type de client</legend>
+                <div className="flex gap-3">
+                  <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                    <input type="radio" name="clientType" value="BUSINESS" checked={previewClient.clientType === 'BUSINESS'} onChange={() => handleClientChange('clientType', 'BUSINESS')} />
+                    Entreprise
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                    <input type="radio" name="clientType" value="CLIENT" checked={previewClient.clientType === 'CLIENT'} onChange={() => handleClientChange('clientType', 'CLIENT')} />
+                    Particulier
+                  </label>
+                </div>
+              </fieldset>
               <div className="flex flex-col gap-2">
                 <label htmlFor="client-name" className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Nom du client</label>
                 <input

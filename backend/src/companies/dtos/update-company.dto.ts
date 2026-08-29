@@ -1,4 +1,5 @@
-import { IsBIC, IsBoolean, IsEmail, IsIBAN, IsOptional, IsPhoneNumber, IsString } from "class-validator";
+import { IsBIC, IsBoolean, IsEmail, IsIBAN, IsIn, IsOptional, IsPhoneNumber, IsString } from "class-validator";
+import type { CompanyElectronicAddressScheme, CompanyLegalStatus, CompanyVatRegime } from '@prisma/client';
 
 export class UpdateCompanyDto {
   // Ces champs sont renvoyés par l'API et peuvent être présents dans un formulaire prérempli.
@@ -50,6 +51,30 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsBoolean()
   subjectToVat?: boolean;
+
+  @IsOptional()
+  @IsIn(['MICRO_ENTERPRISE', 'INDIVIDUAL_ENTREPRENEUR', 'EIRL', 'EURL', 'SARL', 'SELARL', 'SASU', 'SAS', 'SELAS', 'SA', 'SELAFA', 'SCA', 'SELCA', 'SNC', 'SCS', 'SLP', 'SOCIETE_CIVILE', 'SCI', 'SCM', 'SCP', 'EARL', 'GAEC', 'SCEA', 'GIE', 'ASSOCIATION', 'FONDATION', 'MUTUELLE', 'COOPERATIVE', 'ETABLISSEMENT_PUBLIC', 'COLLECTIVITE_TERRITORIALE', 'SOCIETE_ETRANGERE', 'OTHER'])
+  legalStatus?: CompanyLegalStatus;
+
+  @IsOptional()
+  @IsIn(['MONTHLY', 'QUARTERLY', 'SIMPLIFIED', 'VAT_EXEMPTION'])
+  vatRegime?: CompanyVatRegime;
+
+  @IsOptional()
+  @IsBoolean()
+  isVatExempt?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  hasVatOnDebits?: boolean;
+
+  @IsOptional()
+  @IsString()
+  electronicAddress?: string;
+
+  @IsOptional()
+  @IsIn(['SIREN', 'SIRET', 'VAT', 'GLN', 'PEPPOL'])
+  electronicAddressScheme?: CompanyElectronicAddressScheme;
 
   @IsOptional()
   @IsString()

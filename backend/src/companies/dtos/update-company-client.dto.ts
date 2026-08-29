@@ -1,6 +1,10 @@
-import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString } from 'class-validator';
 
 export class UpdateCompanyClientDto {
+  @IsOptional()
+  @IsIn(['BUSINESS', 'CLIENT'])
+  clientType?: 'BUSINESS' | 'CLIENT';
+
   @IsOptional()
   @IsString()
   name?: string;

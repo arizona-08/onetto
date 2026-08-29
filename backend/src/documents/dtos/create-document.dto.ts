@@ -14,6 +14,10 @@ import {
 } from 'class-validator';
 
 export class DocumentClientDto {
+  @IsOptional()
+  @IsIn(['BUSINESS', 'CLIENT'])
+  clientType?: 'BUSINESS' | 'CLIENT';
+
   @IsDefined()
   @IsString()
   name: string;

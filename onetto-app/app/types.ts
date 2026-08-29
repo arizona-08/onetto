@@ -6,6 +6,7 @@ export type Client = {
   city: string;
   postalCode: string;
   country: string;
+  clientType: 'BUSINESS' | 'CLIENT';
 }
 
 export type Service = {
@@ -34,6 +35,7 @@ export type DocumentDates = {
 
 export type Document = {
   id: string;
+  companyId: string;
   documentNumber: string;
   versionNumber: number;
   isLastVersion: boolean;
@@ -47,6 +49,7 @@ export type Document = {
   clientCity: string;
   clientCountry: string;
   clientPostalCode: string;
+  clientType?: 'BUSINESS' | 'INDIVIDUAL' | 'PUBLIC_BODY' | 'FOREIGN' | null;
   totalPriceExcludingTax: number;
   totalPrice: number;
   authorId: string;

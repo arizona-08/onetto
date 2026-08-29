@@ -1,6 +1,6 @@
 'use client'
 import { Document, DocumentNegociation } from '@/app/types'
-import { convertEstimateToInvoice, createNewDocumentVersion, downloadDocumentPdf, getDocumentNegociations, retryInvoicePayment, sendDocumentToClient } from '@/lib/documents/document';
+import { convertEstimateToInvoice, createNewDocumentVersion, deleteDraftDocument, downloadDocumentPdf, getDocumentNegociations, retryInvoicePayment, sendDocumentToClient, submitB2CEreporting } from '@/lib/documents/document';
 import { Download, Edit, Ellipsis, ExternalLink, FileChartColumnIncreasing, MessageSquareText, RotateCcw, Send, Trash } from 'lucide-react';
 import DocumentDisplayComponent from '../molecules/DocumentDisplayComponent/DocumentDisplayComponent';
 import Link from 'next/link';
@@ -18,6 +18,8 @@ function ShowDocument({ document }: ShowDocumentProps) {
   const [isCreatingVersion, setIsCreatingVersion] = useState(false);
   const [isRetryingPayment, setIsRetryingPayment] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDeletingDraft, setIsDeletingDraft] = useState(false);
+  const [isSubmittingEreporting, setIsSubmittingEreporting] = useState(false);
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
   const moreActionsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -33,6 +35,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
 
   const isDraftInvoice = document.type === "INVOICE" && document.invoiceStatus === "DRAFT";
   const isRejectedInvoice = document.type === "INVOICE" && document.invoiceStatus === "REJECTED";
+  const canSubmitB2CEreporting = document.type === 'INVOICE' && Boolean(document.sentAt) && document.clientType === 'INDIVIDUAL';
 
   const { showToast } = useToast();
 
@@ -71,6 +74,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
     }
 
     showToast("Document envoyé avec succès", "success");
+    router.refresh();
   }
 
   async function handleCreateNewVersion() {
@@ -131,6 +135,32 @@ function ShowDocument({ document }: ShowDocumentProps) {
     }
   }
 
+  async function handleDeleteDraft() {
+    setIsDeletingDraft(true);
+    const response = await deleteDraftDocument(document.id);
+    setIsDeletingDraft(false);
+
+    if (!response.ok) {
+      showToast('Impossible de supprimer ce brouillon.', 'error');
+      return;
+    }
+
+    showToast('Brouillon supprimé avec succès.', 'success');
+    router.push('/documents');
+  }
+
+  async function handleSubmitB2CEreporting() {
+    setIsSubmittingEreporting(true);
+    const response = await submitB2CEreporting(document.companyId, document.id);
+    setIsSubmittingEreporting(false);
+    if (!response.ok) {
+      showToast('Impossible de transmettre la déclaration B2C à SuperPDP.', 'error');
+      return;
+    }
+    showToast('Déclaration B2C transmise à SuperPDP.', 'success');
+    router.refresh();
+  }
+
   return (
     <div className="p-0 sm:p-3 lg:p-5">
       <div className="flex items-center justify-between gap-4">
@@ -156,9 +186,9 @@ function ShowDocument({ document }: ShowDocumentProps) {
                 {isDownloading ? 'Téléchargement…' : 'Télécharger le PDF'}
               </button>
               {(isDraftEstimate || isDraftInvoice) && (
-                <button type="button" onClick={() => setIsMoreActionsOpen(false)} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50" role="menuitem">
+                <button type="button" onClick={() => { setIsMoreActionsOpen(false); void handleDeleteDraft(); }} disabled={isDeletingDraft} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50" role="menuitem">
                   <Trash className="h-4 w-4" aria-hidden="true" />
-                  Supprimer le brouillon
+                  {isDeletingDraft ? 'Suppression…' : 'Supprimer le brouillon'}
                 </button>
               )}
             </div>
@@ -188,6 +218,18 @@ function ShowDocument({ document }: ShowDocumentProps) {
               >
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
                 {isRetryingPayment ? 'Génération…' : 'Relancer le paiement'}
+              </button>
+            )}
+
+            {canSubmitB2CEreporting && (
+              <button
+                type="button"
+                onClick={handleSubmitB2CEreporting}
+                disabled={isSubmittingEreporting}
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-primary px-3 py-2 text-center text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" aria-hidden="true" />
+                {isSubmittingEreporting ? 'Transmission…' : 'Déclarer l’e-reporting B2C'}
               </button>
             )}
 

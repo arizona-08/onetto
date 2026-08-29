@@ -23,7 +23,8 @@ function CustomerDetails({ client, onClientChange, documentClientErrors, disable
     address: "",
     city: "",
     postalCode: "",
-    country: ""
+    country: "",
+    clientType: 'CLIENT',
   });
 
 
@@ -36,7 +37,8 @@ function CustomerDetails({ client, onClientChange, documentClientErrors, disable
         address: client.address,
         city: client.city,
         postalCode: client.postalCode,
-        country: client.country
+        country: client.country,
+        clientType: client.clientType
       });
     }
   }, [client])
@@ -82,8 +84,15 @@ function CustomerDetails({ client, onClientChange, documentClientErrors, disable
       address: name === "address" ? value : clientInfos.address,
       city: name === "city" ? value : clientInfos.city,
       postalCode: name === "postalCode" ? value : clientInfos.postalCode,
-      country: name === "country" ? value : clientInfos.country
+      country: name === "country" ? value : clientInfos.country,
+      clientType: clientInfos.clientType,
     });
+  }
+
+  function handleClientTypeChange(clientType: Client['clientType']) {
+    if (disabled) return;
+    setClientInfos((current) => ({ ...current, clientType }));
+    onClientChange({ ...clientInfos, clientType });
   }
 
   return (
@@ -112,7 +121,8 @@ function CustomerDetails({ client, onClientChange, documentClientErrors, disable
                     address: "",
                     city: "",
                     postalCode: "",
-                    country: ""
+                    country: "",
+                    clientType: 'CLIENT',
                   });
                   setIsDropdownOpen(false);
                   onClientChange(null);
@@ -142,7 +152,8 @@ function CustomerDetails({ client, onClientChange, documentClientErrors, disable
                         address: client.address,
                         city: client.city,
                         postalCode: client.postalCode,
-                        country: client.country
+                        country: client.country,
+                        clientType: client.clientType
                       });
                       setIsDropdownOpen(false);
                       onClientChange(client);
@@ -156,6 +167,20 @@ function CustomerDetails({ client, onClientChange, documentClientErrors, disable
           </div>
         </div>
         <div className='space-y-8'>
+
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium text-gray-500 tracking-wider">Type de client</legend>
+            <div className="flex flex-wrap gap-3">
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                <input type="radio" name="document-client-type" value="BUSINESS" checked={clientInfos.clientType === 'BUSINESS'} onChange={() => handleClientTypeChange('BUSINESS')} />
+                Entreprise
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
+                <input type="radio" name="document-client-type" value="CLIENT" checked={clientInfos.clientType === 'CLIENT'} onChange={() => handleClientTypeChange('CLIENT')} />
+                Particulier
+              </label>
+            </div>
+          </fieldset>
 
           {/* Name and email */}
           <div className="flex flex-col gap-8 md:flex-row md:gap-16">

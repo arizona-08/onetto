@@ -166,14 +166,20 @@ implements
       }
     });
 
-    await this.prismaService.invoicePublicAccess.create({
-        data: {
+    await this.prismaService.invoicePublicAccess.upsert({
+        where: { invoiceId: input.invoiceId },
+        create: {
           accessToken: paymentAccessToken,
           invoiceId: input.invoiceId,
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
           invoicePaymentLinkId: persistedPaymentLink.id
-        }
-    })
+        },
+        update: {
+          accessToken: paymentAccessToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          invoicePaymentLinkId: persistedPaymentLink.id,
+        },
+    });
 
     await this.prismaService.payByBankPayment.create({
       data: {
@@ -230,14 +236,20 @@ implements
       }
     });
 
-    await this.prismaService.invoicePublicAccess.create({
-        data: {
+    await this.prismaService.invoicePublicAccess.upsert({
+        where: { invoiceId: input.invoiceId },
+        create: {
           accessToken: paymentAccessToken,
           invoiceId: input.invoiceId,
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
           invoicePaymentLinkId: persistedPaymentLink.id
-        }
-    })
+        },
+        update: {
+          accessToken: paymentAccessToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          invoicePaymentLinkId: persistedPaymentLink.id,
+        },
+    });
 
       return { url: createdBillingRequestFlow.authorisation_url as string, paymentLinkId: billingRequestId };
     } catch (error) {

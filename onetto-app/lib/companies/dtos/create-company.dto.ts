@@ -9,11 +9,30 @@ export type CreateCompanyDto = {
   city: string;
   country: string;
   subjectToVat: boolean;
+  legalStatus: CompanyLegalStatus;
+  vatRegime: CompanyVatRegime;
+  isVatExempt: boolean;
+  hasVatOnDebits: boolean;
+  electronicAddress: string;
+  electronicAddressScheme: 'SIREN' | 'SIRET' | 'VAT' | 'GLN' | 'PEPPOL';
   vatNumber?: string;
   IBAN: string;
   BIC: string;
-  rcs: string;
 }
+
+export type CompanyLegalStatus =
+  | 'MICRO_ENTERPRISE' | 'INDIVIDUAL_ENTREPRENEUR' | 'EIRL' | 'EURL'
+  | 'SARL' | 'SELARL' | 'SASU' | 'SAS' | 'SELAS' | 'SA' | 'SELAFA'
+  | 'SCA' | 'SELCA' | 'SNC' | 'SCS' | 'SLP' | 'SOCIETE_CIVILE' | 'SCI'
+  | 'SCM' | 'SCP' | 'EARL' | 'GAEC' | 'SCEA' | 'GIE' | 'ASSOCIATION'
+  | 'FONDATION' | 'MUTUELLE' | 'COOPERATIVE' | 'ETABLISSEMENT_PUBLIC'
+  | 'COLLECTIVITE_TERRITORIALE' | 'SOCIETE_ETRANGERE' | 'OTHER';
+
+export type CompanyVatRegime =
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'SIMPLIFIED'
+  | 'VAT_EXEMPTION';
 
 export type Company = CreateCompanyDto & {
   id: string;

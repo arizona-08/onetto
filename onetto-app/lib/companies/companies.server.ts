@@ -34,6 +34,7 @@ export type CompanyClient = {
   city: string;
   postalCode: string;
   country: string;
+  clientType: 'BUSINESS' | 'CLIENT';
 };
 
 export function getMyCompaniesServer() {

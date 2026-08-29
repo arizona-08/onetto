@@ -613,6 +613,7 @@ function DocumentsTable({
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 space-y-1">
                     <p className="truncate text-sm font-semibold text-zinc-900">{document.clientName}</p>
+                    <p className="text-xs text-zinc-500">{document.clientType === 'BUSINESS' ? 'Entreprise' : 'Particulier'}</p>
                     <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-zinc-600">
                     <Link
                       href={`/documents/${document.id}`}
@@ -730,8 +731,13 @@ function DocumentsTable({
                           .map((n) => n[0])
                           .join("")}
                       </div>
-                      <div className="font-medium text-zinc-900">
-                        {document.clientName}
+                      <div>
+                        <div className="font-medium text-zinc-900">
+                          {document.clientName}
+                        </div>
+                        <div className="text-xs text-zinc-500">
+                          {document.clientType === 'BUSINESS' ? 'Entreprise' : 'Particulier'}
+                        </div>
                       </div>
                     </div>
                   </td>

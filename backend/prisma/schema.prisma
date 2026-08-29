@@ -65,13 +65,13 @@ enum SubscriptionPlan {
 }
 
 model Company {
-  id                        String        @id @default(uuid())
+  id                        String            @id @default(uuid())
   ownerId                   String
   name                      String
-  email                     String        @unique
-  phoneNumber               String        @unique
-  siren                     String        @unique
-  siret                     String        @unique
+  email                     String            @unique
+  phoneNumber               String            @unique
+  siren                     String            @unique
+  siret                     String            @unique
   address                   String
   city                      String
   postalCode                String
@@ -80,19 +80,80 @@ model Company {
   vatNumber                 String?
   IBAN                      String
   BIC                       String
-  status                    CompanyStatus @default(ACTIVE)
+  status                    CompanyStatus     @default(ACTIVE)
   closingReason             String?
   closedAt                  DateTime?
-  isPaymentAccountConnected Boolean       @default(false)
+  isPaymentAccountConnected Boolean           @default(false)
+  legalForm                 String?
+  legalStatus               CompanyLegalStatus @default(MICRO_ENTERPRISE)
+  vatRegime                 CompanyVatRegime   @default(VAT_EXEMPTION)
+  isVatExempt               Boolean             @default(true)
+  hasVatOnDebits            Boolean           @default(false)
+  electronicAddress         String
+  electronicAddressScheme   CompanyElectronicAddressScheme @default(SIREN)
 
-  documents                 Document[]
-  owner                     User                       @relation(fields: [ownerId], references: [id])
-  companyUsers              CompanyUser[]
-  lastConnectedUsers        User[]                     @relation("LastConnectedCompany")
-  services                  CompanyService[]
-  clients                   CompanyClient[]
-  companyPaymentAccount     CompanyPaymentAccount?
-  companyPaymentOAuthStates CompanyPaymentOAuthState[]
+  documents                      Document[]
+  owner                          User                            @relation(fields: [ownerId], references: [id])
+  companyUsers                   CompanyUser[]
+  lastConnectedUsers             User[]                          @relation("LastConnectedCompany")
+  services                       CompanyService[]
+  clients                        CompanyClient[]
+  companyPaymentAccount          CompanyPaymentAccount?
+  companyPaymentOAuthStates      CompanyPaymentOAuthState[]
+  electronicInvoicingConnection  ElectronicInvoicingConnection?
+  electronicInvoicingOAuthStates ElectronicInvoicingOAuthState[]
+  receivedElectronicInvoices     ReceivedElectronicInvoice[]
+  electronicReportingSubmissions ElectronicReportingSubmission[]
+}
+
+enum CompanyVatRegime {
+  MONTHLY
+  QUARTERLY
+  SIMPLIFIED
+  VAT_EXEMPTION
+}
+
+enum CompanyLegalStatus {
+  MICRO_ENTERPRISE
+  INDIVIDUAL_ENTREPRENEUR
+  EIRL
+  EURL
+  SARL
+  SELARL
+  SASU
+  SAS
+  SELAS
+  SA
+  SELAFA
+  SCA
+  SELCA
+  SNC
+  SCS
+  SLP
+  SOCIETE_CIVILE
+  SCI
+  SCM
+  SCP
+  EARL
+  GAEC
+  SCEA
+  GIE
+  ASSOCIATION
+  FONDATION
+  MUTUELLE
+  COOPERATIVE
+  ETABLISSEMENT_PUBLIC
+  COLLECTIVITE_TERRITORIALE
+  SOCIETE_ETRANGERE
+  OTHER
+}
+
+enum CompanyElectronicAddressScheme {
+  SIREN
+  SIRET
+  VAT
+  GLN
+  PEPPOL
 }
 
 enum CompanyStatus {
@@ -147,44 +208,72 @@ enum CompanyUserRole {
 }
 
 model Document {
-  id                     String       @id @default(uuid())
-  type                   DocumentType @default(ESTIMATE)
-  companyId              String
-  clientName             String
-  clientEmail            String
-  clientAddress          String
-  clientCity             String
-  clientPostalCode       String
-  clientCountry          String
-  totalPriceExcludingTax Float
-  totalPrice             Float
-  createdAt              DateTime     @default(now())
-  sentAt                 DateTime?
-  documentNumber         String?
-  versionNumber          Int          @default(1)
-  isLastVersion          Boolean      @default(true)
-  isFromEstimate         Boolean?     @default(true)
-  sourceDocumentId       String?
-  sourceDocument         Document?    @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
+  id                      String                            @id @default(uuid())
+  type                    DocumentType                      @default(ESTIMATE)
+  companyId               String
+  clientName              String
+  clientEmail             String
+  clientAddress           String
+  clientCity              String
+  clientPostalCode        String
+  clientCountry           String
+  clientType              ElectronicInvoiceClientType?
+  clientIsVatTaxable      Boolean?
+  clientSiren             String?
+  clientVatNumber         String?
+  clientForeignIdentifier String?
+  deliveryAddress         String?
+  deliveryCity            String?
+  deliveryPostalCode      String?
+  deliveryCountry         String?
+  currencyCode            String                            @default("EUR")
+  operationNature         ElectronicInvoiceOperationNature?
+  isVatExempt             Boolean                           @default(false)
+  vatExemptionReason      String?
+  totalPriceExcludingTax  Float
+  totalPrice              Float
+  createdAt               DateTime                          @default(now())
+  sentAt                  DateTime?
+  documentNumber          String?
+  versionNumber           Int                               @default(1)
+  isLastVersion           Boolean                           @default(true)
+  isFromEstimate          Boolean?                          @default(true)
+  sourceDocumentId        String?
+  sourceDocument          Document?                         @relation("DocumentConversion", fields: [sourceDocumentId], references: [id], onDelete: Restrict)
 
   convertedDocuments Document[] @relation("DocumentConversion")
 
-  urlDocumentPdf        String?
-  answerDueAt           DateTime?              @default(now())
-  paymentDueAt          DateTime
-  invoiceStatus         InvoiceStatus          @default(DRAFT)
-  estimateStatus        EstimateStatus         @default(DRAFT)
-  company               Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  services              DocumentService[]
-  negociations          EstimateNegociation[]
-  invoicePaymentLinks   InvoicePaymentLink[]
-  payByBankPayments     PayByBankPayment[]
-  invoiceInstalmentPlan InvoiceInstalmentPlan?
-  invoicePaymentMode    InvoicePaymentMode?
-  invoicePublicAccess   InvoicePublicAccess?
-  processedReminders    ProcessedReminders[]
+  urlDocumentPdf                 String?
+  answerDueAt                    DateTime?                       @default(now())
+  paymentDueAt                   DateTime
+  invoiceStatus                  InvoiceStatus                   @default(DRAFT)
+  estimateStatus                 EstimateStatus                  @default(DRAFT)
+  company                        Company                         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  services                       DocumentService[]
+  negociations                   EstimateNegociation[]
+  invoicePaymentLinks            InvoicePaymentLink[]
+  payByBankPayments              PayByBankPayment[]
+  invoiceInstalmentPlan          InvoiceInstalmentPlan?
+  invoicePaymentMode             InvoicePaymentMode?
+  invoicePublicAccess            InvoicePublicAccess?
+  processedReminders             ProcessedReminders[]
+  electronicInvoiceTransmissions ElectronicInvoiceTransmission[]
+  electronicReportingSubmissions ElectronicReportingSubmission[]
 
   @@unique([companyId, documentNumber, versionNumber])
+}
+
+enum ElectronicInvoiceClientType {
+  INDIVIDUAL
+  BUSINESS
+  PUBLIC_BODY
+  FOREIGN
+}
+
+enum ElectronicInvoiceOperationNature {
+  GOODS
+  SERVICES
+  MIXED
 }
 
 enum DocumentType {
@@ -436,7 +525,7 @@ model CompanyService {
 }
 
 model CompanyClient {
-  id         String @id @default(uuid())
+  id         String            @id @default(uuid())
   companyId  String
   name       String
   email      String
@@ -444,8 +533,233 @@ model CompanyClient {
   city       String
   postalCode String
   country    String
+  clientType CompanyClientType @default(CLIENT)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+enum CompanyClientType {
+  BUSINESS
+  CLIENT
+}
+
+enum ElectronicInvoicingProvider {
+  SUPER_PDP
+}
+
+enum ElectronicInvoicingEnvironment {
+  SANDBOX
+  PRODUCTION
+}
+
+enum ElectronicInvoicingConnectionStatus {
+  NOT_CONFIGURED
+  PENDING_AUTHORIZATION
+  VERIFYING
+  ACTIVE
+  ACTION_REQUIRED
+  SUSPENDED
+}
+
+enum ElectronicDirectoryRegistrationStatus {
+  UNKNOWN
+  PENDING
+  ACTIVE
+  NOT_REGISTERED
+}
+
+enum ElectronicInvoiceFlow {
+  B2B_FR
+  B2C_FR
+  B2B_INTERNATIONAL
+  B2G
+  EXEMPT
+  OUT_OF_SCOPE
+}
+
+enum ElectronicInvoiceTransmissionStatus {
+  PENDING
+  SUBMITTING
+  SUBMITTED
+  SENT
+  DELIVERED
+  ACCEPTED
+  PARTIALLY_ACCEPTED
+  DISPUTED
+  ON_HOLD
+  COMPLETED
+  REFUSED
+  REJECTED
+  INVALID
+  FAILED
+}
+
+enum ElectronicInvoiceEventSource {
+  PROVIDER_SYNC
+  WEBHOOK
+  USER_ACTION
+  PAYMENT
+}
+
+enum ReceivedElectronicInvoiceStatus {
+  AVAILABLE
+  ACCEPTED
+  PARTIALLY_ACCEPTED
+  DISPUTED
+  ON_HOLD
+  COMPLETED
+  REFUSED
+  REJECTED
+}
+
+enum ElectronicReportingKind {
+  TRANSACTION
+  PAYMENT
+}
+
+enum ElectronicReportingStatus {
+  PENDING
+  SUBMITTING
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+  FAILED
+}
+
+model ElectronicInvoicingConnection {
+  id                          String                                @id @default(uuid())
+  companyId                   String                                @unique
+  provider                    ElectronicInvoicingProvider
+  environment                 ElectronicInvoicingEnvironment
+  providerCompanyId           String?
+  accessTokenEncrypted        String?
+  refreshTokenEncrypted       String?
+  accessTokenExpiresAt        DateTime?
+  status                      ElectronicInvoicingConnectionStatus   @default(NOT_CONFIGURED)
+  directoryRegistrationStatus ElectronicDirectoryRegistrationStatus @default(UNKNOWN)
+  enabledCapabilities         Json?
+  connectedAt                 DateTime?
+  lastSyncedAt                DateTime?
+  lastError                   String?
+  metadata                    Json?
+  createdAt                   DateTime                              @default(now())
+  updatedAt                   DateTime                              @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([provider, environment, status])
+}
+
+model ElectronicInvoicingOAuthState {
+  id        String   @id @default(uuid())
+  companyId String
+  state     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, expiresAt])
+}
+
+model ElectronicInvoiceTransmission {
+  id                  String                              @id @default(uuid())
+  documentId          String
+  provider            ElectronicInvoicingProvider
+  providerInvoiceId   String?
+  flow                ElectronicInvoiceFlow
+  status              ElectronicInvoiceTransmissionStatus @default(PENDING)
+  providerStatus      String?
+  submittedFormat     String?
+  documentFingerprint String?
+  idempotencyKey      String                              @unique
+  attemptCount        Int                                 @default(0)
+  submittedAt         DateTime?
+  lastSyncedAt        DateTime?
+  lastError           String?
+  createdAt           DateTime                            @default(now())
+  updatedAt           DateTime                            @updatedAt
+
+  document Document                 @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  events   ElectronicInvoiceEvent[]
+
+  @@unique([documentId, provider, flow])
+  @@unique([provider, providerInvoiceId])
+  @@index([status, lastSyncedAt])
+}
+
+model ElectronicInvoiceEvent {
+  id              String                       @id @default(uuid())
+  transmissionId  String
+  providerEventId String
+  type            String
+  providerStatus  String
+  source          ElectronicInvoiceEventSource
+  occurredAt      DateTime
+  receivedAt      DateTime                     @default(now())
+  payload         Json?
+
+  transmission ElectronicInvoiceTransmission @relation(fields: [transmissionId], references: [id], onDelete: Cascade)
+
+  @@unique([transmissionId, providerEventId])
+  @@index([transmissionId, occurredAt])
+}
+
+model ReceivedElectronicInvoice {
+  id                  String                          @id @default(uuid())
+  companyId           String
+  provider            ElectronicInvoicingProvider
+  providerInvoiceId   String
+  supplierSiren       String?
+  supplierName        String?
+  invoiceNumber       String?
+  issuedAt            DateTime?
+  dueAt               DateTime?
+  currencyCode        String
+  totalExcludingTax   Decimal                         @db.Decimal(18, 4)
+  totalVat            Decimal                         @db.Decimal(18, 4)
+  totalIncludingTax   Decimal                         @db.Decimal(18, 4)
+  status              ReceivedElectronicInvoiceStatus @default(AVAILABLE)
+  providerStatus      String?
+  documentFormat      String?
+  providerDocumentUrl String?
+  documentFingerprint String?
+  metadata            Json?
+  receivedAt          DateTime                        @default(now())
+  lastSyncedAt        DateTime?
+  createdAt           DateTime                        @default(now())
+  updatedAt           DateTime                        @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, provider, providerInvoiceId])
+  @@index([companyId, status, issuedAt])
+}
+
+model ElectronicReportingSubmission {
+  id                 String                      @id @default(uuid())
+  companyId          String
+  documentId         String?
+  provider           ElectronicInvoicingProvider
+  kind               ElectronicReportingKind
+  periodStart        DateTime
+  periodEnd          DateTime
+  providerReportId   String?
+  status             ElectronicReportingStatus   @default(PENDING)
+  providerStatus     String?
+  idempotencyKey     String                      @unique
+  payloadFingerprint String
+  submittedAt        DateTime?
+  acceptedAt         DateTime?
+  lastError          String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  document Document? @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, providerReportId])
+  @@index([companyId, kind, periodStart, periodEnd])
 }
 
 model ProcessedReminders {

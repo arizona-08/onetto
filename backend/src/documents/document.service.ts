@@ -79,6 +79,10 @@ export class DocumentService {
             clientCity: documentData.client.city,
             clientCountry: documentData.client.country,
             clientPostalCode: documentData.client.postalCode,
+            clientType:
+              documentData.client.clientType === 'BUSINESS'
+                ? 'BUSINESS'
+                : 'INDIVIDUAL',
             totalPriceExcludingTax: totalPriceExludingTax,
             totalPrice: totalDocumentPrice,
             documentNumber,
@@ -252,6 +256,10 @@ export class DocumentService {
               clientCity: documentData.client.city,
               clientCountry: documentData.client.country,
               clientPostalCode: documentData.client.postalCode,
+              clientType:
+                documentData.client.clientType === 'BUSINESS'
+                  ? 'BUSINESS'
+                  : 'INDIVIDUAL',
               totalPriceExcludingTax: totalPriceExludingTax,
               totalPrice: totalDocumentPrice,
               paymentDueAt: new Date(data.documentDates.dueDate),
@@ -468,6 +476,7 @@ export class DocumentService {
           clientCity: document.clientCity,
           clientCountry: document.clientCountry,
           clientPostalCode: document.clientPostalCode,
+          clientType: document.clientType,
           totalPriceExcludingTax: document.totalPriceExcludingTax,
           totalPrice: document.totalPrice,
           documentNumber: invoiceNumber,
@@ -1499,6 +1508,7 @@ export class DocumentService {
           clientCity: sourceDocument.clientCity,
           clientPostalCode: sourceDocument.clientPostalCode,
           clientCountry: sourceDocument.clientCountry,
+          clientType: sourceDocument.clientType,
           totalPriceExcludingTax: sourceDocument.totalPriceExcludingTax,
           totalPrice: sourceDocument.totalPrice,
           paymentDueAt: sourceDocument.paymentDueAt,
@@ -1592,6 +1602,40 @@ export class DocumentService {
       console.error('Error deleting documents:', error);
       throw new InternalServerErrorException(
         'Une erreur est survenue lors de la suppression des documents.',
+      );
+    }
+  }
+
+  async deleteDraftDocument(documentId: string, user: User) {
+    try {
+      const companyId = await this.getActiveCompanyId(user);
+      const deleteResult = await this.prismaService.document.deleteMany({
+        where: {
+          id: documentId,
+          companyId,
+          OR: [
+            { type: 'ESTIMATE', estimateStatus: 'DRAFT' },
+            { type: 'INVOICE', invoiceStatus: 'DRAFT' },
+          ],
+        },
+      });
+
+      if (deleteResult.count === 0) {
+        throw new BadRequestException(
+          'Seul un brouillon de votre entreprise active peut être supprimé.',
+        );
+      }
+
+      return {
+        success: true,
+        message: 'Brouillon supprimé avec succès.',
+      };
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Une erreur est survenue lors de la suppression du brouillon.',
       );
     }
   }

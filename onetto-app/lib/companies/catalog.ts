@@ -20,6 +20,7 @@ function getClientPayload(client: Client) {
     city: client.city,
     postalCode: client.postalCode,
     country: client.country,
+    clientType: client.clientType,
   };
 }
 
