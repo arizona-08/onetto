@@ -1,0 +1,5 @@
+-- RenameIndex
+ALTER INDEX "ElectronicReportingSubmission_companyId_kind_periodStart_period" RENAME TO "ElectronicReportingSubmission_companyId_kind_periodStart_pe_idx";
+
+-- RenameIndex
+ALTER INDEX "ReceivedElectronicInvoice_companyId_provider_providerInvoiceId_" RENAME TO "ReceivedElectronicInvoice_companyId_provider_providerInvoic_key";

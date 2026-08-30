@@ -94,6 +94,10 @@ export class CreateDocumentDto {
   @IsIn(['ESTIMATE', 'INVOICE'])
   type?: 'ESTIMATE' | 'INVOICE';
 
+  @IsOptional()
+  @IsIn(['GOODS', 'SERVICES', 'MIXED'])
+  operationNature?: 'GOODS' | 'SERVICES' | 'MIXED';
+
   @IsDefined()
   @ValidateNested()
   @Type(() => DocumentClientDto)

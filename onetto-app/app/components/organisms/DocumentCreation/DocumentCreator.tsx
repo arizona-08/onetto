@@ -41,6 +41,7 @@ interface DocumentCreateProps {
 function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: DocumentCreateProps) {
   const [client, setClient] = React.useState<Client | null>(null);
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
+  const [operationNature, setOperationNature] = React.useState<'GOODS' | 'SERVICES' | 'MIXED'>('SERVICES');
   const [documentDates, setDocumentDates] = React.useState<DocumentDates>(() =>{
     const d = new Date()
     // set to one month ahead, handling month overflow
@@ -187,6 +188,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       response = await createDocument({
         type: documentType,
         client: clientData,
+        operationNature,
         lineItems,
         documentDates,
         instalmentsDetails: documentType === 'INVOICE' && paymentMode === 'INSTALMENTS'
@@ -196,6 +198,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
     } else {
       response = await updateDraftDocument(document?.id as string, {
         client: clientData,
+        operationNature,
         lineItems,
         documentDates,
         instalmentsDetails: isInvoice && paymentMode === 'INSTALMENTS'
@@ -262,6 +265,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       {document && <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="edit" />{!isEditable && <p className="text-sm font-medium text-zinc-500">Cette version est en lecture seule.</p>}</div>}
 
       <fieldset disabled={!canEditDocument}>
+        {isInvoice && <div className="mx-auto mb-5 flex max-w-2xl flex-col gap-2"><label htmlFor="operationNature" className="text-sm font-semibold text-zinc-700">Nature de l’opération</label><select id="operationNature" value={operationNature} onChange={(event) => setOperationNature(event.target.value as 'GOODS' | 'SERVICES' | 'MIXED')} className="rounded-md border border-zinc-200 px-3 py-2 text-sm"><option value="SERVICES">Prestation de services</option><option value="GOODS">Vente de biens</option><option value="MIXED">Biens et services</option></select></div>}
         <DocumentForm
           onClientChange={setClient}
           onLineItemsChange={setLineItems}

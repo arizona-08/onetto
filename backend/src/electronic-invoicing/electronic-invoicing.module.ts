@@ -21,6 +21,6 @@ import { FacturXService } from './factur-x.service';
     SuperPdpEreportingService,
     FacturXService,
   ],
-  exports: [ElectronicInvoicingClassifierService, SuperPdpOAuthService],
+  exports: [ElectronicInvoicingClassifierService, SuperPdpOAuthService, FacturXService],
 })
 export class ElectronicInvoicingModule {}

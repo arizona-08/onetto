@@ -21,6 +21,7 @@ import {
   buildInstalmentSchedule,
   parseDateOnly,
 } from './instalment-plan.utils';
+import { FacturXService } from 'src/electronic-invoicing/factur-x.service';
 
 @Injectable()
 export class DocumentService {
@@ -34,6 +35,7 @@ export class DocumentService {
     private readonly configService: ConfigService,
     private readonly planAccessService: PlanAccessService,
     private readonly gocardlessInstalmentRetryService: GoCardlessInstalmentRetryService,
+    private readonly facturXService: FacturXService,
   ) {
     this.callbackUrl =
       this.configService.get<string>('BRIDGE_CALLBACK_URL') || '';
@@ -83,6 +85,7 @@ export class DocumentService {
               documentData.client.clientType === 'BUSINESS'
                 ? 'BUSINESS'
                 : 'INDIVIDUAL',
+            operationNature: documentData.operationNature ?? 'SERVICES',
             totalPriceExcludingTax: totalPriceExludingTax,
             totalPrice: totalDocumentPrice,
             documentNumber,
@@ -1704,6 +1707,10 @@ export class DocumentService {
             company: company!,
           })
         : null;
+
+      if (isInvoice) {
+        await this.facturXService.archive(document.id, user);
+      }
 
       const mailContent = isInvoice
         ? this.mailService.createInvoiceMail({

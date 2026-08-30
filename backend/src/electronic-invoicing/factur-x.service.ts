@@ -35,6 +35,12 @@ export class FacturXService {
     return Buffer.from(await response.arrayBuffer());
   }
 
+  async archive(documentId: string, user: User): Promise<Buffer> {
+    const file = await this.generate(documentId, user);
+    await this.prisma.document.update({ where: { id: documentId }, data: { facturXContent: Uint8Array.from(file), facturXGeneratedAt: new Date() } });
+    return file;
+  }
+
   private toEn16931(document: any) {
     const money = (value: number) => Number(value).toFixed(2);
     const vat = new Map<number, { taxable: number; tax: number }>();

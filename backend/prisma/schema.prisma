@@ -244,6 +244,8 @@ model Document {
   convertedDocuments Document[] @relation("DocumentConversion")
 
   urlDocumentPdf                 String?
+  facturXContent                 Bytes?
+  facturXGeneratedAt             DateTime?
   answerDueAt                    DateTime?                       @default(now())
   paymentDueAt                   DateTime
   invoiceStatus                  InvoiceStatus                   @default(DRAFT)
