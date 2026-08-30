@@ -99,6 +99,58 @@ export async function submitB2CEreporting(
   );
 }
 
+export type SuperPdpDirectoryCompany = {
+  number: string;
+  formal_name: string;
+  address: string;
+  postcode: string;
+  city: string;
+  country: string;
+};
+
+export type SuperPdpDirectoryEntry = {
+  identifier: string;
+  is_active: boolean;
+  company: SuperPdpDirectoryCompany;
+};
+
+export function searchSuperPdpDirectory(query: string) {
+  return apiClient<{ data: SuperPdpDirectoryCompany[]; has_more: boolean }>(
+    `api/electronic-invoicing/superpdp/directory/companies?query=${encodeURIComponent(query)}`,
+  );
+}
+
+export function getSuperPdpDirectoryEntries(siren: string) {
+  return apiClient<{ data: SuperPdpDirectoryEntry[] }>(
+    `api/electronic-invoicing/superpdp/directory/companies/${encodeURIComponent(siren)}/entries`,
+  );
+}
+
+export type SuperPdpB2bTransmission = {
+  id: string;
+  providerInvoiceId?: string | null;
+  status: string;
+  providerStatus?: string | null;
+  submittedAt?: string | null;
+  lastSyncedAt?: string | null;
+  lastError?: string | null;
+  events?: Array<{ id: string; providerStatus: string; occurredAt: string }>;
+};
+
+export function sendB2BInvoiceToSuperPdp(companyId: string, documentId: string) {
+  return apiClient<SuperPdpB2bTransmission>(
+    `api/electronic-invoicing/superpdp/companies/${companyId}/documents/${documentId}/b2b/send`,
+    { method: 'POST' },
+  );
+}
+
+export function syncB2BInvoiceWithSuperPdp(companyId: string, documentId: string) {
+  return apiClient<SuperPdpB2bTransmission>(
+    `api/electronic-invoicing/superpdp/companies/${companyId}/documents/${documentId}/b2b/sync`,
+    { method: 'POST' },
+  );
+}
+
 export type InstalmentRetryCapability = {
   canRetryManually: boolean;
   automaticRetryScheduled: boolean;

@@ -17,6 +17,10 @@ export class DocumentClientDto {
   @IsOptional()
   @IsIn(['BUSINESS', 'CLIENT'])
   clientType?: 'BUSINESS' | 'CLIENT';
+  @IsOptional() @IsString() siren?: string;
+  @IsOptional() @IsString() vatNumber?: string;
+  @IsOptional() @IsString() electronicAddress?: string;
+  @IsOptional() @IsString() electronicAddressScheme?: string;
 
   @IsDefined()
   @IsString()

@@ -10,17 +10,23 @@ import { UserModule } from 'src/user/user.module';
 import { PdfModule } from 'src/pdf/pdf.module';
 import { FacturXController } from './factur-x.controller';
 import { FacturXService } from './factur-x.service';
+import { SuperPdpDirectoryController } from './superpdp-directory.controller';
+import { SuperPdpDirectoryService } from './superpdp-directory.service';
+import { SuperPdpB2bController } from './superpdp-b2b.controller';
+import { SuperPdpB2bService } from './superpdp-b2b.service';
 
 @Module({
   imports: [PrismaModule, UserModule, PdfModule],
-  controllers: [SuperPdpOAuthController, SuperPdpEreportingController, FacturXController],
+  controllers: [SuperPdpOAuthController, SuperPdpEreportingController, FacturXController, SuperPdpDirectoryController, SuperPdpB2bController],
   providers: [
     ElectronicInvoicingClassifierService,
     SuperPdpOAuthService,
     SuperPdpTokenCryptoService,
     SuperPdpEreportingService,
     FacturXService,
+    SuperPdpDirectoryService,
+    SuperPdpB2bService,
   ],
-  exports: [ElectronicInvoicingClassifierService, SuperPdpOAuthService, FacturXService],
+  exports: [ElectronicInvoicingClassifierService, SuperPdpOAuthService, SuperPdpEreportingService, FacturXService, SuperPdpB2bService],
 })
 export class ElectronicInvoicingModule {}

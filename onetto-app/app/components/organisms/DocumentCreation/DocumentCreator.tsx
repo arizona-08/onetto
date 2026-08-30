@@ -78,7 +78,15 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
         postalCode: document.clientPostalCode,
         country: document.clientCountry,
         clientType: document.clientType === 'BUSINESS' ? 'BUSINESS' : 'CLIENT',
+        siren: document.clientSiren ?? undefined,
+        vatNumber: document.clientVatNumber ?? undefined,
+        electronicAddress: document.clientElectronicAddress ?? undefined,
+        electronicAddressScheme: document.clientElectronicAddressScheme ?? undefined,
       });
+
+      if (document.operationNature) {
+        setOperationNature(document.operationNature);
+      }
 
       setLineItems(document.services ? document.services?.map(service => ({
         id: service.id,
@@ -179,8 +187,8 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       return null;
     }
 
-    const { name, email, address, city, postalCode, country, clientType } = client as Client;
-    const clientData = { name, email, address, city, postalCode, country, clientType };
+    const { name, email, address, city, postalCode, country, clientType, siren, vatNumber, electronicAddress, electronicAddressScheme } = client as Client;
+    const clientData = { name, email, address, city, postalCode, country, clientType, siren, vatNumber, electronicAddress, electronicAddressScheme };
 
     let response;
 

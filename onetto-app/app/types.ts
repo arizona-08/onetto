@@ -7,6 +7,10 @@ export type Client = {
   postalCode: string;
   country: string;
   clientType: 'BUSINESS' | 'CLIENT';
+  siren?: string;
+  vatNumber?: string;
+  electronicAddress?: string;
+  electronicAddressScheme?: string;
 }
 
 export type Service = {
@@ -50,6 +54,11 @@ export type Document = {
   clientCountry: string;
   clientPostalCode: string;
   clientType?: 'BUSINESS' | 'INDIVIDUAL' | 'PUBLIC_BODY' | 'FOREIGN' | null;
+  clientSiren?: string | null;
+  clientVatNumber?: string | null;
+  clientElectronicAddress?: string | null;
+  clientElectronicAddressScheme?: string | null;
+  operationNature?: 'GOODS' | 'SERVICES' | 'MIXED' | null;
   totalPriceExcludingTax: number;
   totalPrice: number;
   authorId: string;
@@ -83,6 +92,14 @@ export type Document = {
       paidAt?: string | null;
     }>;
   } | null;
+  electronicInvoiceTransmissions?: Array<{
+    status: string;
+    providerStatus?: string | null;
+    providerInvoiceId?: string | null;
+    submittedAt?: string | null;
+    lastSyncedAt?: string | null;
+    lastError?: string | null;
+  }>;
 }
 
 export type InvoiceStatus =

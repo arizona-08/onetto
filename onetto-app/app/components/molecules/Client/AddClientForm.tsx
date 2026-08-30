@@ -104,6 +104,10 @@ function AddClientForm({ isActive, setIsActive, onClose, handleAddClient, client
                 />
               </div>
 
+              {previewClient.clientType === 'BUSINESS' && <div className="grid gap-4 md:grid-cols-2">
+                {(['siren', 'vatNumber', 'electronicAddress', 'electronicAddressScheme'] as const).map((field) => <div key={field} className="flex flex-col gap-2"><label className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">{{ siren: 'SIREN', vatNumber: 'TVA intracommunautaire', electronicAddress: 'Adresse électronique de réception', electronicAddressScheme: 'Schéma de réception' }[field]}</label><input type="text" className="border-b border-gray-300 py-2 px-3 focus:outline-none" value={previewClient[field] ?? ''} onChange={(e) => handleClientChange(field, e.target.value)} placeholder={field === 'electronicAddressScheme' ? 'ex. 0002' : ''} /></div>)}
+              </div>}
+
               <div className="flex flex-col gap-2">
                 <label htmlFor="client-email" className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Email</label>
                 <input

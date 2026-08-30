@@ -221,6 +221,8 @@ model Document {
   clientIsVatTaxable      Boolean?
   clientSiren             String?
   clientVatNumber         String?
+  clientElectronicAddress String?
+  clientElectronicAddressScheme String?
   clientForeignIdentifier String?
   deliveryAddress         String?
   deliveryCity            String?
@@ -536,6 +538,10 @@ model CompanyClient {
   postalCode String
   country    String
   clientType CompanyClientType @default(CLIENT)
+  siren      String?
+  vatNumber  String?
+  electronicAddress String?
+  electronicAddressScheme String?
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }

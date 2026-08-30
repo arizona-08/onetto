@@ -1,6 +1,6 @@
 'use client'
 import { Document, DocumentNegociation } from '@/app/types'
-import { convertEstimateToInvoice, createNewDocumentVersion, deleteDraftDocument, downloadDocumentPdf, downloadFacturX, getDocumentNegociations, retryInvoicePayment, sendDocumentToClient, submitB2CEreporting } from '@/lib/documents/document';
+import { convertEstimateToInvoice, createNewDocumentVersion, deleteDraftDocument, downloadDocumentPdf, downloadFacturX, getDocumentNegociations, retryInvoicePayment, sendB2BInvoiceToSuperPdp, sendDocumentToClient, submitB2CEreporting, syncB2BInvoiceWithSuperPdp } from '@/lib/documents/document';
 import { Download, Edit, Ellipsis, ExternalLink, FileChartColumnIncreasing, MessageSquareText, RotateCcw, Send, Trash } from 'lucide-react';
 import DocumentDisplayComponent from '../molecules/DocumentDisplayComponent/DocumentDisplayComponent';
 import Link from 'next/link';
@@ -21,6 +21,8 @@ function ShowDocument({ document }: ShowDocumentProps) {
   const [isDownloadingFacturX, setIsDownloadingFacturX] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [isSubmittingEreporting, setIsSubmittingEreporting] = useState(false);
+  const [isSendingB2B, setIsSendingB2B] = useState(false);
+  const [isSyncingB2B, setIsSyncingB2B] = useState(false);
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
   const moreActionsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -37,6 +39,8 @@ function ShowDocument({ document }: ShowDocumentProps) {
   const isDraftInvoice = document.type === "INVOICE" && document.invoiceStatus === "DRAFT";
   const isRejectedInvoice = document.type === "INVOICE" && document.invoiceStatus === "REJECTED";
   const canSubmitB2CEreporting = document.type === 'INVOICE' && Boolean(document.sentAt) && document.clientType === 'INDIVIDUAL';
+  const canSendB2B = document.type === 'INVOICE' && Boolean(document.sentAt) && document.clientType === 'BUSINESS';
+  const b2bTransmission = document.electronicInvoiceTransmissions?.[0];
 
   const { showToast } = useToast();
 
@@ -180,6 +184,30 @@ function ShowDocument({ document }: ShowDocumentProps) {
     router.refresh();
   }
 
+  async function handleSendB2B() {
+    setIsSendingB2B(true);
+    const response = await sendB2BInvoiceToSuperPdp(document.companyId, document.id);
+    setIsSendingB2B(false);
+    if (!response.ok) {
+      showToast('Impossible de transmettre la facture B2B. Vérifiez le point de réception sélectionné.', 'error');
+      return;
+    }
+    showToast('Facture Factur-X transmise à SuperPDP.', 'success');
+    router.refresh();
+  }
+
+  async function handleSyncB2B() {
+    setIsSyncingB2B(true);
+    const response = await syncB2BInvoiceWithSuperPdp(document.companyId, document.id);
+    setIsSyncingB2B(false);
+    if (!response.ok) {
+      showToast('Impossible d’actualiser le statut SuperPDP.', 'error');
+      return;
+    }
+    showToast(`Statut SuperPDP actualisé : ${response.data.providerStatus ?? response.data.status}.`, 'success');
+    router.refresh();
+  }
+
   return (
     <div className="p-0 sm:p-3 lg:p-5">
       <div className="flex items-center justify-between gap-4">
@@ -258,6 +286,18 @@ function ShowDocument({ document }: ShowDocumentProps) {
               </button>
             )}
 
+            {canSendB2B && (
+              <button type="button" onClick={() => void handleSendB2B()} disabled={isSendingB2B} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-primary px-3 py-2 text-center text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
+                <Send className="h-4 w-4" aria-hidden="true" />
+                {isSendingB2B ? 'Transmission…' : 'Transmettre à SuperPDP'}
+              </button>
+            )}
+            {canSendB2B && (
+              <button type="button" onClick={() => void handleSyncB2B()} disabled={isSyncingB2B} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 px-3 py-2 text-center text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50">
+                {isSyncingB2B ? 'Actualisation…' : 'Actualiser le statut SuperPDP'}
+              </button>
+            )}
+
             {(isDraftEstimate || isDraftInvoice) && (
               <button
                 className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-primary bg-primary px-4 py-2 text-center text-white transition-all duration-150 hover:bg-primary/90"
@@ -289,6 +329,13 @@ function ShowDocument({ document }: ShowDocumentProps) {
             )}
 
           </div>
+          {b2bTransmission && (
+            <p className="mt-3 text-center text-sm text-zinc-600">
+              SuperPDP : <strong>{b2bTransmission.providerStatus ?? b2bTransmission.status}</strong>
+              {b2bTransmission.providerInvoiceId ? ` · Référence ${b2bTransmission.providerInvoiceId}` : ''}
+              {b2bTransmission.lastError ? ` · ${b2bTransmission.lastError}` : ''}
+            </p>
+          )}
         </div>
 
       {negociations.length > 0 && (

@@ -22,6 +22,7 @@ import {
   parseDateOnly,
 } from './instalment-plan.utils';
 import { FacturXService } from 'src/electronic-invoicing/factur-x.service';
+import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ereporting.service';
 
 @Injectable()
 export class DocumentService {
@@ -36,6 +37,7 @@ export class DocumentService {
     private readonly planAccessService: PlanAccessService,
     private readonly gocardlessInstalmentRetryService: GoCardlessInstalmentRetryService,
     private readonly facturXService: FacturXService,
+    private readonly superPdpEreportingService: SuperPdpEreportingService,
   ) {
     this.callbackUrl =
       this.configService.get<string>('BRIDGE_CALLBACK_URL') || '';
@@ -85,6 +87,10 @@ export class DocumentService {
               documentData.client.clientType === 'BUSINESS'
                 ? 'BUSINESS'
                 : 'INDIVIDUAL',
+            clientSiren: documentData.client.siren,
+            clientVatNumber: documentData.client.vatNumber,
+            clientElectronicAddress: documentData.client.electronicAddress,
+            clientElectronicAddressScheme: documentData.client.electronicAddressScheme,
             operationNature: documentData.operationNature ?? 'SERVICES',
             totalPriceExcludingTax: totalPriceExludingTax,
             totalPrice: totalDocumentPrice,
@@ -263,6 +269,12 @@ export class DocumentService {
                 documentData.client.clientType === 'BUSINESS'
                   ? 'BUSINESS'
                   : 'INDIVIDUAL',
+              clientSiren: documentData.client.siren,
+              clientVatNumber: documentData.client.vatNumber,
+              clientElectronicAddress: documentData.client.electronicAddress,
+              clientElectronicAddressScheme:
+                documentData.client.electronicAddressScheme,
+              operationNature: documentData.operationNature ?? 'SERVICES',
               totalPriceExcludingTax: totalPriceExludingTax,
               totalPrice: totalDocumentPrice,
               paymentDueAt: new Date(data.documentDates.dueDate),
@@ -480,6 +492,21 @@ export class DocumentService {
           clientCountry: document.clientCountry,
           clientPostalCode: document.clientPostalCode,
           clientType: document.clientType,
+          clientSiren: document.clientSiren,
+          clientVatNumber: document.clientVatNumber,
+          clientElectronicAddress: document.clientElectronicAddress,
+          clientElectronicAddressScheme:
+            document.clientElectronicAddressScheme,
+          operationNature: document.operationNature,
+          clientIsVatTaxable: document.clientIsVatTaxable,
+          clientForeignIdentifier: document.clientForeignIdentifier,
+          deliveryAddress: document.deliveryAddress,
+          deliveryCity: document.deliveryCity,
+          deliveryPostalCode: document.deliveryPostalCode,
+          deliveryCountry: document.deliveryCountry,
+          currencyCode: document.currencyCode,
+          isVatExempt: document.isVatExempt,
+          vatExemptionReason: document.vatExemptionReason,
           totalPriceExcludingTax: document.totalPriceExcludingTax,
           totalPrice: document.totalPrice,
           documentNumber: invoiceNumber,
@@ -1210,6 +1237,17 @@ export class DocumentService {
         },
         include: {
           services: withServices,
+          electronicInvoiceTransmissions: {
+            where: { provider: 'SUPER_PDP', flow: 'B2B_FR' },
+            select: {
+              status: true,
+              providerStatus: true,
+              providerInvoiceId: true,
+              submittedAt: true,
+              lastSyncedAt: true,
+              lastError: true,
+            },
+          },
           convertedDocuments: {
             where: { type: 'INVOICE' },
             select: { id: true },
@@ -1512,6 +1550,21 @@ export class DocumentService {
           clientPostalCode: sourceDocument.clientPostalCode,
           clientCountry: sourceDocument.clientCountry,
           clientType: sourceDocument.clientType,
+          clientSiren: sourceDocument.clientSiren,
+          clientVatNumber: sourceDocument.clientVatNumber,
+          clientElectronicAddress: sourceDocument.clientElectronicAddress,
+          clientElectronicAddressScheme:
+            sourceDocument.clientElectronicAddressScheme,
+          operationNature: sourceDocument.operationNature,
+          clientIsVatTaxable: sourceDocument.clientIsVatTaxable,
+          clientForeignIdentifier: sourceDocument.clientForeignIdentifier,
+          deliveryAddress: sourceDocument.deliveryAddress,
+          deliveryCity: sourceDocument.deliveryCity,
+          deliveryPostalCode: sourceDocument.deliveryPostalCode,
+          deliveryCountry: sourceDocument.deliveryCountry,
+          currencyCode: sourceDocument.currencyCode,
+          isVatExempt: sourceDocument.isVatExempt,
+          vatExemptionReason: sourceDocument.vatExemptionReason,
           totalPriceExcludingTax: sourceDocument.totalPriceExcludingTax,
           totalPrice: sourceDocument.totalPrice,
           paymentDueAt: sourceDocument.paymentDueAt,
@@ -1746,6 +1799,23 @@ export class DocumentService {
       });
 
       await this.markDocumentAsDelivered(document.id, isInvoice);
+
+      if (
+        isInvoice &&
+        document.clientType === 'INDIVIDUAL' &&
+        ['FR', 'FRA', 'FRANCE'].includes(document.clientCountry.trim().toUpperCase()) &&
+        this.configService.get<string>('SUPERPDP_TRANSACTION_EREPORTING_ENABLED') === 'true'
+      ) {
+        try {
+          await this.superPdpEreportingService.submitB2CTransaction({
+            companyId: document.companyId,
+            documentId: document.id,
+            userId: user.id,
+          });
+        } catch (error) {
+          console.error('E-reporting B2C automatique impossible:', error);
+        }
+      }
 
       return {
         success: true,

@@ -23,7 +23,9 @@ function ClientCard({ client, triggerEdit, triggerDelete }: ClientCardProps) {
           </div>
           <div className="min-w-0">
             <h4 className="truncate text-lg font-semibold text-zinc-900">{client.name}</h4>
-            <p className="mt-0.5 text-xs font-medium text-zinc-400">Client</p>
+            <p className="mt-0.5 text-xs font-medium text-zinc-400">
+              {client.clientType === 'BUSINESS' ? 'Entreprise' : 'Particulier'}
+            </p>
           </div>
         </div>
         <ClientCardMenu
@@ -43,6 +45,17 @@ function ClientCard({ client, triggerEdit, triggerDelete }: ClientCardProps) {
           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
           <span>{client.address}, {client.postalCode} {client.city}, {client.country}</span>
         </div>
+        {client.clientType === 'BUSINESS' && (client.siren || client.vatNumber || client.electronicAddress) && (
+          <div className="space-y-1 border-t border-zinc-100 pt-3 text-xs text-zinc-500">
+            {client.siren && <p>SIREN : {client.siren}</p>}
+            {client.vatNumber && <p>TVA : {client.vatNumber}</p>}
+            {client.electronicAddress && (
+              <p className="break-all">
+                Réception : {client.electronicAddressScheme ? `${client.electronicAddressScheme}:` : ''}{client.electronicAddress}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </article>
   );

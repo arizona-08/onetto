@@ -35,6 +35,10 @@ export type CompanyClient = {
   postalCode: string;
   country: string;
   clientType: 'BUSINESS' | 'CLIENT';
+  siren?: string | null;
+  vatNumber?: string | null;
+  electronicAddress?: string | null;
+  electronicAddressScheme?: string | null;
 };
 
 export function getMyCompaniesServer() {

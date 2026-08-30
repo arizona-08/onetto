@@ -82,6 +82,8 @@ function DocumentPreview({ type, client, lineItems, documentDates, creationDate 
               <div className="space-y-0.5">
                 <p className="min-h-5 font-title text-lg font-semibold">{client?.name ?? 'John Doe'}</p>
                 <p>{client?.email ?? 'john.doe@example.com'}</p>
+                {client?.clientType === 'BUSINESS' && client.siren && <p>SIREN : {client.siren}</p>}
+                {client?.clientType === 'BUSINESS' && client.vatNumber && <p>TVA intracommunautaire : {client.vatNumber}</p>}
                 <p>{client?.address ?? '10 rue de la Paix'}</p>
                 <p>{client?.postalCode ?? '75000'}, {client?.city ?? 'Paris'}, {client?.country ?? 'France'}</p>
               </div>
