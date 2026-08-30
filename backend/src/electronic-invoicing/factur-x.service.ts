@@ -43,6 +43,43 @@ export class FacturXService {
   }
 
   /**
+   * The Factur-X archive uses the French CIUS. Peppol endpoints commonly
+   * expect the Peppol BIS Billing 3.0 profile instead, so produce UBL from
+   * the same invoice data with Peppol's BT-23/BT-24 profile identifiers.
+   */
+  async generatePeppolUbl(documentId: string, user: User): Promise<Buffer> {
+    const document = await this.prisma.document.findFirst({
+      where: { id: documentId, type: 'INVOICE', company: { OR: [{ ownerId: user.id }, { companyUsers: { some: { userId: user.id } } }] } },
+      include: { company: true, services: true },
+    });
+    if (!document) throw new NotFoundException('Facture introuvable ou accès non autorisé.');
+    if (!document.documentNumber) throw new BadRequestException('La facture doit avoir un numéro.');
+    let response: Response;
+    try {
+      response = await fetch('https://api.superpdp.tech/v1.beta/invoices/convert?from=en16931&to=ubl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/xml' },
+        body: JSON.stringify(this.toEn16931(document, 'peppol')),
+      });
+    } catch {
+      throw new BadGatewayException('Le convertisseur UBL Peppol SuperPDP est indisponible.');
+    }
+    if (!response.ok) {
+      const details = (await response.text()).slice(0, 1500);
+      throw new BadGatewayException(
+        details
+          ? `SuperPDP ne peut pas générer l’UBL Peppol (${response.status}) : ${details}`
+          : `SuperPDP ne peut pas générer l’UBL Peppol (HTTP ${response.status}).`,
+      );
+    }
+    const ubl = Buffer.from(await response.arrayBuffer());
+    if (!ubl.length) {
+      throw new BadGatewayException(`SuperPDP a retourné un UBL vide pour la facture ${document.documentNumber}.`);
+    }
+    return ubl;
+  }
+
+  /**
    * Used only before SuperPDP has accepted an outgoing invoice. This lets us
    * repair a technical archive after a failed pre-submission validation while
    * still keeping the archive immutable once a provider invoice exists.
@@ -69,7 +106,7 @@ export class FacturXService {
     return file;
   }
 
-  private toEn16931(document: any) {
+  private toEn16931(document: any, profile: 'factur-x' | 'peppol' = 'factur-x') {
     const money = (value: number) => Number(value).toFixed(2);
     // `#` is useful in the Onetto display number but is forbidden by the
     // French Factur-X identifier rules used by SuperPDP.
@@ -96,12 +133,20 @@ export class FacturXService {
         ? '0009'
         : document.company.electronicAddressScheme;
     // `0225` is the Peppol participant scheme used to discover a receiving
-    // endpoint. For French B2B data, SuperPDP requires the business document
-    // itself to carry a French identifier scheme. Prefer the buyer SIREN.
+    // endpoint. The buyer electronic address (BT-49) is the delivery address:
+    // it must therefore keep the selected Peppol endpoint. The SIREN is a
+    // distinct legal-registration identifier (BT-47), encoded with `0002`.
     const inferredBuyerSiren = document.clientSiren
       ?? document.clientElectronicAddress?.match(/^(\d{9})_/u)?.[1];
-    const buyerElectronicAddress = document.clientType === 'BUSINESS' && inferredBuyerSiren
-      ? { value: inferredBuyerSiren, scheme: '0002' }
+    const peppolRoutingIdentifier = document.clientElectronicAddress
+      ? document.clientElectronicAddressScheme === '0225'
+        ? { value: document.clientElectronicAddress, scheme: '0225' }
+        : /^(\d{9})_/u.test(document.clientElectronicAddress)
+          ? { value: document.clientElectronicAddress, scheme: '0225' }
+          : undefined
+      : undefined;
+    const buyerElectronicAddress = document.clientType === 'BUSINESS' && peppolRoutingIdentifier
+      ? peppolRoutingIdentifier
       : document.clientElectronicAddress && document.clientElectronicAddressScheme
         ? { value: document.clientElectronicAddress, scheme: document.clientElectronicAddressScheme }
         : undefined;
@@ -113,12 +158,21 @@ export class FacturXService {
       sellerElectronicAddressScheme: electronicScheme,
       buyerElectronicAddress,
       buyerSiren: inferredBuyerSiren,
+      peppolRoutingIdentifier,
     });
     return {
       number: compliantInvoiceNumber, issue_date: issueDate, type_code: 380, currency_code: document.currencyCode ?? 'EUR',
+      // Peppol requires a buyer-side routing reference (BT-10) or a buyer
+      // purchase order (BT-13). Onetto has no dedicated BT-10 field yet, so
+      // use a stable technical reference for the transport document.
+      ...(profile === 'peppol' ? { buyer_reference: `ONETTO-${compliantInvoiceNumber}` } : {}),
       process_control: {
-        specification_identifier: 'urn:cen.eu:en16931:2017',
-        business_process_type: this.getBusinessProcessType(document.operationNature),
+        specification_identifier: profile === 'peppol'
+          ? 'urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:2017:poacc:billing:3.0'
+          : 'urn:cen.eu:en16931:2017',
+        business_process_type: profile === 'peppol'
+          ? 'urn:fdc:peppol.eu:2017:poacc:billing:01:1.0'
+          : this.getBusinessProcessType(document.operationNature),
       },
       seller: { name: document.company.name, electronic_address: { value: document.company.electronicAddress, scheme: electronicScheme }, postal_address: address(document.company), legal_registration_identifier: { value: document.company.siren, scheme: '0002' }, ...(document.company.subjectToVat && document.company.vatNumber ? { vat_identifier: document.company.vatNumber } : {}) },
       buyer: {
@@ -129,7 +183,6 @@ export class FacturXService {
           : {}),
         ...(document.clientType === 'BUSINESS' && inferredBuyerSiren
           ? {
-              identifiers: [{ value: inferredBuyerSiren, scheme: '0002' }],
               legal_registration_identifier: { value: inferredBuyerSiren, scheme: '0002' },
             }
           : {}),
@@ -142,11 +195,13 @@ export class FacturXService {
       deliver_to_address: address(deliveryAddress),
       totals: { sum_invoice_lines_amount: money(document.totalPriceExcludingTax), total_without_vat: money(document.totalPriceExcludingTax), total_with_vat: money(document.totalPrice), amount_due_for_payment: money(document.totalPrice), total_vat_amount: { value: money(totalVat), currency_code: document.currencyCode ?? 'EUR' } },
       vat_break_down: [...vat.entries()].map(([rate, item]) => ({ vat_category_code: rate ? 'S' : 'Z', vat_category_rate: money(rate), vat_category_taxable_amount: money(item.taxable), vat_category_tax_amount: money(item.tax) })), lines,
-      notes: [
-        { subject_code: 'PMT', note: `Paiement à échéance le ${paymentDueDate}.` },
-        { subject_code: 'PMD', note: 'En cas de retard de paiement, des pénalités sont exigibles au taux de refinancement de la BCE majoré de 10 points.' },
-        { subject_code: 'AAB', note: 'Pas d’escompte pour paiement anticipé.' },
-      ],
+      notes: profile === 'peppol'
+        ? [{ note: `Paiement à échéance le ${paymentDueDate}. Pénalités de retard : taux de refinancement de la BCE majoré de 10 points. Pas d’escompte pour paiement anticipé.` }]
+        : [
+            { subject_code: 'PMT', note: `Paiement à échéance le ${paymentDueDate}.` },
+            { subject_code: 'PMD', note: 'En cas de retard de paiement, des pénalités sont exigibles au taux de refinancement de la BCE majoré de 10 points.' },
+            { subject_code: 'AAB', note: 'Pas d’escompte pour paiement anticipé.' },
+          ],
       payment_due_date: paymentDueDate,
       payment_terms: 'Paiement à échéance.',
     };

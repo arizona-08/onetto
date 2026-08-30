@@ -64,6 +64,12 @@ export class SuperPdpB2bService {
         : document.facturXContent
           ? Buffer.from(document.facturXContent)
           : await this.facturX.archive(document.id, input.user);
+      await this.validateElectronicInvoice(facturX, document.documentNumber ?? document.id, 'pdf');
+      // The directory endpoint selected for Tricatel accepts Peppol BIS
+      // Billing 3.0. We retain the French Factur-X as the immutable archive
+      // and build the equivalent UBL transport document with Peppol's profile.
+      const ubl = await this.facturX.generatePeppolUbl(document.id, input.user);
+      await this.validateElectronicInvoice(ubl, document.documentNumber ?? document.id, 'xml');
       const token = await this.oauth.getAccessToken(input.companyId);
       const url = new URL('https://api.superpdp.tech/v1.beta/invoices');
       // The document UUID is a stable external id accepted by SuperPDP (max. 36 chars).
@@ -74,9 +80,11 @@ export class SuperPdpB2bService {
         documentId: document.id,
         documentNumber: document.documentNumber,
         endpoint: url.toString(),
-        format: 'factur-x',
+        format: 'ubl-peppol',
         facturXBytes: facturX.length,
         facturXFingerprint: createHash('sha256').update(facturX).digest('hex'),
+        ublBytes: ubl.length,
+        ublFingerprint: createHash('sha256').update(ubl).digest('hex'),
         operationNature: document.operationNature,
         buyer: {
           clientSiren: document.clientSiren,
@@ -86,8 +94,8 @@ export class SuperPdpB2bService {
       });
       const response = await fetch(url, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/pdf' },
-        body: Uint8Array.from(facturX),
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/xml' },
+        body: Uint8Array.from(ubl),
       });
       if (!response.ok) {
         const details = (await response.text()).slice(0, 1000);
@@ -100,8 +108,8 @@ export class SuperPdpB2bService {
         where: { id: transmission.id },
         data: {
           providerInvoiceId: String(providerInvoice.id),
-          submittedFormat: 'factur-x',
-          documentFingerprint: createHash('sha256').update(facturX).digest('hex'),
+          submittedFormat: 'ubl-peppol',
+          documentFingerprint: createHash('sha256').update(ubl).digest('hex'),
           status: 'SUBMITTED',
           providerStatus: 'api:uploaded',
           submittedAt: new Date(),
@@ -115,6 +123,7 @@ export class SuperPdpB2bService {
         where: { id: transmission.id },
         data: { status: 'FAILED', lastError: message },
       });
+      if (error instanceof BadRequestException) throw error;
       throw new BadGatewayException(`Impossible de transmettre la facture B2B à SuperPDP : ${message}`);
     }
   }
@@ -195,6 +204,42 @@ export class SuperPdpB2bService {
     });
     if (!document) throw new NotFoundException('Facture introuvable ou accès non autorisé.');
     return document;
+  }
+
+  private async validateElectronicInvoice(file: Buffer, documentNumber: string, extension: 'pdf' | 'xml') {
+    const form = new FormData();
+    form.append(
+      'file',
+      new Blob([Uint8Array.from(file)], { type: 'application/pdf' }),
+      `invoice-${documentNumber}.${extension}`,
+    );
+    let response: Response;
+    try {
+      response = await fetch('https://api.superpdp.tech/v1.beta/validation_reports', {
+        method: 'POST',
+        body: form,
+      });
+    } catch {
+      throw new BadGatewayException('Le service de validation SuperPDP est indisponible.');
+    }
+    if (!response.ok) {
+      throw new BadGatewayException(`SuperPDP ne peut pas valider la facture électronique (HTTP ${response.status}).`);
+    }
+    const result = await response.json() as {
+      data?: Array<{ is_valid?: boolean; error?: string; subreports?: Array<{ error?: string }> }>;
+    };
+    const report = result.data?.[0];
+    if (!report?.is_valid) {
+      const details = [report?.error, ...(report?.subreports?.map((item) => item.error) ?? [])]
+        .filter((value): value is string => Boolean(value))
+        .join(' ')
+        .slice(0, 1500);
+      throw new BadRequestException(
+        details
+          ? `La facture électronique n’est pas valide pour SuperPDP : ${details}`
+          : 'La facture électronique n’est pas valide pour SuperPDP.',
+      );
+    }
   }
 
   private mapStatus(status?: string): ElectronicInvoiceTransmissionStatus | undefined {
