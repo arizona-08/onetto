@@ -91,7 +91,7 @@ export class DocumentService {
             clientVatNumber: documentData.client.vatNumber,
             clientElectronicAddress: documentData.client.electronicAddress,
             clientElectronicAddressScheme: documentData.client.electronicAddressScheme,
-            operationNature: documentData.operationNature ?? 'SERVICES',
+            operationNature: this.getOperationNatureFromLineItems(lineItems),
             totalPriceExcludingTax: totalPriceExludingTax,
             totalPrice: totalDocumentPrice,
             documentNumber,
@@ -116,6 +116,7 @@ export class DocumentService {
               taxRate: lineItem.taxRate,
               unitPrice: lineItem.unitPrice,
               unit: lineItem.unit,
+              itemType: lineItem.itemType ?? 'SERVICES',
               documentId: createdDocument.id,
               wtPrice,
               totalPrice,
@@ -274,7 +275,7 @@ export class DocumentService {
               clientElectronicAddress: documentData.client.electronicAddress,
               clientElectronicAddressScheme:
                 documentData.client.electronicAddressScheme,
-              operationNature: documentData.operationNature ?? 'SERVICES',
+              operationNature: this.getOperationNatureFromLineItems(lineItems),
               totalPriceExcludingTax: totalPriceExludingTax,
               totalPrice: totalDocumentPrice,
               paymentDueAt: new Date(data.documentDates.dueDate),
@@ -292,6 +293,7 @@ export class DocumentService {
               taxRate: lineItem.taxRate,
               unitPrice: lineItem.unitPrice,
               unit: lineItem.unit,
+              itemType: lineItem.itemType ?? 'SERVICES',
               wtPrice,
               totalPrice,
             };
@@ -530,6 +532,7 @@ export class DocumentService {
               taxRate: service.taxRate,
               unitPrice: service.unitPrice,
               unit: service.unit,
+              itemType: service.itemType,
               documentId: invoice.id,
               wtPrice: service.wtPrice,
               totalPrice: service.totalPrice,
@@ -1585,6 +1588,7 @@ export class DocumentService {
           quantity: service.quantity,
           unitPrice: service.unitPrice,
           unit: service.unit,
+          itemType: service.itemType,
           taxRate: service.taxRate,
           wtPrice: service.wtPrice,
           totalPrice: service.totalPrice,
@@ -1593,6 +1597,14 @@ export class DocumentService {
 
       return { document };
     });
+  }
+
+  private getOperationNatureFromLineItems(
+    lineItems: Array<{ itemType?: 'GOODS' | 'SERVICES' }>,
+  ): 'GOODS' | 'SERVICES' | 'MIXED' {
+    const itemTypes = new Set(lineItems.map((lineItem) => lineItem.itemType ?? 'SERVICES'));
+    if (itemTypes.has('GOODS') && itemTypes.has('SERVICES')) return 'MIXED';
+    return itemTypes.has('GOODS') ? 'GOODS' : 'SERVICES';
   }
 
   private async getActiveCompanyId(

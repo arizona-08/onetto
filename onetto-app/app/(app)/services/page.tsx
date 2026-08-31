@@ -23,6 +23,7 @@ async function services() {
         unit: service.unit,
         taxRate: service.taxRate ?? 0,
         category: service.category,
+        itemType: service.itemType,
       }))
     : [];
 

@@ -21,6 +21,7 @@ export type Service = {
   unit: string
   taxRate: number
   category: string
+  itemType: 'GOODS' | 'SERVICES'
 }
 
 export type ServiceLineItem = {
@@ -29,6 +30,7 @@ export type ServiceLineItem = {
   taxRate: number
   unitPrice: number
   unit: string
+  itemType: 'GOODS' | 'SERVICES'
 }
 
 export type DocumentDates = {
@@ -123,6 +125,7 @@ export type DocumentService = {
   unit: string;
   wtPrice: number;
   totalPrice: number;
+  itemType: 'GOODS' | 'SERVICES';
 }
 
 export type PublicPayment = {

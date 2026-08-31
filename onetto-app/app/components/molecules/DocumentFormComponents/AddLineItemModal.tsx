@@ -22,7 +22,8 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
     quantity: 1,
     unitPrice: 0,
     taxRate: 0.00,
-    unit: ""
+    unit: "",
+    itemType: 'SERVICES',
   })
 
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
@@ -38,7 +39,8 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
         quantity: 1,
         unitPrice: service.unitPrice,
         taxRate: service.taxRate,
-        unit: service.unit
+        unit: service.unit,
+        itemType: service.itemType,
       })
     } else {
       setLineItemDetails({
@@ -46,7 +48,8 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
         quantity: 1,
         unitPrice: 0,
         taxRate: 0.00,
-        unit: ""
+        unit: "",
+        itemType: 'SERVICES',
       })
     }
     setIsDropdownOpen(false);
@@ -59,7 +62,8 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
         quantity: 1,
         unitPrice: 0,
         taxRate: 0.00,
-        unit: ""
+        unit: "",
+        itemType: 'SERVICES',
       })
     } else {
       resetLineItemDetails()
@@ -99,7 +103,8 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
       quantity: 1,
       unitPrice: 0,
       taxRate: 0.00,
-      unit: ""
+      unit: "",
+      itemType: 'SERVICES',
     })
   }
 
@@ -166,6 +171,20 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
                   onChange={handleChange}
                 />
               </div>
+
+              <fieldset>
+                <legend className="mb-2 block text-sm font-medium text-gray-700">Type de ligne</legend>
+                <div className="flex gap-3">
+                  <label className="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm">
+                    <input type="radio" name="itemType" value="GOODS" checked={lineItemDetails.itemType === 'GOODS'} onChange={() => setLineItemDetails((item) => ({ ...item, itemType: 'GOODS' }))} />
+                    Bien
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm">
+                    <input type="radio" name="itemType" value="SERVICES" checked={lineItemDetails.itemType === 'SERVICES'} onChange={() => setLineItemDetails((item) => ({ ...item, itemType: 'SERVICES' }))} />
+                    Service / prestation
+                  </label>
+                </div>
+              </fieldset>
 
               <div className="flex flex-col gap-4 items-center bg-primary/10 p-4 rounded-md">
 

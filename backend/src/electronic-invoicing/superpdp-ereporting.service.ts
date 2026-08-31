@@ -49,20 +49,9 @@ export class SuperPdpEreportingService {
       throw new BadRequestException('Une opération exonérée ne peut pas être déclarée sans qualification réglementaire complémentaire.');
     }
 
-    const categoryCode = this.getCategory(document.operationNature);
-    const taxSubtotals = this.groupTaxSubtotals(document.services);
-    const taxExclusive = Number(document.totalPriceExcludingTax).toFixed(2);
-    const taxTotal = (Number(document.totalPrice) - Number(document.totalPriceExcludingTax)).toFixed(2);
+    const transactions = this.buildTransactions(document.services, document.sentAt, document.currencyCode);
     const payload = {
-      data: [{
-        date: this.toDate(document.sentAt),
-        currency: document.currencyCode,
-        category_code: categoryCode,
-        tax_exclusive_amount: taxExclusive,
-        tax_total: taxTotal,
-        tax_subtotals: taxSubtotals,
-        role_code: 'SE',
-      }],
+      data: transactions,
       has_more: false,
     };
     const fingerprint = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
@@ -101,7 +90,7 @@ export class SuperPdpEreportingService {
         data: {
           status: 'SUBMITTED',
           submittedAt: new Date(),
-          providerReportId: result.data?.[0]?.id === undefined ? null : String(result.data[0].id),
+          providerReportId: result.data?.map((item) => item.id).filter((id) => id !== undefined).join(',') || null,
         },
       });
     } catch {
@@ -135,10 +124,30 @@ export class SuperPdpEreportingService {
     }
   }
 
-  private getCategory(operationNature: string | null): B2CCategoryCode {
-    if (!operationNature || operationNature === 'SERVICES') return 'TPS1';
-    if (operationNature === 'GOODS') return 'TLB1';
-    throw new BadRequestException('Une facture mixte doit être séparée entre biens et services avant e-reporting.');
+  private buildTransactions(
+    services: Array<{ unitPrice: number; quantity: number; taxRate: number | null; itemType: 'GOODS' | 'SERVICES' }>,
+    sentAt: Date,
+    currency: string,
+  ) {
+    const groups: Array<{ itemType: 'GOODS' | 'SERVICES'; categoryCode: B2CCategoryCode }> = [
+      { itemType: 'GOODS', categoryCode: 'TLB1' },
+      { itemType: 'SERVICES', categoryCode: 'TPS1' },
+    ];
+    return groups.flatMap(({ itemType, categoryCode }) => {
+      const lines = services.filter((service) => service.itemType === itemType);
+      if (!lines.length) return [];
+      const taxExclusive = lines.reduce((total, line) => total + Number(line.unitPrice) * Number(line.quantity), 0);
+      const taxTotal = lines.reduce((total, line) => total + Number(line.unitPrice) * Number(line.quantity) * Number(line.taxRate ?? 0) / 100, 0);
+      return [{
+        date: this.toDate(sentAt),
+        currency,
+        category_code: categoryCode,
+        tax_exclusive_amount: taxExclusive.toFixed(2),
+        tax_total: taxTotal.toFixed(2),
+        tax_subtotals: this.groupTaxSubtotals(lines),
+        role_code: 'SE',
+      }];
+    });
   }
 
   private groupTaxSubtotals(services: Array<{ unitPrice: number; quantity: number; taxRate: number | null }>) {

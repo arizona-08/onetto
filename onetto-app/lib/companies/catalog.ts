@@ -9,6 +9,7 @@ function getServicePayload(service: Service) {
     unit: service.unit,
     taxRate: service.taxRate,
     category: service.category,
+    itemType: service.itemType,
   };
 }
 

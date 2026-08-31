@@ -218,6 +218,7 @@ export class CompaniesService {
       data: {
         ...data,
         companyId,
+        itemType: data.itemType ?? 'SERVICES',
         taxRate: data.taxRate ?? 0,
         wtPrice: data.unitPrice,
         totalPrice: this.getServiceTotalPrice(data.unitPrice, data.taxRate),

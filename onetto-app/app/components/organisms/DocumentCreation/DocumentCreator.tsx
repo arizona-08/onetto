@@ -41,7 +41,11 @@ interface DocumentCreateProps {
 function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: DocumentCreateProps) {
   const [client, setClient] = React.useState<Client | null>(null);
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
-  const [operationNature, setOperationNature] = React.useState<'GOODS' | 'SERVICES' | 'MIXED'>('SERVICES');
+  const operationNature = React.useMemo<'GOODS' | 'SERVICES' | 'MIXED'>(() => {
+    const itemTypes = new Set(lineItems.map((lineItem) => lineItem.itemType ?? 'SERVICES'));
+    if (itemTypes.has('GOODS') && itemTypes.has('SERVICES')) return 'MIXED';
+    return itemTypes.has('GOODS') ? 'GOODS' : 'SERVICES';
+  }, [lineItems]);
   const [documentDates, setDocumentDates] = React.useState<DocumentDates>(() =>{
     const d = new Date()
     // set to one month ahead, handling month overflow
@@ -84,17 +88,14 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
         electronicAddressScheme: document.clientElectronicAddressScheme ?? undefined,
       });
 
-      if (document.operationNature) {
-        setOperationNature(document.operationNature);
-      }
-
       setLineItems(document.services ? document.services?.map(service => ({
         id: service.id,
         description: service.description,
         taxRate: service.taxRate,
         unit: service.unit,
         quantity: service.quantity,
-        unitPrice: service.unitPrice
+        unitPrice: service.unitPrice,
+        itemType: service.itemType ?? 'SERVICES',
       })) : []);
 
       setDocumentDates({
@@ -273,7 +274,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       {document && <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="edit" />{!isEditable && <p className="text-sm font-medium text-zinc-500">Cette version est en lecture seule.</p>}</div>}
 
       <fieldset disabled={!canEditDocument}>
-        {isInvoice && <div className="mx-auto mb-5 flex max-w-2xl flex-col gap-2"><label htmlFor="operationNature" className="text-sm font-semibold text-zinc-700">Nature de l’opération</label><select id="operationNature" value={operationNature} onChange={(event) => setOperationNature(event.target.value as 'GOODS' | 'SERVICES' | 'MIXED')} className="rounded-md border border-zinc-200 px-3 py-2 text-sm"><option value="SERVICES">Prestation de services</option><option value="GOODS">Vente de biens</option><option value="MIXED">Biens et services</option></select></div>}
+        {(isInvoice || isCreatingInvoice) && <div className="mx-auto mb-5 flex max-w-2xl flex-col gap-1"><p className="text-sm font-semibold text-zinc-700">Nature de l’opération</p><p className="text-sm text-zinc-600">{operationNature === 'MIXED' ? 'Biens et services' : operationNature === 'GOODS' ? 'Vente de biens' : 'Prestation de services'} <span className="text-zinc-400">(calculée à partir des lignes)</span></p></div>}
         <DocumentForm
           onClientChange={setClient}
           onLineItemsChange={setLineItems}

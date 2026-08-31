@@ -74,6 +74,10 @@ export class LineItemsDto {
   @IsDefined()
   @IsString()
   unit: string;
+
+  @IsOptional()
+  @IsIn(['GOODS', 'SERVICES'])
+  itemType?: 'GOODS' | 'SERVICES';
 }
 
 export class DocumentDateDto {

@@ -23,6 +23,7 @@ export type CompanyService = {
   category: string;
   wtPrice: number;
   totalPrice: number;
+  itemType: 'GOODS' | 'SERVICES';
 };
 
 export type CompanyClient = {

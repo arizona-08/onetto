@@ -209,7 +209,9 @@ export class FacturXService {
 
   private getBusinessProcessType(operationNature: string | null): 'B1' | 'S1' {
     if (operationNature === 'GOODS') return 'B1';
-    if (!operationNature || operationNature === 'SERVICES') return 'S1';
-    throw new BadRequestException('Une facture mixte nécessite une qualification B2B spécifique avant sa transmission électronique.');
+    // Factur-X's French conversion requires one code. The Peppol UBL transport
+    // uses its own profile; a mixed document is therefore archived with the
+    // generic service process while its B2C reporting is split per line type.
+    return 'S1';
   }
 }

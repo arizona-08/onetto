@@ -280,6 +280,11 @@ enum ElectronicInvoiceOperationNature {
   MIXED
 }
 
+enum ElectronicInvoiceLineItemType {
+  GOODS
+  SERVICES
+}
+
 enum DocumentType {
   ESTIMATE
   INVOICE
@@ -509,6 +514,7 @@ model DocumentService {
   taxRate     Float?
   wtPrice     Float
   totalPrice  Float
+  itemType    ElectronicInvoiceLineItemType @default(SERVICES)
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
 }
@@ -524,6 +530,7 @@ model CompanyService {
   category    String
   wtPrice     Float
   totalPrice  Float
+  itemType    ElectronicInvoiceLineItemType @default(SERVICES)
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
