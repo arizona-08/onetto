@@ -26,6 +26,7 @@ model User {
   companies            CompanyUser[]
   subscription         UserSubscription?
   subscriptionHistory  UserSubscriptionHistory[]
+  notifications        AppNotification[]
 }
 
 enum AccountType {
@@ -105,6 +106,38 @@ model Company {
   electronicInvoicingOAuthStates ElectronicInvoicingOAuthState[]
   receivedElectronicInvoices     ReceivedElectronicInvoice[]
   electronicReportingSubmissions ElectronicReportingSubmission[]
+  notifications                   AppNotification[]
+}
+
+enum AppNotificationType {
+  SUPPLIER_INVOICE_RECEIVED
+  PAYMENT_SUBMITTED
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  ESTIMATE_ACCEPTED
+  ESTIMATE_RENEGOTIATED
+  ESTIMATE_REJECTED
+}
+
+model AppNotification {
+  id               String              @id @default(uuid())
+  userId           String
+  companyId        String
+  type             AppNotificationType
+  title            String
+  message          String
+  href             String?
+  deduplicationKey String
+  metadata         Json?
+  readAt           DateTime?
+  createdAt        DateTime            @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deduplicationKey])
+  @@index([userId, readAt, createdAt])
+  @@index([companyId, createdAt])
 }
 
 enum CompanyVatRegime {

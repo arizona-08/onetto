@@ -14,6 +14,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AutomaticRemindersModule } from './automatic-reminders-cron/automatic-remineders.module';
 import { ElectronicInvoicingModule } from './electronic-invoicing/electronic-invoicing.module';
 import { validateSuperPdpConfiguration } from './electronic-invoicing/superpdp.config';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { validateSuperPdpConfiguration } from './electronic-invoicing/superpdp.c
     SubscriptionModule,
     AutomaticRemindersModule,
     ElectronicInvoicingModule,
+    NotificationsModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [AppController],

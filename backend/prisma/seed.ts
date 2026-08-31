@@ -8,7 +8,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
 const userEmail = 'assijonathan2@gmail.com';
-const companyEmail = 'contact@burgerqueen.test';
+const companyEmail = 'contact@marc-assi.com';
 const legacyCompanyEmail = 'contact@marc-assi.com';
 
 const companyServices = [

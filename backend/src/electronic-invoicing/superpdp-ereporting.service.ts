@@ -83,8 +83,7 @@ export class SuperPdpEreportingService {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const result = await response.json() as { data?: Array<{ id?: number | string }> };
+      const result = await this.readProviderResponse<{ data?: Array<{ id?: number | string }> }>(response);
       return await this.prisma.electronicReportingSubmission.update({
         where: { id: submission.id },
         data: {
@@ -93,12 +92,19 @@ export class SuperPdpEreportingService {
           providerReportId: result.data?.map((item) => item.id).filter((id) => id !== undefined).join(',') || null,
         },
       });
-    } catch {
+    } catch (error) {
+      const reason = this.getProviderErrorMessage(error);
       await this.prisma.electronicReportingSubmission.update({
         where: { id: submission.id },
-        data: { status: 'FAILED', lastError: 'SuperPDP a refusé ou n’a pas répondu à la déclaration B2C.' },
+        data: { status: 'FAILED', lastError: reason },
       });
-      throw new BadGatewayException('Impossible de transmettre la déclaration B2C à SuperPDP.');
+      console.error('[SuperPDP] Échec de la déclaration B2C', {
+        documentId: document.id,
+        reason,
+      });
+      throw new BadGatewayException(
+        `Impossible de transmettre la déclaration B2C : ${reason}`,
+      );
     }
   }
 
@@ -252,8 +258,7 @@ export class SuperPdpEreportingService {
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const result = await response.json() as { data?: Array<{ id?: number | string }> };
+      const result = await this.readProviderResponse<{ data?: Array<{ id?: number | string }> }>(response);
       await this.prisma.electronicReportingSubmission.update({
         where: { id: submission.id },
         data: {
@@ -263,14 +268,15 @@ export class SuperPdpEreportingService {
         },
       });
     } catch (error) {
+      const reason = this.getProviderErrorMessage(error);
       await this.prisma.electronicReportingSubmission.update({
         where: { id: submission.id },
-        data: { status: 'FAILED', lastError: 'SuperPDP a refusé ou n’a pas répondu à la déclaration de paiement B2C.' },
+        data: { status: 'FAILED', lastError: reason },
       });
       console.error('[SuperPDP] Échec de la déclaration de paiement B2C', {
         documentId: input.document.id,
         sourceReference: input.sourceReference,
-        reason: error instanceof Error ? error.message : 'Erreur inconnue',
+        reason,
       });
     }
   }
@@ -320,6 +326,41 @@ export class SuperPdpEreportingService {
     const response = await fetch(`https://api.superpdp.tech${path}`, { headers });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.json();
+  }
+
+  private async readProviderResponse<T>(response: Response): Promise<T> {
+    const rawBody = await response.text();
+    let body: unknown = rawBody;
+    try {
+      body = rawBody ? JSON.parse(rawBody) : null;
+    } catch {
+      // Some gateway failures are not JSON. Preserve their text below.
+    }
+    if (!response.ok) {
+      throw new Error(this.formatProviderFailure(response.status, body));
+    }
+    return body as T;
+  }
+
+  private formatProviderFailure(status: number, body: unknown): string {
+    const source = body as {
+      message?: unknown;
+      error?: { message?: unknown };
+    } | null;
+    const detail = typeof source?.message === 'string'
+      ? source.message
+      : typeof source?.error?.message === 'string'
+        ? source.error.message
+        : typeof body === 'string' && body.trim()
+          ? body.trim()
+          : 'Réponse sans détail';
+    return `SuperPDP (${status}) : ${detail}`.slice(0, 4_000);
+  }
+
+  private getProviderErrorMessage(error: unknown): string {
+    return error instanceof Error && error.message
+      ? error.message.slice(0, 4_000)
+      : 'SuperPDP n’a pas répondu à la déclaration.';
   }
 
   private assertEnabled() {

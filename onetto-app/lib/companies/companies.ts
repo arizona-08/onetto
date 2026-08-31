@@ -88,7 +88,7 @@ export type SuperPdpEreportingOverview = {
   transactions: { data?: Array<{ id?: number | string; date?: string; category_code?: string; tax_exclusive_amount?: string; tax_total?: string; ppf_ereporting_id?: number | string }> };
   payments: { data?: Array<{ id?: number | string; date?: string; ppf_ereporting_id?: number | string }> };
   ereportings: { data?: Array<{ id?: number | string; status?: string; period_start?: string; period_end?: string }> };
-  submissions: Array<{ id: string; kind: 'TRANSACTION' | 'PAYMENT'; status: string; providerReportId: string | null; createdAt: string; document?: { documentNumber: string | null; clientName: string } | null }>;
+  submissions: Array<{ id: string; kind: 'TRANSACTION' | 'PAYMENT'; status: string; providerReportId: string | null; lastError: string | null; createdAt: string; document?: { documentNumber: string | null; clientName: string } | null }>;
 };
 
 export function getSuperPdpEreportingOverview(companyId: string) {

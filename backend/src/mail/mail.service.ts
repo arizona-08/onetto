@@ -51,6 +51,8 @@ type PaymentReceiptMailInput = {
   companyEmail: string;
 };
 
+type AppNotificationMailInput = { title: string; message: string; href?: string };
+
 type ReminderMailInput = {
   clientName: string;
   documentNumber: string | null;
@@ -75,6 +77,15 @@ export class MailService {
       html,
       attachments,
     });
+  }
+
+  createAppNotificationMail(input: AppNotificationMailInput): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    const link = input.href ? `${process.env.FRONTEND_URL}${input.href}` : undefined;
+    return {
+      subject: `Onetto — ${input.title}`,
+      text: `${input.title}\n\n${input.message}${link ? `\n\nVoir dans Onetto : ${link}` : ''}`,
+      html: `<h1>${input.title}</h1><p>${input.message}</p>${link ? `<p><a href="${link}">Voir dans Onetto</a></p>` : ''}`,
+    };
   }
 
   createInvoiceMail(

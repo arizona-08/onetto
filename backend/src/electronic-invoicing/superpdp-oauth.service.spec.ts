@@ -22,6 +22,7 @@ describe('SuperPdpOAuthService', () => {
           id: 'company-1',
           email: 'owner@example.test',
           siren: '123456789',
+          electronicAddress: '000000001',
         }),
       },
       $transaction: jest.fn(
@@ -50,7 +51,7 @@ describe('SuperPdpOAuthService', () => {
     expect(authorizationUrl.searchParams.get('client_id')).toBe('client-id');
     expect(authorizationUrl.searchParams.get('scope')).toBeNull();
     expect(authorizationUrl.searchParams.get('superpdp_company_number')).toBe(
-      '000000002',
+      '000000001',
     );
     expect(authorizationUrl.searchParams.get('superpdp_company_number_scheme')).toBe(
       'sandbox',

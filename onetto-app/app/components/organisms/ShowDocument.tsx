@@ -7,6 +7,8 @@ import Link from 'next/link';
 import { useToast } from '../context/ToastContext';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import GoCardlessReconnectModal from '../molecules/GoCardlessReconnectModal';
+import { isGoCardlessAccessTokenInactive } from '@/lib/gocardless/access-token';
 
 interface ShowDocumentProps {
   document: Document;
@@ -22,6 +24,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [isSendingB2B, setIsSendingB2B] = useState(false);
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
+  const [isGoCardlessReconnectOpen, setIsGoCardlessReconnectOpen] = useState(false);
   const moreActionsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -119,6 +122,10 @@ function ShowDocument({ document }: ShowDocumentProps) {
     setIsRetryingPayment(false);
 
     if (!response.ok) {
+      if (isGoCardlessAccessTokenInactive(response.error)) {
+        setIsGoCardlessReconnectOpen(true);
+        return;
+      }
       showToast('Impossible de générer un nouveau lien de paiement.', 'error');
       return;
     }
@@ -229,7 +236,12 @@ function ShowDocument({ document }: ShowDocumentProps) {
           )}
         </div>
       </div>
-
+      {isGoCardlessReconnectOpen && (
+        <GoCardlessReconnectModal
+          companyId={document.companyId}
+          onClose={() => setIsGoCardlessReconnectOpen(false)}
+        />
+      )}
       <div className="mt-12 flex w-full justify-center text-sm">
           <div className="modify-and-confirm flex w-full flex-wrap justify-center gap-2">
             {isSupersededEstimate && (

@@ -1,4 +1,4 @@
-import { BadGatewayException, Injectable } from "@nestjs/common";
+import { BadGatewayException, BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomBytes } from "crypto";
 import { Environments, GoCardlessClient } from "gocardless-nodejs";
@@ -20,6 +20,7 @@ type GetAccessTokenResponse = {
 
 @Injectable()
 export class GoCardlessOAuthService {
+  private readonly logger = new Logger(GoCardlessOAuthService.name);
   constructor(
     private readonly configService: ConfigService,
     private readonly prismaService: PrismaService,
@@ -141,11 +142,11 @@ export class GoCardlessOAuthService {
 
 
     const accessTokenResponse = await this.getAccessTokenFromAuthorizationCode(authorizationCode);
-    // console.log({
-    //   active: accessTokenResponse.active,
-    //   organisationId: accessTokenResponse.organisation_id,
-    //   scope: accessTokenResponse.scope,
-    // });
+    if (!accessTokenResponse.active) {
+      throw new BadGatewayException(
+        'GoCardless a renvoyé un jeton inactif. Reconnectez votre compte GoCardless.',
+      );
+    }
     await this.prismaService.companyPaymentAccount.upsert({
       where: { companyId: existingCompany.id },
       create: {
@@ -174,7 +175,95 @@ export class GoCardlessOAuthService {
       }
     });
 
+    // The OAuth response alone is not sufficient: ensure the newly stored
+    // token can really authenticate against the GoCardless API.
+    try {
+      await this.assertCompanyAccessActive(existingCompany.id);
+    } catch (error) {
+      // A temporary GoCardless outage must not invalidate a successful OAuth
+      // exchange. An inactive token, on the other hand, has already been
+      // marked disconnected by assertCompanyAccessActive and must be surfaced.
+      if (error instanceof BadRequestException) throw error;
+      this.logger.warn(
+        `Contrôle initial GoCardless différé pour l’entreprise ${existingCompany.id}: ${this.getGoCardlessErrorMessage(error)}`,
+      );
+    }
+
     return existingCompany.id;
+  }
+
+  /**
+   * Tests the stored OAuth token with a lightweight authenticated endpoint.
+   * A 401 / revoked token immediately makes the local connection unavailable,
+   * instead of leaving the company falsely marked as connected.
+   */
+  async assertCompanyAccessActive(companyId: string): Promise<void> {
+    const account = await this.prismaService.companyPaymentAccount.findFirst({
+      where: { companyId, provider: 'GOCARDLESS' },
+      select: { id: true, companyId: true, accessToken: true },
+    });
+    if (!account) {
+      throw new BadRequestException(
+        'Aucun compte GoCardless n’est connecté à cette entreprise.',
+      );
+    }
+
+    try {
+      await this.createClient(account.accessToken).creditors.list({ limit: '1' });
+    } catch (error) {
+      if (this.isInactiveAccessTokenError(error)) {
+        await this.markCompanyPaymentAccountDisconnected(
+          account.companyId,
+          this.getGoCardlessErrorMessage(error),
+        );
+        throw this.inactiveAccessTokenException();
+      }
+      throw new BadGatewayException(
+        `Impossible de vérifier la connexion GoCardless : ${this.getGoCardlessErrorMessage(error)}`,
+      );
+    }
+  }
+
+  async validateAllActiveCompanyAccounts(): Promise<{ checked: number; disconnected: number }> {
+    const accounts = await this.prismaService.companyPaymentAccount.findMany({
+      where: { provider: 'GOCARDLESS', company: { isPaymentAccountConnected: true } },
+      select: { companyId: true },
+    });
+    let disconnected = 0;
+    for (const account of accounts) {
+      try {
+        await this.assertCompanyAccessActive(account.companyId);
+      } catch (error) {
+        if (this.isInactiveAccessTokenError(error)) {
+          disconnected += 1;
+          continue;
+        }
+        this.logger.warn(
+          `Vérification GoCardless impossible pour l’entreprise ${account.companyId}: ${this.getGoCardlessErrorMessage(error)}`,
+        );
+      }
+    }
+    return { checked: accounts.length, disconnected };
+  }
+
+  async markProviderAccountDisconnected(providerAccountId: string, reason: string): Promise<void> {
+    const account = await this.prismaService.companyPaymentAccount.findFirst({
+      where: { provider: 'GOCARDLESS', providerAccountId },
+      select: { companyId: true },
+    });
+    if (account) await this.markCompanyPaymentAccountDisconnected(account.companyId, reason);
+  }
+
+  async markProviderAccountDisconnectedIfTokenInactive(
+    providerAccountId: string,
+    error: unknown,
+  ): Promise<boolean> {
+    if (!this.isInactiveAccessTokenError(error)) return false;
+    await this.markProviderAccountDisconnected(
+      providerAccountId,
+      this.getGoCardlessErrorMessage(error),
+    );
+    return true;
   }
 
   async getClientForCompany(companyId: string): Promise<GoCardlessClient> {
@@ -233,7 +322,11 @@ export class GoCardlessOAuthService {
     try {
       creditorsResponse = await gocardlessClient.creditors.list({ limit: '1' });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'erreur inconnue';
+      const message = this.getGoCardlessErrorMessage(error);
+      if (this.isInactiveAccessTokenError(error)) {
+        await this.markCompanyPaymentAccountDisconnected(companyPaymentAccount.companyId, message);
+        throw this.inactiveAccessTokenException();
+      }
       throw new BadGatewayException(`Impossible de récupérer le statut GoCardless : ${message}`);
     }
 
@@ -251,10 +344,51 @@ export class GoCardlessOAuthService {
       }
     })
 
+    await this.prismaService.company.update({
+      where: { id: companyPaymentAccount.companyId },
+      data: { isPaymentAccountConnected: true },
+    });
+
     return {
       companyId: companyPaymentAccount.companyId,
       status: verificationStatus,
     };
+  }
+
+  private async markCompanyPaymentAccountDisconnected(companyId: string, reason: string): Promise<void> {
+    await this.prismaService.$transaction([
+      this.prismaService.company.update({
+        where: { id: companyId },
+        data: { isPaymentAccountConnected: false },
+      }),
+      this.prismaService.companyPaymentAccount.updateMany({
+        where: { companyId, provider: 'GOCARDLESS' },
+        data: { verificationStatus: 'NOT_VERIFIED' },
+      }),
+    ]);
+    this.logger.warn(`Connexion GoCardless désactivée pour l’entreprise ${companyId}: ${reason}`);
+  }
+
+  private isInactiveAccessTokenError(error: unknown): boolean {
+    const source = error as { message?: unknown; response?: { statusCode?: unknown }; statusCode?: unknown };
+    const statusCode = source.response?.statusCode ?? source.statusCode;
+    const message = this.getGoCardlessErrorMessage(error).toLowerCase();
+    return statusCode === 401 || /access token.*(?:not active|inactive|revoked)|(?:invalid|revoked|inactive).*token/.test(message);
+  }
+
+  private getGoCardlessErrorMessage(error: unknown): string {
+    return error instanceof Error && error.message
+      ? error.message
+      : 'erreur inconnue';
+  }
+
+  private inactiveAccessTokenException(): BadRequestException {
+    return new BadRequestException({
+      message:
+        'La connexion GoCardless a expiré ou a été révoquée. Reconnectez votre compte GoCardless avant d’envoyer cette facture.',
+      code: 'GOCARDLESS_ACCESS_TOKEN_INACTIVE',
+      upstreamStatusCode: 401,
+    });
   }
 
 }

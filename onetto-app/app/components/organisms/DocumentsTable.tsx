@@ -28,6 +28,8 @@ import {
 } from "@/lib/documents/document";
 import { useToast } from "@/app/components/context/ToastContext";
 import { useRouter } from "next/navigation";
+import GoCardlessReconnectModal from '../molecules/GoCardlessReconnectModal';
+import { isGoCardlessAccessTokenInactive } from '@/lib/gocardless/access-token';
 
 const statusMatcher: Record<string, { label: string; dotClassName: string }> = {
   DRAFT: { label: "Brouillon", dotClassName: "bg-zinc-400" },
@@ -143,6 +145,8 @@ function DocumentsTable({
     React.useState<string[]>([]);
   const [manualPaymentDocument, setManualPaymentDocument] =
     React.useState<Document | null>(null);
+  const [goCardlessReconnectCompanyId, setGoCardlessReconnectCompanyId] =
+    React.useState<string | null>(null);
   const [convertingDocumentIds, setConvertingDocumentIds] = React.useState<
     string[]
   >([]);
@@ -272,6 +276,11 @@ function DocumentsTable({
     setRetryingDocumentIds((ids) => ids.filter((id) => id !== documentId));
 
     if (!response.ok) {
+      if (isGoCardlessAccessTokenInactive(response.error)) {
+        const document = masterDocumentsList.find((item) => item.id === documentId);
+        if (document) setGoCardlessReconnectCompanyId(document.companyId);
+        return;
+      }
       showToast("Impossible de générer un nouveau lien de paiement.", "error");
       return;
     }
@@ -971,6 +980,12 @@ function DocumentsTable({
             </div>
           </div>
         </div>
+      )}
+      {goCardlessReconnectCompanyId && (
+        <GoCardlessReconnectModal
+          companyId={goCardlessReconnectCompanyId}
+          onClose={() => setGoCardlessReconnectCompanyId(null)}
+        />
       )}
     </div>
   );

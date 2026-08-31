@@ -3,6 +3,7 @@ import { $Enums } from '@prisma/client';
 import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ereporting.service';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class InvoicePaymentStatusService {
@@ -10,6 +11,7 @@ export class InvoicePaymentStatusService {
     private readonly prismaService: PrismaService,
     private readonly mailService: MailService,
     private readonly superPdpEreportingService: SuperPdpEreportingService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -64,6 +66,7 @@ export class InvoicePaymentStatusService {
 
     if (justPaid) {
       await this.sendInvoicePaidConfirmation(document.id);
+      await this.notifyPayment(document.id, 'PAYMENT_SUCCEEDED', 'Règlement reçu', 'Le règlement de la facture a été confirmé.', 'confirmed');
     }
   }
 
@@ -96,6 +99,7 @@ export class InvoicePaymentStatusService {
     }
     if (justPaid) {
       await this.sendInvoicePaidConfirmation(document.id);
+      await this.notifyPayment(document.id, 'PAYMENT_SUCCEEDED', 'Règlement reçu', 'Le règlement de la facture a été confirmé.', 'confirmed');
     }
   }
 
@@ -108,6 +112,7 @@ export class InvoicePaymentStatusService {
     });
     if (!payment) return;
     await this.sendPaymentSubmitted(payment.invoiceId, payment.amountInCents / 100);
+    await this.notifyPayment(payment.invoiceId, 'PAYMENT_SUBMITTED', 'Paiement en cours', 'Le paiement de la facture a été soumis à la banque.', 'submitted');
   }
 
   async notifyPaymentSubmittedForInstalment(
@@ -115,6 +120,7 @@ export class InvoicePaymentStatusService {
     amountInCents: number,
   ): Promise<void> {
     await this.sendPaymentSubmitted(invoiceId, amountInCents / 100);
+    await this.notifyPayment(invoiceId, 'PAYMENT_SUBMITTED', 'Paiement en cours', 'Le paiement de la facture a été soumis à la banque.', 'submitted');
   }
 
   private async getInvoiceStatus(
@@ -320,5 +326,11 @@ export class InvoicePaymentStatusService {
     } catch (error) {
       console.error(`Unable to send ${context} email:`, error);
     }
+  }
+
+  private async notifyPayment(documentId: string, type: 'PAYMENT_SUBMITTED' | 'PAYMENT_SUCCEEDED', title: string, message: string, key: string): Promise<void> {
+    const document = await this.prismaService.document.findUnique({ where: { id: documentId }, select: { companyId: true, documentNumber: true } });
+    if (!document) return;
+    await this.notifications.notifyCompany({ companyId: document.companyId, type, title, message: `${message} (${document.documentNumber})`, href: `/documents/${documentId}`, deduplicationKey: `payment:${documentId}:${key}` });
   }
 }

@@ -24,6 +24,7 @@ import {
 import { FacturXService } from 'src/electronic-invoicing/factur-x.service';
 import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ereporting.service';
 import { SuperPdpB2bService } from 'src/electronic-invoicing/superpdp-b2b.service';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class DocumentService {
@@ -40,6 +41,7 @@ export class DocumentService {
     private readonly facturXService: FacturXService,
     private readonly superPdpEreportingService: SuperPdpEreportingService,
     private readonly superPdpB2bService: SuperPdpB2bService,
+    private readonly notifications: NotificationsService,
   ) {
     this.callbackUrl =
       this.configService.get<string>('BRIDGE_CALLBACK_URL') || '';
@@ -1416,9 +1418,9 @@ export class DocumentService {
         data: { estimateStatus: 'SUPERSEDED' },
       });
 
-      return { success: true };
+      return { success: true, documentId: negociation.documentId };
     });
-
+    if (result) await this.notifications.notifyCompany({ companyId: pendingNegociation.document.companyId, type: 'ESTIMATE_RENEGOTIATED', title: 'Devis renégocié', message: 'Un client a demandé une renégociation de devis.', href: `/documents/${result.documentId}`, deduplicationKey: `estimate:${result.documentId}:renegotiated` });
     return result;
   }
 
@@ -1452,9 +1454,12 @@ export class DocumentService {
         });
       }
 
-      return { success: true };
+      return { success: true, documentId: negociation.documentId };
     });
-
+    if (result) {
+      const negotiation = await this.prismaService.estimateNegociation.findUnique({ where: { negociationToken }, select: { document: { select: { companyId: true, documentNumber: true } } } });
+      if (negotiation) await this.notifications.notifyCompany({ companyId: negotiation.document.companyId, type: status === 'ACCEPTED' ? 'ESTIMATE_ACCEPTED' : 'ESTIMATE_REJECTED', title: status === 'ACCEPTED' ? 'Devis accepté' : 'Devis refusé', message: `Le devis ${negotiation.document.documentNumber} a été ${status === 'ACCEPTED' ? 'accepté' : 'refusé'} par le client.`, href: `/documents/${result.documentId}`, deduplicationKey: `estimate:${result.documentId}:${status.toLowerCase()}` });
+    }
     return result;
   }
 

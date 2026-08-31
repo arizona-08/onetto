@@ -10,6 +10,8 @@ import DocumentForm from './DocumentForm';
 import DocumentPreview from './DocumentPreview';
 import { useToast } from '../../context/ToastContext';
 import DocumentVersionSelector from '../../molecules/DocumentVersionSelector';
+import GoCardlessReconnectModal from '../../molecules/GoCardlessReconnectModal';
+import { isGoCardlessAccessTokenInactive } from '@/lib/gocardless/access-token';
 
 function toDateInputValue(date: Date) {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
@@ -62,6 +64,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
   const [numberOfInstalments, setNumberOfInstalments] = useState<2 | 3>(2);
   const [firstDueDate, setFirstDueDate] = useState(() => addCalendarMonths(toDateInputValue(new Date()), 1));
   const [canUseInstalments, setCanUseInstalments] = useState(false);
+  const [goCardlessReconnectCompanyId, setGoCardlessReconnectCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadPlanAccess() {
@@ -255,6 +258,10 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
     setIsSending(false);
 
     if (!response.ok) {
+      if (isGoCardlessAccessTokenInactive(response.error)) {
+        setGoCardlessReconnectCompanyId(savedDocument.companyId);
+        return;
+      }
       showToast("Le document est enregistré, mais l’envoi au client a échoué.", "error");
       return;
     }
@@ -358,6 +365,12 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
+      )}
+      {goCardlessReconnectCompanyId && (
+        <GoCardlessReconnectModal
+          companyId={goCardlessReconnectCompanyId}
+          onClose={() => setGoCardlessReconnectCompanyId(null)}
+        />
       )}
     </div>
   )

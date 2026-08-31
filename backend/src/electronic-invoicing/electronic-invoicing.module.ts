@@ -15,10 +15,13 @@ import { SuperPdpDirectoryService } from './superpdp-directory.service';
 import { SuperPdpB2bController } from './superpdp-b2b.controller';
 import { SuperPdpB2bService } from './superpdp-b2b.service';
 import { SuperPdpSynchronizationService } from './superpdp-synchronization.service';
+import { SuperPdpIncomingInvoicesService } from './superpdp-incoming-invoices.service';
+import { SuperPdpIncomingInvoicesController } from './superpdp-incoming-invoices.controller';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
-  imports: [PrismaModule, UserModule, PdfModule],
-  controllers: [SuperPdpOAuthController, SuperPdpEreportingController, FacturXController, SuperPdpDirectoryController, SuperPdpB2bController],
+  imports: [PrismaModule, UserModule, PdfModule, NotificationsModule],
+  controllers: [SuperPdpOAuthController, SuperPdpEreportingController, FacturXController, SuperPdpDirectoryController, SuperPdpB2bController, SuperPdpIncomingInvoicesController],
   providers: [
     ElectronicInvoicingClassifierService,
     SuperPdpOAuthService,
@@ -28,6 +31,7 @@ import { SuperPdpSynchronizationService } from './superpdp-synchronization.servi
     SuperPdpDirectoryService,
     SuperPdpB2bService,
     SuperPdpSynchronizationService,
+    SuperPdpIncomingInvoicesService,
   ],
   exports: [ElectronicInvoicingClassifierService, SuperPdpOAuthService, SuperPdpEreportingService, FacturXService, SuperPdpB2bService],
 })

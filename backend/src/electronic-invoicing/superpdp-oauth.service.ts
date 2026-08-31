@@ -50,7 +50,7 @@ export class SuperPdpOAuthService {
           },
         ],
       },
-      select: { id: true, email: true, siren: true },
+      select: { id: true, email: true, siren: true, electronicAddress: true },
     });
     if (!company) {
       throw new NotFoundException(
@@ -88,7 +88,10 @@ export class SuperPdpOAuthService {
     url.searchParams.set('redirect_uri', this.getRequiredConfig('SUPERPDP_OAUTH_REDIRECT_URL'));
     url.searchParams.set('state', state);
     url.searchParams.set('login_hint', company.email);
-    const companyHint = this.getCompanyHint(company.siren);
+    const companyHint = this.getCompanyHint(
+      company.siren,
+      company.electronicAddress,
+    );
     url.searchParams.set('superpdp_company_number', companyHint.number);
     url.searchParams.set('superpdp_company_number_scheme', companyHint.scheme);
     url.searchParams.set('superpdp_send_and_receive', 'any');
@@ -345,13 +348,21 @@ export class SuperPdpOAuthService {
       : 'SANDBOX';
   }
 
-  private getCompanyHint(localSiren: string): {
+  private getCompanyHint(
+    localSiren: string,
+    electronicAddress?: string | null,
+  ): {
     number: string;
     scheme: 'sandbox' | 'fr_siren';
   } {
     if (this.getEnvironment() === 'SANDBOX') {
       return {
-        number: this.getRequiredConfig('SUPERPDP_SANDBOX_COMPANY_NUMBER'),
+        // SuperPDP sandbox companies use their own sandbox number.  Keeping it
+        // on the Onetto company lets one OAuth application connect both Burger
+        // Queen (000000002) and Tricatel (000000001), for example.
+        number:
+          electronicAddress?.trim() ||
+          this.getRequiredConfig('SUPERPDP_SANDBOX_COMPANY_NUMBER'),
         scheme: 'sandbox',
       };
     }

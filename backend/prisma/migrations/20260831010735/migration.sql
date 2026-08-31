@@ -1,2 +1,0 @@
--- RenameIndex
-ALTER INDEX "ElectronicReportingSubmission_provider_sourcePaymentReference_k" RENAME TO "ElectronicReportingSubmission_provider_sourcePaymentReferen_key";
