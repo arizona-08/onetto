@@ -14,6 +14,7 @@ import { SuperPdpDirectoryController } from './superpdp-directory.controller';
 import { SuperPdpDirectoryService } from './superpdp-directory.service';
 import { SuperPdpB2bController } from './superpdp-b2b.controller';
 import { SuperPdpB2bService } from './superpdp-b2b.service';
+import { SuperPdpSynchronizationService } from './superpdp-synchronization.service';
 
 @Module({
   imports: [PrismaModule, UserModule, PdfModule],
@@ -26,6 +27,7 @@ import { SuperPdpB2bService } from './superpdp-b2b.service';
     FacturXService,
     SuperPdpDirectoryService,
     SuperPdpB2bService,
+    SuperPdpSynchronizationService,
   ],
   exports: [ElectronicInvoicingClassifierService, SuperPdpOAuthService, SuperPdpEreportingService, FacturXService, SuperPdpB2bService],
 })

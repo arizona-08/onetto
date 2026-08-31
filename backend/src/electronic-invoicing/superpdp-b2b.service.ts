@@ -13,6 +13,7 @@ import type { User } from 'src/types/extended-request.types';
 
 type ProviderEvent = {
   id?: number | string;
+  invoice_id?: number | string;
   status_code?: string;
   status_text?: string;
   created_at?: string;
@@ -155,19 +156,53 @@ export class SuperPdpB2bService {
       where: { documentId_provider_flow: { documentId: input.documentId, provider: 'SUPER_PDP', flow: 'B2B_FR' } },
     });
     if (!transmission) throw new NotFoundException('Aucune transmission B2B SuperPDP pour cette facture.');
+    return this.syncTransmission(transmission, input.companyId);
+  }
+
+  /**
+   * Polls only transmissions whose lifecycle can still evolve. SuperPDP
+   * events are append-only, and the unique event key makes this safe to run
+   * repeatedly or after a short outage.
+   */
+  async syncPendingTransmissions() {
+    const transmissions = await this.prisma.electronicInvoiceTransmission.findMany({
+      where: {
+        provider: 'SUPER_PDP',
+        providerInvoiceId: { not: null },
+        status: { in: ['PENDING', 'SUBMITTING', 'SUBMITTED', 'SENT', 'DELIVERED', 'ON_HOLD', 'PARTIALLY_ACCEPTED', 'DISPUTED'] },
+        document: { company: { electronicInvoicingConnection: { is: { status: 'ACTIVE' } } } },
+      },
+      include: { document: { select: { companyId: true } } },
+      orderBy: { lastSyncedAt: 'asc' },
+      take: 100,
+    });
+
+    const results = await Promise.allSettled(
+      transmissions.map((transmission) => this.syncTransmission(transmission, transmission.document.companyId)),
+    );
+    return {
+      checked: transmissions.length,
+      synchronized: results.filter((result) => result.status === 'fulfilled').length,
+      failed: results.filter((result) => result.status === 'rejected').length,
+    };
+  }
+
+  private async syncTransmission(
+    transmission: { id: string; providerInvoiceId: string | null; status: ElectronicInvoiceTransmissionStatus; providerStatus: string | null },
+    companyId: string,
+  ) {
     if (!transmission.providerInvoiceId) return transmission;
 
     try {
-      const token = await this.oauth.getAccessToken(input.companyId);
+      const token = await this.oauth.getAccessToken(companyId);
       const headers = { Authorization: `Bearer ${token}` };
-      const [invoiceResponse, eventsResponse] = await Promise.all([
-        fetch(`https://api.superpdp.tech/v1.beta/invoices/${encodeURIComponent(transmission.providerInvoiceId)}`, { headers }),
-        fetch(`https://api.superpdp.tech/v1.beta/invoice_events?invoice_id=${encodeURIComponent(transmission.providerInvoiceId)}&limit=100`, { headers }),
-      ]);
-      if (!invoiceResponse.ok || !eventsResponse.ok) throw new Error('SuperPDP ne permet pas encore de lire le statut de cette facture.');
+      const invoiceResponse = await fetch(
+        `https://api.superpdp.tech/v1.beta/invoices/${encodeURIComponent(transmission.providerInvoiceId)}`,
+        { headers },
+      );
+      if (!invoiceResponse.ok) throw new Error('SuperPDP ne permet pas encore de lire le statut de cette facture.');
       const invoice = await invoiceResponse.json() as { events?: ProviderEvent[] };
-      const eventsPayload = await eventsResponse.json() as { data?: ProviderEvent[] };
-      const events = [...(invoice.events ?? []), ...(eventsPayload.data ?? [])]
+      const events = [...(invoice.events ?? []), ...await this.listAllProviderEvents(transmission.providerInvoiceId, headers)]
         .filter((event) => event.id !== undefined && event.status_code);
       let latest: ProviderEvent | undefined;
       for (const event of events) {
@@ -200,8 +235,8 @@ export class SuperPdpB2bService {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue.';
       console.error('[SuperPDP B2B] Status synchronization failure', {
-        documentId: input.documentId,
-        companyId: input.companyId,
+        transmissionId: transmission.id,
+        companyId,
         error: message,
       });
       await this.prisma.electronicInvoiceTransmission.update({
@@ -209,6 +244,26 @@ export class SuperPdpB2bService {
       });
       throw new BadGatewayException('Le statut de la facture électronique ne peut pas être mis à jour pour le moment.');
     }
+  }
+
+  private async listAllProviderEvents(providerInvoiceId: string, headers: HeadersInit): Promise<ProviderEvent[]> {
+    const events: ProviderEvent[] = [];
+    let startingAfterId: string | undefined;
+    do {
+      const url = new URL('https://api.superpdp.tech/v1.beta/invoice_events');
+      url.searchParams.set('invoice_id', providerInvoiceId);
+      url.searchParams.set('limit', '1000');
+      if (startingAfterId) url.searchParams.set('starting_after_id', startingAfterId);
+      const response = await fetch(url, { headers });
+      if (!response.ok) throw new Error('SuperPDP ne permet pas encore de lire le statut de cette facture.');
+      const page = await response.json() as { data?: ProviderEvent[]; has_after?: boolean };
+      const batch = page.data ?? [];
+      events.push(...batch);
+      const lastId = batch.at(-1)?.id;
+      if (!page.has_after || lastId === undefined) break;
+      startingAfterId = String(lastId);
+    } while (true);
+    return events;
   }
 
   async getTransmission(input: { companyId: string; documentId: string; user: User }) {

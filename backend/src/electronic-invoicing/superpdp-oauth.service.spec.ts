@@ -62,4 +62,44 @@ describe('SuperPdpOAuthService', () => {
       }),
     );
   });
+
+  it('restores an active connection after a successful token refresh', async () => {
+    const connection = {
+      findUnique: jest.fn().mockResolvedValue({
+        accessTokenEncrypted: 'encrypted-access-token',
+        refreshTokenEncrypted: 'encrypted-refresh-token',
+        accessTokenExpiresAt: new Date(Date.now() - 60_000),
+      }),
+      update: jest.fn(),
+    };
+    const tokenCrypto = {
+      decrypt: jest.fn((value: string) => value.replace('encrypted-', '')),
+      encrypt: jest.fn((value: string) => `encrypted-${value}`),
+    };
+    const service = new SuperPdpOAuthService(
+      { get: jest.fn((name: string) => config[name as keyof typeof config]) } as never,
+      { electronicInvoicingConnection: connection } as never,
+      tokenCrypto as never,
+    );
+    jest.spyOn(service as never, 'getClient').mockReturnValue({
+      createToken: jest.fn().mockReturnValue({
+        refresh: jest.fn().mockResolvedValue({
+          token: {
+            access_token: 'new-access-token',
+            refresh_token: 'new-refresh-token',
+            expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+          },
+        }),
+      }),
+    });
+
+    await expect(service.getAccessToken('company-1')).resolves.toBe('new-access-token');
+    expect(connection.update).toHaveBeenCalledWith({
+      where: { companyId: 'company-1' },
+      data: expect.objectContaining({
+        status: 'ACTIVE',
+        lastError: null,
+      }),
+    });
+  });
 });

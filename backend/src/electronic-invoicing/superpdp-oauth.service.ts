@@ -213,6 +213,8 @@ export class SuperPdpOAuthService {
           accessTokenEncrypted: this.tokenCryptoService.encrypt(token.access_token),
           refreshTokenEncrypted: this.tokenCryptoService.encrypt(token.refresh_token),
           accessTokenExpiresAt: expiresAt,
+          status: 'ACTIVE',
+          lastSyncedAt: new Date(),
           lastError: null,
         },
       });
