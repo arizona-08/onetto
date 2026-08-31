@@ -89,16 +89,6 @@ export async function retryInvoicePayment(documentId: string) {
   );
 }
 
-export async function submitB2CEreporting(
-  companyId: string,
-  documentId: string,
-) {
-  return apiClient<{ status: 'SUBMITTED' | 'ACCEPTED' | 'FAILED' }>(
-    `api/electronic-invoicing/superpdp/companies/${companyId}/documents/${documentId}/b2c-transaction`,
-    { method: 'POST' },
-  );
-}
-
 export type SuperPdpDirectoryCompany = {
   number: string;
   formal_name: string;

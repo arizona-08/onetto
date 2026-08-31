@@ -63,8 +63,8 @@ export class CreateCompanyDto {
   isVatExempt: boolean;
 
   @IsDefined()
-  @IsBoolean()
-  hasVatOnDebits: boolean;
+  @IsIn(['UNKNOWN', 'ON_COLLECTION', 'ON_DEBITS'])
+  vatExigibility: 'UNKNOWN' | 'ON_COLLECTION' | 'ON_DEBITS';
 
   @IsDefined()
   @IsString()

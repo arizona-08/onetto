@@ -42,9 +42,13 @@ describe('InvoicePaymentStatusService', () => {
       }),
       sendMail: jest.fn().mockResolvedValue(undefined),
     };
+    const ereporting = {
+      syncCollectedPaymentsForInvoice: jest.fn().mockResolvedValue(undefined),
+    };
     const service = new InvoicePaymentStatusService(
       prisma as never,
       mail as never,
+      ereporting as never,
     );
 
     await service.refreshFromInstalment('invoice-1', 5000);
@@ -55,5 +59,6 @@ describe('InvoicePaymentStatusService', () => {
     expect(mail.sendMail).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'client@example.test' }),
     );
+    expect(ereporting.syncCollectedPaymentsForInvoice).toHaveBeenCalledWith('invoice-1');
   });
 });

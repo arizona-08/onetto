@@ -27,11 +27,7 @@ export class FacturXService {
     } catch { throw new BadGatewayException('Le convertisseur Factur-X SuperPDP est indisponible.'); }
     if (!response.ok) {
       const details = (await response.text()).slice(0, 1500);
-      throw new BadGatewayException(
-        details
-          ? `SuperPDP a refusé les données Factur-X (${response.status}) : ${details}`
-          : `SuperPDP a refusé les données Factur-X (HTTP ${response.status}).`,
-      );
+      throw this.facturXRejection(document.id, response.status, details);
     }
     return Buffer.from(await response.arrayBuffer());
   }
@@ -66,11 +62,8 @@ export class FacturXService {
     }
     if (!response.ok) {
       const details = (await response.text()).slice(0, 1500);
-      throw new BadGatewayException(
-        details
-          ? `SuperPDP ne peut pas générer l’UBL Peppol (${response.status}) : ${details}`
-          : `SuperPDP ne peut pas générer l’UBL Peppol (HTTP ${response.status}).`,
-      );
+      console.error('[SuperPDP] UBL Peppol conversion rejected', { documentId: document.id, status: response.status, details });
+      throw new BadGatewayException('Impossible de préparer la facture électronique. Vérifiez les données de facturation et du point de réception du client.');
     }
     const ubl = Buffer.from(await response.arrayBuffer());
     if (!ubl.length) {
@@ -100,10 +93,19 @@ export class FacturXService {
     let response: Response;
     try { response = await fetch('https://api.superpdp.tech/v1.beta/invoices/convert?from=en16931&to=factur-x', { method: 'POST', body: form }); }
     catch { throw new BadGatewayException('Le convertisseur Factur-X SuperPDP est indisponible.'); }
-    if (!response.ok) throw new BadGatewayException(`SuperPDP a refusé les données Factur-X (${response.status}) : ${(await response.text()).slice(0, 1500)}`);
+    if (!response.ok) {
+      throw this.facturXRejection(document.id, response.status, (await response.text()).slice(0, 1500));
+    }
     const file = Buffer.from(await response.arrayBuffer());
     await this.prisma.document.update({ where: { id: documentId }, data: { facturXContent: Uint8Array.from(file), facturXGeneratedAt: new Date() } });
     return file;
+  }
+
+  private facturXRejection(documentId: string, status: number, details: string) {
+    console.error('[SuperPDP] Factur-X conversion rejected', { documentId, status, details });
+    return new BadGatewayException(
+      'Impossible de générer le Factur-X. Vérifiez les coordonnées, le numéro de TVA et l’adresse du client, ainsi que les montants et taux de TVA de la facture.',
+    );
   }
 
   private toEn16931(document: any, profile: 'factur-x' | 'peppol' = 'factur-x') {

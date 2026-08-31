@@ -102,6 +102,60 @@ export class SuperPdpEreportingService {
     }
   }
 
+  /**
+   * Declares each confirmed B2C payment only for sellers whose VAT is due on
+   * collection. This is intentionally separate from transaction reporting:
+   * installments and retry attempts are distinct real-world encashments.
+   */
+  async syncCollectedPaymentsForInvoice(documentId: string): Promise<void> {
+    if (this.config.get<string>('SUPERPDP_TRANSACTION_EREPORTING_ENABLED') !== 'true') return;
+
+    const document = await this.prisma.document.findUnique({
+      where: { id: documentId },
+      include: {
+        company: true,
+        services: true,
+        payByBankPayments: {
+          include: { payByBankPaymentAttempts: { where: { paymentStatus: 'SUCCESS' } } },
+        },
+        invoiceInstalmentPlan: {
+          include: { invoicePaymentInstalments: { where: { instalmentStatus: 'SUCCESS' } } },
+        },
+      },
+    });
+    if (!document || document.type !== 'INVOICE') return;
+    if (document.company.vatExigibility !== 'ON_COLLECTION') return;
+    if (document.clientType !== 'INDIVIDUAL' || !['FR', 'FRA', 'FRANCE'].includes(document.clientCountry.trim().toUpperCase())) return;
+    if (!document.sentAt || document.isVatExempt || document.company.isVatExempt) return;
+
+    const encashments = [
+      ...document.payByBankPayments.flatMap((payment) => payment.payByBankPaymentAttempts.map((attempt) => ({
+        sourceReference: `payment-attempt:${attempt.id}`,
+        amountInCents: payment.amountInCents,
+        paidAt: attempt.updatedAt,
+      }))),
+      ...(document.invoiceInstalmentPlan?.invoicePaymentInstalments.map((instalment) => ({
+        sourceReference: `instalment:${instalment.id}`,
+        amountInCents: instalment.amountInCents,
+        paidAt: instalment.paidAt ?? new Date(),
+      })) ?? []),
+      ...(document.invoiceStatus === 'PAID_MANUALLY' ? [{
+        sourceReference: `manual:${document.id}`,
+        amountInCents: Math.round(Number(document.totalPrice) * 100),
+        paidAt: new Date(),
+      }] : []),
+    ];
+
+    for (const encashment of encashments) {
+      await this.submitB2CPayment({
+        document,
+        sourceReference: encashment.sourceReference,
+        amountInCents: encashment.amountInCents,
+        paidAt: encashment.paidAt,
+      });
+    }
+  }
+
   async getOverview(input: { companyId: string; userId: string }) {
     await this.oauth.getConnectionStatus(input);
     const token = await this.oauth.getAccessToken(input.companyId);
@@ -147,6 +201,99 @@ export class SuperPdpEreportingService {
         tax_subtotals: this.groupTaxSubtotals(lines),
         role_code: 'SE',
       }];
+    });
+  }
+
+  private async submitB2CPayment(input: {
+    document: {
+      id: string;
+      companyId: string;
+      currencyCode: string;
+      services: Array<{ unitPrice: number; quantity: number; taxRate: number | null }>;
+    };
+    sourceReference: string;
+    amountInCents: number;
+    paidAt: Date;
+  }): Promise<void> {
+    if (input.amountInCents <= 0) return;
+    const existing = await this.prisma.electronicReportingSubmission.findUnique({
+      where: { provider_sourcePaymentReference: { provider: 'SUPER_PDP', sourcePaymentReference: input.sourceReference } },
+    });
+    if (existing?.status === 'SUBMITTED' || existing?.status === 'ACCEPTED') return;
+
+    const payload = {
+      data: [{
+        date: this.toDate(input.paidAt),
+        subtotals: this.buildPaymentSubtotals(input.document.services, input.amountInCents, input.document.currencyCode),
+      }],
+    };
+    const fingerprint = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+    const submission = existing ?? await this.prisma.electronicReportingSubmission.create({
+      data: {
+        companyId: input.document.companyId,
+        documentId: input.document.id,
+        provider: 'SUPER_PDP',
+        kind: 'PAYMENT',
+        periodStart: input.paidAt,
+        periodEnd: input.paidAt,
+        sourcePaymentReference: input.sourceReference,
+        idempotencyKey: randomUUID(),
+        payloadFingerprint: fingerprint,
+      },
+    });
+    await this.prisma.electronicReportingSubmission.update({
+      where: { id: submission.id }, data: { status: 'SUBMITTING', lastError: null },
+    });
+
+    try {
+      const token = await this.oauth.getAccessToken(input.document.companyId);
+      const response = await fetch('https://api.superpdp.tech/v1.beta/b2c_payments', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const result = await response.json() as { data?: Array<{ id?: number | string }> };
+      await this.prisma.electronicReportingSubmission.update({
+        where: { id: submission.id },
+        data: {
+          status: 'SUBMITTED',
+          submittedAt: new Date(),
+          providerReportId: result.data?.map((item) => item.id).filter((id) => id !== undefined).join(',') || null,
+        },
+      });
+    } catch (error) {
+      await this.prisma.electronicReportingSubmission.update({
+        where: { id: submission.id },
+        data: { status: 'FAILED', lastError: 'SuperPDP a refusé ou n’a pas répondu à la déclaration de paiement B2C.' },
+      });
+      console.error('[SuperPDP] Échec de la déclaration de paiement B2C', {
+        documentId: input.document.id,
+        sourceReference: input.sourceReference,
+        reason: error instanceof Error ? error.message : 'Erreur inconnue',
+      });
+    }
+  }
+
+  private buildPaymentSubtotals(
+    services: Array<{ unitPrice: number; quantity: number; taxRate: number | null }>,
+    amountInCents: number,
+    currencyCode: string,
+  ) {
+    const groups = new Map<number, number>();
+    for (const service of services) {
+      const taxRate = Number(service.taxRate ?? 0);
+      const grossInCents = Math.round(Number(service.unitPrice) * Number(service.quantity) * (1 + taxRate / 100) * 100);
+      groups.set(taxRate, (groups.get(taxRate) ?? 0) + grossInCents);
+    }
+    const totalInCents = [...groups.values()].reduce((total, amount) => total + amount, 0);
+    let remaining = amountInCents;
+    return [...groups.entries()].map(([taxRate, grossInCents], index, entries) => {
+      const amount = index === entries.length - 1
+        ? remaining
+        : Math.round(amountInCents * grossInCents / totalInCents);
+      remaining -= amount;
+      return { tax_percent: taxRate.toFixed(2), amount: (amount / 100).toFixed(2), currency_code: currencyCode };
     });
   }
 

@@ -89,6 +89,7 @@ model Company {
   vatRegime                 CompanyVatRegime   @default(VAT_EXEMPTION)
   isVatExempt               Boolean             @default(true)
   hasVatOnDebits            Boolean           @default(false)
+  vatExigibility            CompanyVatExigibility @default(UNKNOWN)
   electronicAddress         String
   electronicAddressScheme   CompanyElectronicAddressScheme @default(SIREN)
 
@@ -283,6 +284,12 @@ enum ElectronicInvoiceOperationNature {
 enum ElectronicInvoiceLineItemType {
   GOODS
   SERVICES
+}
+
+enum CompanyVatExigibility {
+  UNKNOWN
+  ON_COLLECTION
+  ON_DEBITS
 }
 
 enum DocumentType {
@@ -764,6 +771,7 @@ model ElectronicReportingSubmission {
   providerStatus     String?
   idempotencyKey     String                      @unique
   payloadFingerprint String
+  sourcePaymentReference String?
   submittedAt        DateTime?
   acceptedAt         DateTime?
   lastError          String?
@@ -774,6 +782,7 @@ model ElectronicReportingSubmission {
   document Document? @relation(fields: [documentId], references: [id], onDelete: Restrict)
 
   @@unique([provider, providerReportId])
+  @@unique([provider, sourcePaymentReference])
   @@index([companyId, kind, periodStart, periodEnd])
 }
 

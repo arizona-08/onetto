@@ -1,6 +1,6 @@
 'use client'
 import { Document, DocumentNegociation } from '@/app/types'
-import { convertEstimateToInvoice, createNewDocumentVersion, deleteDraftDocument, downloadDocumentPdf, downloadFacturX, getDocumentNegociations, retryInvoicePayment, sendB2BInvoiceToSuperPdp, sendDocumentToClient, submitB2CEreporting, syncB2BInvoiceWithSuperPdp } from '@/lib/documents/document';
+import { convertEstimateToInvoice, createNewDocumentVersion, deleteDraftDocument, downloadDocumentPdf, downloadFacturX, getDocumentNegociations, retryInvoicePayment, sendB2BInvoiceToSuperPdp, sendDocumentToClient, syncB2BInvoiceWithSuperPdp } from '@/lib/documents/document';
 import { Download, Edit, Ellipsis, ExternalLink, FileChartColumnIncreasing, MessageSquareText, RotateCcw, Send, Trash } from 'lucide-react';
 import DocumentDisplayComponent from '../molecules/DocumentDisplayComponent/DocumentDisplayComponent';
 import Link from 'next/link';
@@ -20,9 +20,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDownloadingFacturX, setIsDownloadingFacturX] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
-  const [isSubmittingEreporting, setIsSubmittingEreporting] = useState(false);
   const [isSendingB2B, setIsSendingB2B] = useState(false);
-  const [isSyncingB2B, setIsSyncingB2B] = useState(false);
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
   const moreActionsRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -38,9 +36,8 @@ function ShowDocument({ document }: ShowDocumentProps) {
 
   const isDraftInvoice = document.type === "INVOICE" && document.invoiceStatus === "DRAFT";
   const isRejectedInvoice = document.type === "INVOICE" && document.invoiceStatus === "REJECTED";
-  const canSubmitB2CEreporting = document.type === 'INVOICE' && Boolean(document.sentAt) && document.clientType === 'INDIVIDUAL';
-  const canSendB2B = document.type === 'INVOICE' && Boolean(document.sentAt) && document.clientType === 'BUSINESS';
   const b2bTransmission = document.electronicInvoiceTransmissions?.[0];
+  const canSendB2B = document.type === 'INVOICE' && Boolean(document.sentAt) && document.clientType === 'BUSINESS' && !b2bTransmission?.providerInvoiceId;
 
   const { showToast } = useToast();
 
@@ -54,6 +51,14 @@ function ShowDocument({ document }: ShowDocumentProps) {
 
     void loadNegociations();
   }, [document.id]);
+
+  useEffect(() => {
+    if (!b2bTransmission?.providerInvoiceId || isFinalElectronicInvoiceStatus(b2bTransmission.status)) return;
+
+    void syncB2BInvoiceWithSuperPdp(document.companyId, document.id).then((response) => {
+      if (response.ok) router.refresh();
+    });
+  }, [b2bTransmission?.providerInvoiceId, b2bTransmission?.status, document.companyId, document.id, router]);
 
   useEffect(() => {
     function closeMoreActions(event: MouseEvent) {
@@ -172,18 +177,6 @@ function ShowDocument({ document }: ShowDocumentProps) {
     router.push('/documents');
   }
 
-  async function handleSubmitB2CEreporting() {
-    setIsSubmittingEreporting(true);
-    const response = await submitB2CEreporting(document.companyId, document.id);
-    setIsSubmittingEreporting(false);
-    if (!response.ok) {
-      showToast('Impossible de transmettre la déclaration B2C à SuperPDP.', 'error');
-      return;
-    }
-    showToast('Déclaration B2C transmise à SuperPDP.', 'success');
-    router.refresh();
-  }
-
   async function handleSendB2B() {
     setIsSendingB2B(true);
     const response = await sendB2BInvoiceToSuperPdp(document.companyId, document.id);
@@ -193,18 +186,6 @@ function ShowDocument({ document }: ShowDocumentProps) {
       return;
     }
     showToast('Facture Factur-X transmise à SuperPDP.', 'success');
-    router.refresh();
-  }
-
-  async function handleSyncB2B() {
-    setIsSyncingB2B(true);
-    const response = await syncB2BInvoiceWithSuperPdp(document.companyId, document.id);
-    setIsSyncingB2B(false);
-    if (!response.ok) {
-      showToast('Impossible d’actualiser le statut SuperPDP.', 'error');
-      return;
-    }
-    showToast(`Statut SuperPDP actualisé : ${response.data.providerStatus ?? response.data.status}.`, 'success');
     router.refresh();
   }
 
@@ -274,30 +255,12 @@ function ShowDocument({ document }: ShowDocumentProps) {
               </button>
             )}
 
-            {canSubmitB2CEreporting && (
-              <button
-                type="button"
-                onClick={handleSubmitB2CEreporting}
-                disabled={isSubmittingEreporting}
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-primary px-3 py-2 text-center text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Send className="h-4 w-4" aria-hidden="true" />
-                {isSubmittingEreporting ? 'Transmission…' : 'Déclarer l’e-reporting B2C'}
-              </button>
-            )}
-
             {canSendB2B && (
               <button type="button" onClick={() => void handleSendB2B()} disabled={isSendingB2B} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-primary px-3 py-2 text-center text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-50">
                 <Send className="h-4 w-4" aria-hidden="true" />
                 {isSendingB2B ? 'Transmission…' : 'Transmettre à SuperPDP'}
               </button>
             )}
-            {canSendB2B && (
-              <button type="button" onClick={() => void handleSyncB2B()} disabled={isSyncingB2B} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 px-3 py-2 text-center text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50">
-                {isSyncingB2B ? 'Actualisation…' : 'Actualiser le statut SuperPDP'}
-              </button>
-            )}
-
             {(isDraftEstimate || isDraftInvoice) && (
               <button
                 className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-primary bg-primary px-4 py-2 text-center text-white transition-all duration-150 hover:bg-primary/90"
@@ -329,13 +292,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
             )}
 
           </div>
-          {b2bTransmission && (
-            <p className="mt-3 text-center text-sm text-zinc-600">
-              SuperPDP : <strong>{b2bTransmission.providerStatus ?? b2bTransmission.status}</strong>
-              {b2bTransmission.providerInvoiceId ? ` · Référence ${b2bTransmission.providerInvoiceId}` : ''}
-              {b2bTransmission.lastError ? ` · ${b2bTransmission.lastError}` : ''}
-            </p>
-          )}
+          {b2bTransmission && <ElectronicInvoiceStatus status={b2bTransmission.status} hint={getTransmissionHint(b2bTransmission.lastError)} />}
         </div>
 
       {negociations.length > 0 && (
@@ -363,6 +320,40 @@ function ShowDocument({ document }: ShowDocumentProps) {
       <DocumentDisplayComponent document={document} />
     </div>
   )
+}
+
+function isFinalElectronicInvoiceStatus(status: string) {
+  return ['ACCEPTED', 'COMPLETED', 'DELIVERED', 'INVALID', 'REJECTED', 'REFUSED', 'PARTIALLY_ACCEPTED', 'DISPUTED'].includes(status);
+}
+
+function getTransmissionHint(lastError?: string | null) {
+  return lastError === 'Sélectionnez un point de réception pour ce client avant de transmettre la facture.'
+    ? lastError
+    : undefined;
+}
+
+function ElectronicInvoiceStatus({ status, hint }: { status: string; hint?: string }) {
+  const labels: Record<string, { title: string; detail: string; className: string }> = {
+    SUBMITTING: { title: 'Transmission en cours', detail: 'Votre facture est en cours de préparation pour la plateforme.', className: 'border-amber-200 bg-amber-50 text-amber-900' },
+    SUBMITTED: { title: 'Facture transmise', detail: 'La plateforme traite votre facture. Son statut est mis à jour automatiquement.', className: 'border-blue-200 bg-blue-50 text-blue-900' },
+    SENT: { title: 'Facture envoyée au destinataire', detail: 'La plateforme a transmis votre facture au point de réception sélectionné.', className: 'border-blue-200 bg-blue-50 text-blue-900' },
+    DELIVERED: { title: 'Facture reçue', detail: 'La facture a été reçue par le destinataire.', className: 'border-emerald-200 bg-emerald-50 text-emerald-900' },
+    ACCEPTED: { title: 'Facture acceptée', detail: 'Le destinataire a accepté la facture.', className: 'border-emerald-200 bg-emerald-50 text-emerald-900' },
+    COMPLETED: { title: 'Traitement terminé', detail: 'La transmission électronique est terminée.', className: 'border-emerald-200 bg-emerald-50 text-emerald-900' },
+    INVALID: { title: 'Facture à corriger', detail: 'La plateforme ne peut pas traiter cette facture. Vérifiez les informations du client et de la facture, puis transmettez-la à nouveau.', className: 'border-rose-200 bg-rose-50 text-rose-900' },
+    REJECTED: { title: 'Facture refusée', detail: 'La facture a été refusée par la plateforme ou le destinataire. Vérifiez ses informations avant une nouvelle transmission.', className: 'border-rose-200 bg-rose-50 text-rose-900' },
+    REFUSED: { title: 'Facture refusée', detail: 'Le destinataire a refusé la facture.', className: 'border-rose-200 bg-rose-50 text-rose-900' },
+    PARTIALLY_ACCEPTED: { title: 'Facture partiellement acceptée', detail: 'Le destinataire a accepté une partie de la facture.', className: 'border-amber-200 bg-amber-50 text-amber-900' },
+    DISPUTED: { title: 'Facture contestée', detail: 'Le destinataire a signalé une contestation.', className: 'border-amber-200 bg-amber-50 text-amber-900' },
+    ON_HOLD: { title: 'Facture en attente', detail: 'Le traitement est temporairement en attente sur la plateforme.', className: 'border-amber-200 bg-amber-50 text-amber-900' },
+    FAILED: { title: 'Transmission à reprendre', detail: hint ?? 'La transmission n’a pas pu aboutir. Vérifiez les informations de la facture avant de réessayer.', className: 'border-rose-200 bg-rose-50 text-rose-900' },
+  };
+  const presentation = labels[status] ?? { title: 'Traitement électronique en cours', detail: 'Le statut sera mis à jour automatiquement.', className: 'border-zinc-200 bg-zinc-50 text-zinc-700' };
+
+  return <div className={`mt-3 max-w-xl rounded-lg border px-4 py-3 text-left text-sm ${presentation.className}`}>
+    <p className="font-semibold">{presentation.title}</p>
+    <p className="mt-1 text-xs opacity-90">{presentation.detail}</p>
+  </div>;
 }
 
 function getNegociationStatusLabel(status: DocumentNegociation['status']) {

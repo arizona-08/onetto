@@ -28,7 +28,7 @@ const emptyCompany: CreateCompanyDto = {
   legalStatus: 'MICRO_ENTERPRISE',
   vatRegime: 'VAT_EXEMPTION',
   isVatExempt: true,
-  hasVatOnDebits: false,
+  vatExigibility: 'UNKNOWN',
   electronicAddress: '',
   electronicAddressScheme: 'SIREN',
     vatNumber: "",
@@ -78,6 +78,7 @@ function CreateCompanyForm({ companyToEdit, onSuccess, onCancel }: CreateCompany
           ...prevState,
           subjectToVat: checked,
           vatNumber: checked ? prevState.vatNumber : "",
+          vatExigibility: checked ? prevState.vatExigibility : 'UNKNOWN',
         };
       }
 
@@ -111,7 +112,7 @@ function CreateCompanyForm({ companyToEdit, onSuccess, onCancel }: CreateCompany
       legalStatus: companyInfos.legalStatus,
       vatRegime: companyInfos.vatRegime,
       isVatExempt: companyInfos.isVatExempt,
-      hasVatOnDebits: companyInfos.hasVatOnDebits,
+      vatExigibility: companyInfos.vatExigibility,
       electronicAddress: companyInfos.electronicAddress,
       electronicAddressScheme: companyInfos.electronicAddressScheme,
       vatNumber: companyInfos.vatNumber,
@@ -173,7 +174,9 @@ function CreateCompanyForm({ companyToEdit, onSuccess, onCancel }: CreateCompany
           <p className="mt-1 text-xs text-zinc-600">
             {superPdpConnection?.status === 'ACTIVE'
               ? 'SuperPDP est connecté pour cette entreprise.'
-              : superPdpConnection?.lastError ?? 'Connectez cette entreprise à SuperPDP avant d’envoyer vos déclarations B2C.'}
+              : superPdpConnection?.lastError
+                ? 'La connexion SuperPDP doit être renouvelée pour utiliser la facturation électronique.'
+                : 'Connectez cette entreprise à SuperPDP avant d’envoyer vos déclarations B2C.'}
           </p>
           <button type="button" onClick={handleConnectSuperPdp} disabled={isConnectingSuperPdp} className="mt-3 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60">
             {isConnectingSuperPdp ? 'Redirection…' : superPdpConnection?.status === 'ACTIVE' ? 'Reconnecter SuperPDP' : 'Connecter SuperPDP'}
@@ -187,8 +190,8 @@ function CreateCompanyForm({ companyToEdit, onSuccess, onCancel }: CreateCompany
             <div className="mt-4 space-y-4 text-xs text-zinc-700">
               <p><strong>{ereportingOverview.transactions.data?.length ?? 0}</strong> transaction(s) B2C · <strong>{ereportingOverview.payments.data?.length ?? 0}</strong> paiement(s) · <strong>{ereportingOverview.ereportings.data?.length ?? 0}</strong> e-reporting(s) agrégé(s)</p>
               <div className="overflow-x-auto rounded-md border border-zinc-200 bg-white">
-                <table className="min-w-full text-left"><thead className="bg-zinc-50 text-zinc-500"><tr><th className="px-3 py-2">Facture</th><th className="px-3 py-2">Statut</th><th className="px-3 py-2">ID SuperPDP</th><th className="px-3 py-2">Créée le</th></tr></thead>
-                  <tbody>{ereportingOverview.submissions.map((submission) => <tr key={submission.id} className="border-t border-zinc-100"><td className="px-3 py-2">{submission.document?.documentNumber ?? '—'}</td><td className="px-3 py-2">{getEreportingStatusLabel(submission.status)}</td><td className="px-3 py-2">{submission.providerReportId ?? '—'}</td><td className="px-3 py-2">{new Date(submission.createdAt).toLocaleDateString('fr-FR')}</td></tr>)}{!ereportingOverview.submissions.length && <tr><td colSpan={4} className="px-3 py-3 text-zinc-500">Aucune soumission locale.</td></tr>}</tbody>
+                <table className="min-w-full text-left"><thead className="bg-zinc-50 text-zinc-500"><tr><th className="px-3 py-2">Facture</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Statut</th><th className="px-3 py-2">Créée le</th></tr></thead>
+                  <tbody>{ereportingOverview.submissions.map((submission) => <tr key={submission.id} className="border-t border-zinc-100"><td className="px-3 py-2">{submission.document?.documentNumber ?? '—'}</td><td className="px-3 py-2">{submission.kind === 'PAYMENT' ? 'Paiement' : 'Transaction'}</td><td className="px-3 py-2">{getEreportingStatusLabel(submission.status)}</td><td className="px-3 py-2">{new Date(submission.createdAt).toLocaleDateString('fr-FR')}</td></tr>)}{!ereportingOverview.submissions.length && <tr><td colSpan={4} className="px-3 py-3 text-zinc-500">Aucune déclaration transmise.</td></tr>}</tbody>
                 </table>
               </div>
             </div>
@@ -396,10 +399,15 @@ function CreateCompanyForm({ companyToEdit, onSuccess, onCancel }: CreateCompany
           <input id="isVatExempt" name="isVatExempt" type="checkbox" checked={companyInfos.isVatExempt} onChange={handleInputChange} className="mt-1 h-4 w-4 rounded border-zinc-300 accent-primary" />
           <span>Cette entreprise bénéficie d&apos;une exonération de TVA.</span>
         </label>
-        <label className="flex items-start gap-2 text-xs leading-5 text-zinc-500">
-          <input id="hasVatOnDebits" name="hasVatOnDebits" type="checkbox" checked={companyInfos.hasVatOnDebits} onChange={handleInputChange} className="mt-1 h-4 w-4 rounded border-zinc-300 accent-primary" />
-          <span>TVA exigible sur les débits.</span>
-        </label>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="vatExigibility" className={labelClassName}>Exigibilité de la TVA</label>
+          <select id="vatExigibility" name="vatExigibility" value={companyInfos.vatExigibility} onChange={handleInputChange} disabled={!companyInfos.subjectToVat} className={inputClassName}>
+            <option value="UNKNOWN">Je ne sais pas</option>
+            <option value="ON_COLLECTION">À l’encaissement</option>
+            <option value="ON_DEBITS">Sur les débits / à la facturation</option>
+          </select>
+          <p className="text-xs leading-5 text-zinc-500">Ce choix sert uniquement à savoir si les paiements doivent être déclarés. En cas de doute, vérifiez auprès de votre expert-comptable.</p>
+        </div>
       </div>
 
       {companyInfos.subjectToVat && (

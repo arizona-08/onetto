@@ -12,7 +12,7 @@ export type CreateCompanyDto = {
   legalStatus: CompanyLegalStatus;
   vatRegime: CompanyVatRegime;
   isVatExempt: boolean;
-  hasVatOnDebits: boolean;
+  vatExigibility: CompanyVatExigibility;
   electronicAddress: string;
   electronicAddressScheme: 'SIREN' | 'SIRET' | 'VAT' | 'GLN' | 'PEPPOL';
   vatNumber?: string;
@@ -33,6 +33,8 @@ export type CompanyVatRegime =
   | 'QUARTERLY'
   | 'SIMPLIFIED'
   | 'VAT_EXEMPTION';
+
+export type CompanyVatExigibility = 'UNKNOWN' | 'ON_COLLECTION' | 'ON_DEBITS';
 
 export type Company = CreateCompanyDto & {
   id: string;

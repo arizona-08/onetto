@@ -23,6 +23,7 @@ import {
 } from './instalment-plan.utils';
 import { FacturXService } from 'src/electronic-invoicing/factur-x.service';
 import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ereporting.service';
+import { SuperPdpB2bService } from 'src/electronic-invoicing/superpdp-b2b.service';
 
 @Injectable()
 export class DocumentService {
@@ -38,6 +39,7 @@ export class DocumentService {
     private readonly gocardlessInstalmentRetryService: GoCardlessInstalmentRetryService,
     private readonly facturXService: FacturXService,
     private readonly superPdpEreportingService: SuperPdpEreportingService,
+    private readonly superPdpB2bService: SuperPdpB2bService,
   ) {
     this.callbackUrl =
       this.configService.get<string>('BRIDGE_CALLBACK_URL') || '';
@@ -1829,6 +1831,21 @@ export class DocumentService {
         }
       }
 
+      if (isInvoice && document.clientType === 'BUSINESS') {
+        try {
+          await this.superPdpB2bService.send({
+            companyId: document.companyId,
+            documentId: document.id,
+            user,
+          });
+        } catch (error) {
+          // The invoice email has already been sent. The B2B transmission
+          // service persists a retryable FAILED status when it could start;
+          // never turn a temporary platform issue into a failed client send.
+          console.error('Transmission B2B SuperPDP automatique impossible:', error);
+        }
+      }
+
       return {
         success: true,
         message: 'Document envoyé au client avec succès.',
@@ -2235,6 +2252,7 @@ export class DocumentService {
       }
 
       await this.manuallyMarkInvoiceAs('PAID_MANUALLY', documentId);
+      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(documentId);
 
       return {
         success: true,

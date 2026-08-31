@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { $Enums } from '@prisma/client';
 import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ereporting.service';
 
 @Injectable()
 export class InvoicePaymentStatusService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly mailService: MailService,
+    private readonly superPdpEreportingService: SuperPdpEreportingService,
   ) {}
 
   /**
@@ -57,6 +59,7 @@ export class InvoicePaymentStatusService {
 
     if (attemptBecameSuccessful) {
       await this.sendPaymentReceipt(document.id);
+      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(document.id);
     }
 
     if (justPaid) {
@@ -89,10 +92,29 @@ export class InvoicePaymentStatusService {
         document.id,
         paidInstalmentAmountInCents / 100,
       );
+      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(document.id);
     }
     if (justPaid) {
       await this.sendInvoicePaidConfirmation(document.id);
     }
+  }
+
+  async notifyPaymentSubmittedForPayByBankPayment(
+    payByBankPaymentId: string,
+  ): Promise<void> {
+    const payment = await this.prismaService.payByBankPayment.findUnique({
+      where: { id: payByBankPaymentId },
+      select: { invoiceId: true, amountInCents: true },
+    });
+    if (!payment) return;
+    await this.sendPaymentSubmitted(payment.invoiceId, payment.amountInCents / 100);
+  }
+
+  async notifyPaymentSubmittedForInstalment(
+    invoiceId: string,
+    amountInCents: number,
+  ): Promise<void> {
+    await this.sendPaymentSubmitted(invoiceId, amountInCents / 100);
   }
 
   private async getInvoiceStatus(
@@ -237,6 +259,29 @@ export class InvoicePaymentStatusService {
       mailContent,
       'payment receipt',
     );
+  }
+
+  private async sendPaymentSubmitted(
+    documentId: string,
+    amount: number,
+  ): Promise<void> {
+    const document = await this.prismaService.document.findUniqueOrThrow({
+      where: { id: documentId },
+      select: {
+        clientName: true,
+        clientEmail: true,
+        documentNumber: true,
+        company: { select: { name: true, email: true } },
+      },
+    });
+    const mailContent = this.mailService.createPaymentSubmittedMail({
+      clientName: document.clientName,
+      documentNumber: document.documentNumber,
+      amount,
+      companyName: document.company.name,
+      companyEmail: document.company.email,
+    });
+    await this.sendMailSafely(document.clientEmail, mailContent, 'payment submitted');
   }
 
   private async sendInvoicePaidConfirmation(documentId: string): Promise<void> {

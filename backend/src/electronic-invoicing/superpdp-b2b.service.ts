@@ -35,13 +35,29 @@ export class SuperPdpB2bService {
     if (document.clientType !== 'BUSINESS') {
       throw new BadRequestException('Seules les factures destinées à une entreprise peuvent être transmises en B2B.');
     }
-    if (!document.clientElectronicAddress || !document.clientElectronicAddressScheme) {
-      throw new BadRequestException('Sélectionnez une adresse électronique de réception dans l’annuaire avant la transmission.');
-    }
-
     const existing = await this.prisma.electronicInvoiceTransmission.findUnique({
       where: { documentId_provider_flow: { documentId: document.id, provider: 'SUPER_PDP', flow: 'B2B_FR' } },
     });
+
+    if (!document.clientElectronicAddress || !document.clientElectronicAddressScheme) {
+      const transmission = existing ?? await this.prisma.electronicInvoiceTransmission.create({
+        data: {
+          documentId: document.id,
+          provider: 'SUPER_PDP',
+          flow: 'B2B_FR',
+          idempotencyKey: randomUUID(),
+        },
+      });
+      await this.prisma.electronicInvoiceTransmission.update({
+        where: { id: transmission.id },
+        data: {
+          status: 'FAILED',
+          lastError: 'Sélectionnez un point de réception pour ce client avant de transmettre la facture.',
+        },
+      });
+      throw new BadRequestException('Sélectionnez une adresse électronique de réception dans l’annuaire avant la transmission.');
+    }
+
     if (existing?.providerInvoiceId) return this.sync(input);
 
     const transmission = existing ?? await this.prisma.electronicInvoiceTransmission.create({
@@ -119,12 +135,17 @@ export class SuperPdpB2bService {
       return this.sync(input);
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 1000) : 'Erreur inconnue.';
+      console.error('[SuperPDP B2B] Transmission failure', {
+        documentId: document.id,
+        companyId: input.companyId,
+        error: message,
+      });
       await this.prisma.electronicInvoiceTransmission.update({
         where: { id: transmission.id },
-        data: { status: 'FAILED', lastError: message },
+        data: { status: 'FAILED', lastError: 'La transmission n’a pas pu aboutir. Vérifiez les données de facturation avant de réessayer.' },
       });
       if (error instanceof BadRequestException) throw error;
-      throw new BadGatewayException(`Impossible de transmettre la facture B2B à SuperPDP : ${message}`);
+      throw new BadGatewayException('Impossible de transmettre la facture électronique. Vérifiez les données de facturation et le point de réception du client.');
     }
   }
 
@@ -178,10 +199,15 @@ export class SuperPdpB2bService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erreur inconnue.';
-      await this.prisma.electronicInvoiceTransmission.update({
-        where: { id: transmission.id }, data: { lastError: message, lastSyncedAt: new Date() },
+      console.error('[SuperPDP B2B] Status synchronization failure', {
+        documentId: input.documentId,
+        companyId: input.companyId,
+        error: message,
       });
-      throw new BadGatewayException(message);
+      await this.prisma.electronicInvoiceTransmission.update({
+        where: { id: transmission.id }, data: { lastError: 'Le statut ne peut pas être mis à jour pour le moment.', lastSyncedAt: new Date() },
+      });
+      throw new BadGatewayException('Le statut de la facture électronique ne peut pas être mis à jour pour le moment.');
     }
   }
 

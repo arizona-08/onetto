@@ -37,6 +37,8 @@ describe('GoCardlessPaymentWebhookHandler', () => {
   const invoiceStatus = {
     refreshFromInstalment: jest.fn(),
     refreshFromPaymentAttempt: jest.fn(),
+    notifyPaymentSubmittedForInstalment: jest.fn(),
+    notifyPaymentSubmittedForPayByBankPayment: jest.fn(),
   };
   let handler: GoCardlessPaymentWebhookHandler;
 
@@ -74,6 +76,18 @@ describe('GoCardlessPaymentWebhookHandler', () => {
       'pbb-1',
       true,
     );
+  });
+
+  it('notifie le client lorsque le prélèvement est soumis à sa banque', async () => {
+    client.payments.find.mockResolvedValue({ id: 'PM1', status: 'submitted', links: {} });
+    matcher.matchPaymentAttemptStatus.mockReturnValue('PAYMENT_IN_PROGRESS');
+    prisma.payByBankPaymentAttempt.findFirst.mockResolvedValue({
+      id: 'attempt-1', payByBankPaymentId: 'pbb-1', paymentStatus: 'PENDING',
+    });
+
+    await handler.handleWebhook({ ...event, action: 'submitted' });
+
+    expect(invoiceStatus.notifyPaymentSubmittedForPayByBankPayment).toHaveBeenCalledWith('pbb-1');
   });
 
   it('route un Payment associé à une échéance sans chercher un Pay by Bank', async () => {
