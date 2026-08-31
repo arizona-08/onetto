@@ -16,6 +16,7 @@ import { GoCardlessBillingRequestWebhookHandler } from './webhook-handlers/gocar
 import { InvoicePaymentStatusModule } from 'src/invoice-payments/invoice-payment-status.module';
 import { PlanAccessModule } from 'src/plan-access/plan-access.module';
 import { GoCardlessInstalmentRetryService } from './gocardless-instalment-retry.service';
+import { GoCardlessConnectionHealthService } from './gocardless-connection-health.service';
 
 @Module({
   imports: [PrismaModule, MailModule, InvoicePaymentStatusModule, PlanAccessModule],
@@ -32,6 +33,7 @@ import { GoCardlessInstalmentRetryService } from './gocardless-instalment-retry.
     GoCardlessOAuthService,
     GoCardlessStatusMatcherService,
     GoCardlessInstalmentRetryService,
+    GoCardlessConnectionHealthService,
   ],
   exports: [GoCardlessProviderService, GoCardlessInstalmentRetryService],
 })

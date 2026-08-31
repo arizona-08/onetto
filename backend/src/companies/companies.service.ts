@@ -71,6 +71,7 @@ export class CompaniesService {
           data: {
             ...data,
             vatNumber: data.subjectToVat ? data.vatNumber : null,
+            hasVatOnDebits: data.vatExigibility === 'ON_DEBITS',
             ownerId,
           },
         });
@@ -218,6 +219,7 @@ export class CompaniesService {
       data: {
         ...data,
         companyId,
+        itemType: data.itemType ?? 'SERVICES',
         taxRate: data.taxRate ?? 0,
         wtPrice: data.unitPrice,
         totalPrice: this.getServiceTotalPrice(data.unitPrice, data.taxRate),
@@ -388,6 +390,9 @@ export class CompaniesService {
         where: { id: companyId },
         data: {
           ...companyData,
+          ...(companyData.vatExigibility
+            ? { hasVatOnDebits: companyData.vatExigibility === 'ON_DEBITS' }
+            : {}),
           ...(companyData.subjectToVat === false ? { vatNumber: null } : {}),
         },
       });

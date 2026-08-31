@@ -1,0 +1,3 @@
+-- This migration was generated before the electronic-invoicing foundation.
+-- The indexes it attempted to rename are created by the following migration
+-- with their final names, so there is deliberately nothing to apply here.

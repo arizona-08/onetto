@@ -28,6 +28,7 @@ function AddServiceForm({ isActive, setIsActive, onClose, handleAddService, serv
     unitPrice: 0,
     unit: '',
     taxRate: 0,
+    itemType: 'SERVICES',
   });
 
   React.useEffect(() => {
@@ -52,6 +53,7 @@ function AddServiceForm({ isActive, setIsActive, onClose, handleAddService, serv
       unitPrice: 0,
       unit: '',
       taxRate: 0,
+      itemType: 'SERVICES',
     });
   }
 
@@ -115,6 +117,20 @@ function AddServiceForm({ isActive, setIsActive, onClose, handleAddService, serv
                   value={previewService.category}
                 />
               </div>
+
+              <fieldset className="flex flex-col gap-2">
+                <legend className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Type</legend>
+                <div className="flex gap-3">
+                  <label className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm">
+                    <input type="radio" name="itemType" value="GOODS" checked={previewService.itemType === 'GOODS'} onChange={() => handleServiceChange('itemType', 'GOODS')} />
+                    Bien
+                  </label>
+                  <label className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm">
+                    <input type="radio" name="itemType" value="SERVICES" checked={previewService.itemType === 'SERVICES'} onChange={() => handleServiceChange('itemType', 'SERVICES')} />
+                    Service / prestation
+                  </label>
+                </div>
+              </fieldset>
             </div>
 
             <div className="flex flex-col gap-2">

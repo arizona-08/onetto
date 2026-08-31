@@ -90,6 +90,7 @@ implements
         throw new BadRequestException("Aucun compte de paiement associé à cette entreprise.");
       }
 
+      await this.gocardlessOAuthService.assertCompanyAccessActive(companyId);
       const client = await this.gocardlessOAuthService.getClientForCompany(companyId);
 
       let billingRequest;
@@ -119,9 +120,81 @@ implements
         throw error;
       }
 
-      console.error("Error creating billing request:", (error as any).errors[0].metadata);
-      throw new BadRequestException("Erreur lors de la création de la demande de facturationnnn.", ( error as Error));
+      throw this.toBillingRequestCreationException(error);
     }
+  }
+
+  /**
+   * The GoCardless SDK does not always populate `errors[0].metadata` (for
+   * example, an inactive OAuth access token has no field metadata).  Extract
+   * the stable API fields instead so both the server log and the user receive
+   * the actual actionable error.
+   */
+  private toBillingRequestCreationException(error: unknown): BadRequestException {
+    const source = error as {
+      message?: unknown;
+      code?: unknown;
+      errorType?: unknown;
+      requestId?: unknown;
+      statusCode?: unknown;
+      errors?: unknown;
+      response?: { statusCode?: unknown };
+    };
+    const details = Array.isArray(source.errors)
+      ? source.errors
+          .map((item) => {
+            if (!item || typeof item !== 'object') return null;
+            const detail = item as {
+              field?: unknown;
+              message?: unknown;
+              reason?: unknown;
+            };
+            const message = typeof detail.message === 'string'
+              ? detail.message
+              : typeof detail.reason === 'string'
+                ? detail.reason
+                : null;
+            if (!message) return null;
+            return typeof detail.field === 'string'
+              ? `${detail.field}: ${message}`
+              : message;
+          })
+          .filter((detail): detail is string => detail !== null)
+      : [];
+    const message = typeof source.message === 'string' && source.message.trim()
+      ? source.message.trim()
+      : 'Erreur inconnue renvoyée par GoCardless';
+    const statusCode = typeof source.response?.statusCode === 'number'
+      ? source.response.statusCode
+      : typeof source.statusCode === 'number'
+        ? source.statusCode
+        : undefined;
+    const code = typeof source.code === 'string' || typeof source.code === 'number'
+      ? String(source.code)
+      : undefined;
+    const requestId = typeof source.requestId === 'string' ? source.requestId : undefined;
+
+    console.error('[GoCardless] Échec de création de la demande de paiement', {
+      statusCode,
+      code,
+      type: typeof source.errorType === 'string' ? source.errorType : undefined,
+      message,
+      details,
+      requestId,
+    });
+
+    const diagnostic = [
+      statusCode ? `HTTP ${statusCode}` : null,
+      code ? `code ${code}` : null,
+      message,
+      ...details.filter((detail) => detail !== message),
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(' — ');
+
+    return new BadRequestException(
+      `Impossible de créer le lien de paiement GoCardless : ${diagnostic}.`,
+    );
   }
 
   async createPaymentLink(input: CreatePaymentLinkInput, paymentAccessToken: string): Promise<PaymentLinkResponse> {
@@ -166,14 +239,20 @@ implements
       }
     });
 
-    await this.prismaService.invoicePublicAccess.create({
-        data: {
+    await this.prismaService.invoicePublicAccess.upsert({
+        where: { invoiceId: input.invoiceId },
+        create: {
           accessToken: paymentAccessToken,
           invoiceId: input.invoiceId,
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
           invoicePaymentLinkId: persistedPaymentLink.id
-        }
-    })
+        },
+        update: {
+          accessToken: paymentAccessToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          invoicePaymentLinkId: persistedPaymentLink.id,
+        },
+    });
 
     await this.prismaService.payByBankPayment.create({
       data: {
@@ -230,14 +309,20 @@ implements
       }
     });
 
-    await this.prismaService.invoicePublicAccess.create({
-        data: {
+    await this.prismaService.invoicePublicAccess.upsert({
+        where: { invoiceId: input.invoiceId },
+        create: {
           accessToken: paymentAccessToken,
           invoiceId: input.invoiceId,
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
           invoicePaymentLinkId: persistedPaymentLink.id
-        }
-    })
+        },
+        update: {
+          accessToken: paymentAccessToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          invoicePaymentLinkId: persistedPaymentLink.id,
+        },
+    });
 
       return { url: createdBillingRequestFlow.authorisation_url as string, paymentLinkId: billingRequestId };
     } catch (error) {

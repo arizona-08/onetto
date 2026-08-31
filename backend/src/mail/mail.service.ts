@@ -51,6 +51,8 @@ type PaymentReceiptMailInput = {
   companyEmail: string;
 };
 
+type AppNotificationMailInput = { title: string; message: string; href?: string };
+
 type ReminderMailInput = {
   clientName: string;
   documentNumber: string | null;
@@ -75,6 +77,15 @@ export class MailService {
       html,
       attachments,
     });
+  }
+
+  createAppNotificationMail(input: AppNotificationMailInput): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    const link = input.href ? `${process.env.FRONTEND_URL}${input.href}` : undefined;
+    return {
+      subject: `Onetto — ${input.title}`,
+      text: `${input.title}\n\n${input.message}${link ? `\n\nVoir dans Onetto : ${link}` : ''}`,
+      html: `<h1>${input.title}</h1><p>${input.message}</p>${link ? `<p><a href="${link}">Voir dans Onetto</a></p>` : ''}`,
+    };
   }
 
   createInvoiceMail(
@@ -153,6 +164,23 @@ export class MailService {
         'Merci pour votre paiement.',
       ].join('\n'),
       html: this.createPaymentReceiptTemplate(input),
+    };
+  }
+
+  createPaymentSubmittedMail(
+    input: PaymentReceiptMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    return {
+      subject: `Prélèvement en cours — facture ${input.documentNumber}`,
+      text: [
+        `Bonjour ${input.clientName},`,
+        '',
+        `Votre prélèvement de ${formatAmount(input.amount)} pour la facture ${input.documentNumber} a été transmis à votre banque.`,
+        'Le règlement sera confirmé dès que GoCardless nous en aura confirmé la réception.',
+        '',
+        'Nous vous tiendrons informé(e).',
+      ].join('\n'),
+      html: this.createPaymentSubmittedTemplate(input),
     };
   }
 
@@ -453,6 +481,23 @@ export class MailService {
       details,
       footer: `${input.companyName} · ${input.companyEmail}`,
       note: 'Merci pour votre confiance.',
+    });
+  }
+
+  private createPaymentSubmittedTemplate(input: PaymentReceiptMailInput): string {
+    const details = this.createDetailsTable([
+      ['Montant du prélèvement', formatAmount(input.amount)],
+      ['Statut', 'Transmis à votre banque'],
+    ]);
+
+    return this.createEmailLayout({
+      badge: 'PRÉLÈVEMENT EN COURS',
+      title: 'Votre prélèvement est en cours de traitement',
+      greeting: `Bonjour ${input.clientName},`,
+      message: `Le prélèvement de votre facture <strong>${input.documentNumber}</strong> a été transmis à votre banque. Nous vous confirmerons la réception du règlement dès sa validation.`,
+      details,
+      footer: `${input.companyName} · ${input.companyEmail}`,
+      note: 'Aucune action n’est requise de votre part.',
     });
   }
 

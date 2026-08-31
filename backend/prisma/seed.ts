@@ -9,6 +9,7 @@ const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
 
 const userEmail = 'assijonathan2@gmail.com';
 const companyEmail = 'contact@marc-assi.com';
+const legacyCompanyEmail = 'contact@marc-assi.com';
 
 const companyServices = [
   {
@@ -97,21 +98,33 @@ async function seed() {
     },
   });
 
+  // Preserve the demo company when upgrading an existing local database.
+  await prisma.company.updateMany({
+    where: { email: legacyCompanyEmail },
+    data: { email: companyEmail },
+  });
+
   const company = await prisma.company.upsert({
     where: { email: companyEmail },
     update: {
       ownerId: user.id,
-      name: 'Jonathan ASSI (Micro-Entreprise)',
-      phoneNumber: '01 02 03 04 05',
-      siren: '732829320',
-      siret: '73282932000074',
-      address: '10 rue de la Paix',
-      city: 'Paris',
-      postalCode: '75012',
+      name: 'Burger Queen',
+      phoneNumber: '+33 5 65 60 00 02',
+      siren: '000000002',
+      siret: '00000000200002',
+      address: '809 avenue du Languedoc',
+      city: 'Millau',
+      postalCode: '12100',
       country: 'France',
       subjectToVat: true,
-      vatNumber: 'FR44732829320',
-      IBAN: 'FR7610096000300012345678918',
+      legalStatus: 'SAS',
+      vatRegime: 'MONTHLY',
+      isVatExempt: false,
+      hasVatOnDebits: false,
+      electronicAddress: '000000002',
+      electronicAddressScheme: 'SIREN',
+      vatNumber: 'FR00000000002',
+      IBAN: 'FR7630006000011234567890189',
       BIC: 'CMCIFRPP',
       status: 'ACTIVE',
       closingReason: null,
@@ -119,18 +132,24 @@ async function seed() {
     },
     create: {
       ownerId: user.id,
-      name: 'Jonathan ASSI (Micro-Entreprise)',
+      name: 'Burger Queen',
       email: companyEmail,
-      phoneNumber: '01 02 03 04 05',
-      siren: '732829320',
-      siret: '73282932000074',
-      address: '10 rue de la Paix',
-      city: 'Paris',
-      postalCode: '75012',
+      phoneNumber: '+33 5 65 60 00 02',
+      siren: '000000002',
+      siret: '00000000200002',
+      address: '809 avenue du Languedoc',
+      city: 'Millau',
+      postalCode: '12100',
       country: 'France',
       subjectToVat: true,
-      vatNumber: 'FR44732829320',
-      IBAN: 'FR7610096000300012345678918',
+      legalStatus: 'SAS',
+      vatRegime: 'MONTHLY',
+      isVatExempt: false,
+      hasVatOnDebits: false,
+      electronicAddress: '000000002',
+      electronicAddressScheme: 'SIREN',
+      vatNumber: 'FR00000000002',
+      IBAN: 'FR7630006000011234567890189',
       BIC: 'CMCIFRPP',
     },
   });

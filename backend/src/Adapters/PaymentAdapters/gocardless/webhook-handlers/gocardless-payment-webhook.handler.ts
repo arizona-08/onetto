@@ -198,6 +198,12 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
         ? instalment.amountInCents
         : undefined,
     );
+    if (canUpdateStatus && mappedStatus === 'PAYMENT_IN_PROGRESS') {
+      await this.invoicePaymentStatusService.notifyPaymentSubmittedForInstalment(
+        instalment.invoiceInstalmentPlan.invoiceId,
+        instalment.amountInCents,
+      );
+    }
   }
 
   /**
@@ -282,6 +288,11 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       attempt.payByBankPaymentId,
       mappedStatus === 'SUCCESS',
     );
+    if (mappedStatus === 'PAYMENT_IN_PROGRESS') {
+      await this.invoicePaymentStatusService.notifyPaymentSubmittedForPayByBankPayment(
+        attempt.payByBankPaymentId,
+      );
+    }
   }
 
   async syncPaymentAttemptStatus(
@@ -333,5 +344,10 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       paymentAttempt.payByBankPaymentId,
       mappedStatus === 'SUCCESS',
     );
+    if (mappedStatus === 'PAYMENT_IN_PROGRESS') {
+      await this.invoicePaymentStatusService.notifyPaymentSubmittedForPayByBankPayment(
+        paymentAttempt.payByBankPaymentId,
+      );
+    }
   }
 }

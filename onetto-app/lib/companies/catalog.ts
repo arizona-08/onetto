@@ -9,6 +9,7 @@ function getServicePayload(service: Service) {
     unit: service.unit,
     taxRate: service.taxRate,
     category: service.category,
+    itemType: service.itemType,
   };
 }
 
@@ -20,6 +21,11 @@ function getClientPayload(client: Client) {
     city: client.city,
     postalCode: client.postalCode,
     country: client.country,
+    clientType: client.clientType,
+    siren: client.siren,
+    vatNumber: client.vatNumber,
+    electronicAddress: client.electronicAddress,
+    electronicAddressScheme: client.electronicAddressScheme,
   };
 }
 

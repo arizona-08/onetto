@@ -22,6 +22,11 @@ async function clients() {
         city: client.city,
         postalCode: client.postalCode,
         country: client.country,
+        clientType: client.clientType,
+        siren: client.siren ?? undefined,
+        vatNumber: client.vatNumber ?? undefined,
+        electronicAddress: client.electronicAddress ?? undefined,
+        electronicAddressScheme: client.electronicAddressScheme ?? undefined,
       }))
     : [];
 

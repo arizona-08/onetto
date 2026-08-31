@@ -1,7 +1,7 @@
 'use client';
 import React from 'react'
 import BurgerMenu from './molecules/BurgerMenu'
-import { Building, FileChartColumnIncreasing, LayoutDashboardIcon, LogOut, SettingsIcon, UserIcon, Waypoints } from 'lucide-react';
+import { Bell, Building, FileChartColumnIncreasing, LayoutDashboardIcon, LogOut, SettingsIcon, UserIcon, Waypoints } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/auth/auth';
 import { getMyCompanies, selectCompany } from '@/lib/companies/companies';
@@ -15,7 +15,8 @@ const links = [
   { name: 'Factures & Devis', href: '/documents', icon: <FileChartColumnIncreasing />  },
   { name: 'Mes entreprises', href: '/my-companies', icon: <Building />},
   { name: 'Mes Clients', href: '/customers', icon: <UserIcon />  },
-  { name: 'Mes Services', href: '/services', icon: <Waypoints /> },
+  { name: 'Mes Biens & Services', href: '/services', icon: <Waypoints /> },
+  { name: 'Notifications', href: '/notifications', icon: <Bell /> },
   { name: 'Paramètres', href: '/settings/account', icon: <SettingsIcon />  },
 ]
 
@@ -151,7 +152,7 @@ function TopSidebar() {
               <li key={link.name} className="mb-2">
                 <a
                   href={link.href}
-                  className={`flex items-center gap-3 px-4 py-2 rounded-lg font-normal transition-colors ${isCurrentPathName ? 'bg-zinc-200 text-zinc-900 font-medium' : 'text-zinc-600 hover:bg-zinc-200'}`}
+                  className={`flex items-center gap-3 px-4 py-2 rounded-lg font-normal transition-colors truncate ${isCurrentPathName ? 'bg-zinc-200 text-zinc-900 font-medium' : 'text-zinc-600 hover:bg-zinc-200'}`}
                 >
                   {link.icon}
                   {link.name}

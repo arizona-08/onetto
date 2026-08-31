@@ -14,6 +14,14 @@ import {
 } from 'class-validator';
 
 export class DocumentClientDto {
+  @IsOptional()
+  @IsIn(['BUSINESS', 'CLIENT'])
+  clientType?: 'BUSINESS' | 'CLIENT';
+  @IsOptional() @IsString() siren?: string;
+  @IsOptional() @IsString() vatNumber?: string;
+  @IsOptional() @IsString() electronicAddress?: string;
+  @IsOptional() @IsString() electronicAddressScheme?: string;
+
   @IsDefined()
   @IsString()
   name: string;
@@ -66,6 +74,10 @@ export class LineItemsDto {
   @IsDefined()
   @IsString()
   unit: string;
+
+  @IsOptional()
+  @IsIn(['GOODS', 'SERVICES'])
+  itemType?: 'GOODS' | 'SERVICES';
 }
 
 export class DocumentDateDto {
@@ -89,6 +101,10 @@ export class CreateDocumentDto {
   @IsOptional()
   @IsIn(['ESTIMATE', 'INVOICE'])
   type?: 'ESTIMATE' | 'INVOICE';
+
+  @IsOptional()
+  @IsIn(['GOODS', 'SERVICES', 'MIXED'])
+  operationNature?: 'GOODS' | 'SERVICES' | 'MIXED';
 
   @IsDefined()
   @ValidateNested()

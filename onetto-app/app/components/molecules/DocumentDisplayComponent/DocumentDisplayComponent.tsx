@@ -120,6 +120,8 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
               <div className="space-y-0.5">
                 <p className="min-h-5 font-title text-lg font-semibold">{document.clientName}</p>
                 <p className="break-words">{document.clientEmail}</p>
+                {document.clientType === 'BUSINESS' && document.clientSiren && <p>SIREN : {document.clientSiren}</p>}
+                {document.clientType === 'BUSINESS' && document.clientVatNumber && <p>TVA intracommunautaire : {document.clientVatNumber}</p>}
                 <p className="break-words">{document.clientAddress}</p>
                 <p>
                   {document.clientPostalCode}, {document.clientCity}, {document.clientCountry}

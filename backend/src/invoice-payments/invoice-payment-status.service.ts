@@ -2,12 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { $Enums } from '@prisma/client';
 import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ereporting.service';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class InvoicePaymentStatusService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly mailService: MailService,
+    private readonly superPdpEreportingService: SuperPdpEreportingService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -57,10 +61,12 @@ export class InvoicePaymentStatusService {
 
     if (attemptBecameSuccessful) {
       await this.sendPaymentReceipt(document.id);
+      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(document.id);
     }
 
     if (justPaid) {
       await this.sendInvoicePaidConfirmation(document.id);
+      await this.notifyPayment(document.id, 'PAYMENT_SUCCEEDED', 'Règlement reçu', 'Le règlement de la facture a été confirmé.', 'confirmed');
     }
   }
 
@@ -89,10 +95,32 @@ export class InvoicePaymentStatusService {
         document.id,
         paidInstalmentAmountInCents / 100,
       );
+      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(document.id);
     }
     if (justPaid) {
       await this.sendInvoicePaidConfirmation(document.id);
+      await this.notifyPayment(document.id, 'PAYMENT_SUCCEEDED', 'Règlement reçu', 'Le règlement de la facture a été confirmé.', 'confirmed');
     }
+  }
+
+  async notifyPaymentSubmittedForPayByBankPayment(
+    payByBankPaymentId: string,
+  ): Promise<void> {
+    const payment = await this.prismaService.payByBankPayment.findUnique({
+      where: { id: payByBankPaymentId },
+      select: { invoiceId: true, amountInCents: true },
+    });
+    if (!payment) return;
+    await this.sendPaymentSubmitted(payment.invoiceId, payment.amountInCents / 100);
+    await this.notifyPayment(payment.invoiceId, 'PAYMENT_SUBMITTED', 'Paiement en cours', 'Le paiement de la facture a été soumis à la banque.', 'submitted');
+  }
+
+  async notifyPaymentSubmittedForInstalment(
+    invoiceId: string,
+    amountInCents: number,
+  ): Promise<void> {
+    await this.sendPaymentSubmitted(invoiceId, amountInCents / 100);
+    await this.notifyPayment(invoiceId, 'PAYMENT_SUBMITTED', 'Paiement en cours', 'Le paiement de la facture a été soumis à la banque.', 'submitted');
   }
 
   private async getInvoiceStatus(
@@ -239,6 +267,29 @@ export class InvoicePaymentStatusService {
     );
   }
 
+  private async sendPaymentSubmitted(
+    documentId: string,
+    amount: number,
+  ): Promise<void> {
+    const document = await this.prismaService.document.findUniqueOrThrow({
+      where: { id: documentId },
+      select: {
+        clientName: true,
+        clientEmail: true,
+        documentNumber: true,
+        company: { select: { name: true, email: true } },
+      },
+    });
+    const mailContent = this.mailService.createPaymentSubmittedMail({
+      clientName: document.clientName,
+      documentNumber: document.documentNumber,
+      amount,
+      companyName: document.company.name,
+      companyEmail: document.company.email,
+    });
+    await this.sendMailSafely(document.clientEmail, mailContent, 'payment submitted');
+  }
+
   private async sendInvoicePaidConfirmation(documentId: string): Promise<void> {
     const document = await this.prismaService.document.findUniqueOrThrow({
       where: { id: documentId },
@@ -275,5 +326,11 @@ export class InvoicePaymentStatusService {
     } catch (error) {
       console.error(`Unable to send ${context} email:`, error);
     }
+  }
+
+  private async notifyPayment(documentId: string, type: 'PAYMENT_SUBMITTED' | 'PAYMENT_SUCCEEDED', title: string, message: string, key: string): Promise<void> {
+    const document = await this.prismaService.document.findUnique({ where: { id: documentId }, select: { companyId: true, documentNumber: true } });
+    if (!document) return;
+    await this.notifications.notifyCompany({ companyId: document.companyId, type, title, message: `${message} (${document.documentNumber})`, href: `/documents/${documentId}`, deduplicationKey: `payment:${documentId}:${key}` });
   }
 }

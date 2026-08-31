@@ -6,6 +6,11 @@ export type Client = {
   city: string;
   postalCode: string;
   country: string;
+  clientType: 'BUSINESS' | 'CLIENT';
+  siren?: string;
+  vatNumber?: string;
+  electronicAddress?: string;
+  electronicAddressScheme?: string;
 }
 
 export type Service = {
@@ -16,6 +21,7 @@ export type Service = {
   unit: string
   taxRate: number
   category: string
+  itemType: 'GOODS' | 'SERVICES'
 }
 
 export type ServiceLineItem = {
@@ -24,6 +30,7 @@ export type ServiceLineItem = {
   taxRate: number
   unitPrice: number
   unit: string
+  itemType: 'GOODS' | 'SERVICES'
 }
 
 export type DocumentDates = {
@@ -34,6 +41,7 @@ export type DocumentDates = {
 
 export type Document = {
   id: string;
+  companyId: string;
   documentNumber: string;
   versionNumber: number;
   isLastVersion: boolean;
@@ -47,6 +55,12 @@ export type Document = {
   clientCity: string;
   clientCountry: string;
   clientPostalCode: string;
+  clientType?: 'BUSINESS' | 'INDIVIDUAL' | 'PUBLIC_BODY' | 'FOREIGN' | null;
+  clientSiren?: string | null;
+  clientVatNumber?: string | null;
+  clientElectronicAddress?: string | null;
+  clientElectronicAddressScheme?: string | null;
+  operationNature?: 'GOODS' | 'SERVICES' | 'MIXED' | null;
   totalPriceExcludingTax: number;
   totalPrice: number;
   authorId: string;
@@ -80,6 +94,14 @@ export type Document = {
       paidAt?: string | null;
     }>;
   } | null;
+  electronicInvoiceTransmissions?: Array<{
+    status: string;
+    providerStatus?: string | null;
+    providerInvoiceId?: string | null;
+    submittedAt?: string | null;
+    lastSyncedAt?: string | null;
+    lastError?: string | null;
+  }>;
 }
 
 export type InvoiceStatus =
@@ -103,6 +125,7 @@ export type DocumentService = {
   unit: string;
   wtPrice: number;
   totalPrice: number;
+  itemType: 'GOODS' | 'SERVICES';
 }
 
 export type PublicPayment = {

@@ -12,6 +12,8 @@ import { PaymentProviderModule } from 'src/Adapters/PaymentAdapters/payment-prov
 import { ConfigModule } from '@nestjs/config';
 import { PdfModule } from 'src/pdf/pdf.module';
 import { PlanAccessModule } from 'src/plan-access/plan-access.module';
+import { ElectronicInvoicingModule } from 'src/electronic-invoicing/electronic-invoicing.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { PlanAccessModule } from 'src/plan-access/plan-access.module';
     PdfModule,
     PlanAccessModule,
     PaymentProviderModule,
+    ElectronicInvoicingModule,
+    NotificationsModule,
   ],
   controllers: [
     DocumentController,

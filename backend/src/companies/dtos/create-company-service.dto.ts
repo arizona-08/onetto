@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateCompanyServiceDto {
   @IsString()
@@ -24,4 +24,8 @@ export class CreateCompanyServiceDto {
 
   @IsString()
   category: string;
+
+  @IsOptional()
+  @IsIn(['GOODS', 'SERVICES'])
+  itemType?: 'GOODS' | 'SERVICES';
 }

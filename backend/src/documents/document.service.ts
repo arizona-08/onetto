@@ -21,6 +21,10 @@ import {
   buildInstalmentSchedule,
   parseDateOnly,
 } from './instalment-plan.utils';
+import { FacturXService } from 'src/electronic-invoicing/factur-x.service';
+import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ereporting.service';
+import { SuperPdpB2bService } from 'src/electronic-invoicing/superpdp-b2b.service';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class DocumentService {
@@ -34,6 +38,10 @@ export class DocumentService {
     private readonly configService: ConfigService,
     private readonly planAccessService: PlanAccessService,
     private readonly gocardlessInstalmentRetryService: GoCardlessInstalmentRetryService,
+    private readonly facturXService: FacturXService,
+    private readonly superPdpEreportingService: SuperPdpEreportingService,
+    private readonly superPdpB2bService: SuperPdpB2bService,
+    private readonly notifications: NotificationsService,
   ) {
     this.callbackUrl =
       this.configService.get<string>('BRIDGE_CALLBACK_URL') || '';
@@ -79,6 +87,15 @@ export class DocumentService {
             clientCity: documentData.client.city,
             clientCountry: documentData.client.country,
             clientPostalCode: documentData.client.postalCode,
+            clientType:
+              documentData.client.clientType === 'BUSINESS'
+                ? 'BUSINESS'
+                : 'INDIVIDUAL',
+            clientSiren: documentData.client.siren,
+            clientVatNumber: documentData.client.vatNumber,
+            clientElectronicAddress: documentData.client.electronicAddress,
+            clientElectronicAddressScheme: documentData.client.electronicAddressScheme,
+            operationNature: this.getOperationNatureFromLineItems(lineItems),
             totalPriceExcludingTax: totalPriceExludingTax,
             totalPrice: totalDocumentPrice,
             documentNumber,
@@ -103,6 +120,7 @@ export class DocumentService {
               taxRate: lineItem.taxRate,
               unitPrice: lineItem.unitPrice,
               unit: lineItem.unit,
+              itemType: lineItem.itemType ?? 'SERVICES',
               documentId: createdDocument.id,
               wtPrice,
               totalPrice,
@@ -252,6 +270,16 @@ export class DocumentService {
               clientCity: documentData.client.city,
               clientCountry: documentData.client.country,
               clientPostalCode: documentData.client.postalCode,
+              clientType:
+                documentData.client.clientType === 'BUSINESS'
+                  ? 'BUSINESS'
+                  : 'INDIVIDUAL',
+              clientSiren: documentData.client.siren,
+              clientVatNumber: documentData.client.vatNumber,
+              clientElectronicAddress: documentData.client.electronicAddress,
+              clientElectronicAddressScheme:
+                documentData.client.electronicAddressScheme,
+              operationNature: this.getOperationNatureFromLineItems(lineItems),
               totalPriceExcludingTax: totalPriceExludingTax,
               totalPrice: totalDocumentPrice,
               paymentDueAt: new Date(data.documentDates.dueDate),
@@ -269,6 +297,7 @@ export class DocumentService {
               taxRate: lineItem.taxRate,
               unitPrice: lineItem.unitPrice,
               unit: lineItem.unit,
+              itemType: lineItem.itemType ?? 'SERVICES',
               wtPrice,
               totalPrice,
             };
@@ -468,6 +497,22 @@ export class DocumentService {
           clientCity: document.clientCity,
           clientCountry: document.clientCountry,
           clientPostalCode: document.clientPostalCode,
+          clientType: document.clientType,
+          clientSiren: document.clientSiren,
+          clientVatNumber: document.clientVatNumber,
+          clientElectronicAddress: document.clientElectronicAddress,
+          clientElectronicAddressScheme:
+            document.clientElectronicAddressScheme,
+          operationNature: document.operationNature,
+          clientIsVatTaxable: document.clientIsVatTaxable,
+          clientForeignIdentifier: document.clientForeignIdentifier,
+          deliveryAddress: document.deliveryAddress,
+          deliveryCity: document.deliveryCity,
+          deliveryPostalCode: document.deliveryPostalCode,
+          deliveryCountry: document.deliveryCountry,
+          currencyCode: document.currencyCode,
+          isVatExempt: document.isVatExempt,
+          vatExemptionReason: document.vatExemptionReason,
           totalPriceExcludingTax: document.totalPriceExcludingTax,
           totalPrice: document.totalPrice,
           documentNumber: invoiceNumber,
@@ -491,6 +536,7 @@ export class DocumentService {
               taxRate: service.taxRate,
               unitPrice: service.unitPrice,
               unit: service.unit,
+              itemType: service.itemType,
               documentId: invoice.id,
               wtPrice: service.wtPrice,
               totalPrice: service.totalPrice,
@@ -1198,6 +1244,17 @@ export class DocumentService {
         },
         include: {
           services: withServices,
+          electronicInvoiceTransmissions: {
+            where: { provider: 'SUPER_PDP', flow: 'B2B_FR' },
+            select: {
+              status: true,
+              providerStatus: true,
+              providerInvoiceId: true,
+              submittedAt: true,
+              lastSyncedAt: true,
+              lastError: true,
+            },
+          },
           convertedDocuments: {
             where: { type: 'INVOICE' },
             select: { id: true },
@@ -1361,9 +1418,9 @@ export class DocumentService {
         data: { estimateStatus: 'SUPERSEDED' },
       });
 
-      return { success: true };
+      return { success: true, documentId: negociation.documentId };
     });
-
+    if (result) await this.notifications.notifyCompany({ companyId: pendingNegociation.document.companyId, type: 'ESTIMATE_RENEGOTIATED', title: 'Devis renégocié', message: 'Un client a demandé une renégociation de devis.', href: `/documents/${result.documentId}`, deduplicationKey: `estimate:${result.documentId}:renegotiated` });
     return result;
   }
 
@@ -1397,9 +1454,12 @@ export class DocumentService {
         });
       }
 
-      return { success: true };
+      return { success: true, documentId: negociation.documentId };
     });
-
+    if (result) {
+      const negotiation = await this.prismaService.estimateNegociation.findUnique({ where: { negociationToken }, select: { document: { select: { companyId: true, documentNumber: true } } } });
+      if (negotiation) await this.notifications.notifyCompany({ companyId: negotiation.document.companyId, type: status === 'ACCEPTED' ? 'ESTIMATE_ACCEPTED' : 'ESTIMATE_REJECTED', title: status === 'ACCEPTED' ? 'Devis accepté' : 'Devis refusé', message: `Le devis ${negotiation.document.documentNumber} a été ${status === 'ACCEPTED' ? 'accepté' : 'refusé'} par le client.`, href: `/documents/${result.documentId}`, deduplicationKey: `estimate:${result.documentId}:${status.toLowerCase()}` });
+    }
     return result;
   }
 
@@ -1499,6 +1559,22 @@ export class DocumentService {
           clientCity: sourceDocument.clientCity,
           clientPostalCode: sourceDocument.clientPostalCode,
           clientCountry: sourceDocument.clientCountry,
+          clientType: sourceDocument.clientType,
+          clientSiren: sourceDocument.clientSiren,
+          clientVatNumber: sourceDocument.clientVatNumber,
+          clientElectronicAddress: sourceDocument.clientElectronicAddress,
+          clientElectronicAddressScheme:
+            sourceDocument.clientElectronicAddressScheme,
+          operationNature: sourceDocument.operationNature,
+          clientIsVatTaxable: sourceDocument.clientIsVatTaxable,
+          clientForeignIdentifier: sourceDocument.clientForeignIdentifier,
+          deliveryAddress: sourceDocument.deliveryAddress,
+          deliveryCity: sourceDocument.deliveryCity,
+          deliveryPostalCode: sourceDocument.deliveryPostalCode,
+          deliveryCountry: sourceDocument.deliveryCountry,
+          currencyCode: sourceDocument.currencyCode,
+          isVatExempt: sourceDocument.isVatExempt,
+          vatExemptionReason: sourceDocument.vatExemptionReason,
           totalPriceExcludingTax: sourceDocument.totalPriceExcludingTax,
           totalPrice: sourceDocument.totalPrice,
           paymentDueAt: sourceDocument.paymentDueAt,
@@ -1519,6 +1595,7 @@ export class DocumentService {
           quantity: service.quantity,
           unitPrice: service.unitPrice,
           unit: service.unit,
+          itemType: service.itemType,
           taxRate: service.taxRate,
           wtPrice: service.wtPrice,
           totalPrice: service.totalPrice,
@@ -1527,6 +1604,14 @@ export class DocumentService {
 
       return { document };
     });
+  }
+
+  private getOperationNatureFromLineItems(
+    lineItems: Array<{ itemType?: 'GOODS' | 'SERVICES' }>,
+  ): 'GOODS' | 'SERVICES' | 'MIXED' {
+    const itemTypes = new Set(lineItems.map((lineItem) => lineItem.itemType ?? 'SERVICES'));
+    if (itemTypes.has('GOODS') && itemTypes.has('SERVICES')) return 'MIXED';
+    return itemTypes.has('GOODS') ? 'GOODS' : 'SERVICES';
   }
 
   private async getActiveCompanyId(
@@ -1596,6 +1681,40 @@ export class DocumentService {
     }
   }
 
+  async deleteDraftDocument(documentId: string, user: User) {
+    try {
+      const companyId = await this.getActiveCompanyId(user);
+      const deleteResult = await this.prismaService.document.deleteMany({
+        where: {
+          id: documentId,
+          companyId,
+          OR: [
+            { type: 'ESTIMATE', estimateStatus: 'DRAFT' },
+            { type: 'INVOICE', invoiceStatus: 'DRAFT' },
+          ],
+        },
+      });
+
+      if (deleteResult.count === 0) {
+        throw new BadRequestException(
+          'Seul un brouillon de votre entreprise active peut être supprimé.',
+        );
+      }
+
+      return {
+        success: true,
+        message: 'Brouillon supprimé avec succès.',
+      };
+    } catch (error: unknown) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Une erreur est survenue lors de la suppression du brouillon.',
+      );
+    }
+  }
+
   async sendDocumentToClient(
     documentId: string,
     user: User,
@@ -1661,6 +1780,10 @@ export class DocumentService {
           })
         : null;
 
+      if (isInvoice) {
+        await this.facturXService.archive(document.id, user);
+      }
+
       const mailContent = isInvoice
         ? this.mailService.createInvoiceMail({
             clientName: document.clientName,
@@ -1695,6 +1818,38 @@ export class DocumentService {
       });
 
       await this.markDocumentAsDelivered(document.id, isInvoice);
+
+      if (
+        isInvoice &&
+        document.clientType === 'INDIVIDUAL' &&
+        ['FR', 'FRA', 'FRANCE'].includes(document.clientCountry.trim().toUpperCase()) &&
+        this.configService.get<string>('SUPERPDP_TRANSACTION_EREPORTING_ENABLED') === 'true'
+      ) {
+        try {
+          await this.superPdpEreportingService.submitB2CTransaction({
+            companyId: document.companyId,
+            documentId: document.id,
+            userId: user.id,
+          });
+        } catch (error) {
+          console.error('E-reporting B2C automatique impossible:', error);
+        }
+      }
+
+      if (isInvoice && document.clientType === 'BUSINESS') {
+        try {
+          await this.superPdpB2bService.send({
+            companyId: document.companyId,
+            documentId: document.id,
+            user,
+          });
+        } catch (error) {
+          // The invoice email has already been sent. The B2B transmission
+          // service persists a retryable FAILED status when it could start;
+          // never turn a temporary platform issue into a failed client send.
+          console.error('Transmission B2B SuperPDP automatique impossible:', error);
+        }
+      }
 
       return {
         success: true,
@@ -2102,6 +2257,7 @@ export class DocumentService {
       }
 
       await this.manuallyMarkInvoiceAs('PAID_MANUALLY', documentId);
+      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(documentId);
 
       return {
         success: true,

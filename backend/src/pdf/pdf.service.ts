@@ -13,6 +13,9 @@ type InvoicePdfData = {
   clientPostalCode: string;
   clientCity: string;
   clientCountry: string;
+  clientType?: 'BUSINESS' | 'INDIVIDUAL' | 'PUBLIC_BODY' | 'FOREIGN' | null;
+  clientSiren?: string | null;
+  clientVatNumber?: string | null;
   totalPrice: number;
   totalPriceExcludingTax: number;
   services: Array<{ description: string; quantity: number; unit: string; unitPrice: number; taxRate: number | null; totalPrice: number }>;
@@ -52,7 +55,14 @@ export class PdfService {
       pdf.moveTo(42, 211).lineTo(553, 211).strokeColor('#E4E4E7').stroke();
 
       this.party(pdf, 42, 234, 'ÉMISE PAR', [data.company.name, data.company.address, `${data.company.postalCode} ${data.company.city}, ${data.company.country}`, `SIREN : ${data.company.siren}`, data.company.vatNumber ? `TVA : ${data.company.vatNumber}` : '', `${data.company.email} · ${data.company.phoneNumber}`]);
-      this.party(pdf, 325, 234, 'À L’ATTENTION DE', [data.clientName, data.clientEmail, data.clientAddress, `${data.clientPostalCode} ${data.clientCity}, ${data.clientCountry}`], true);
+      this.party(pdf, 325, 234, 'À L’ATTENTION DE', [
+        data.clientName,
+        data.clientEmail,
+        data.clientType === 'BUSINESS' && data.clientSiren ? `SIREN : ${data.clientSiren}` : '',
+        data.clientType === 'BUSINESS' && data.clientVatNumber ? `TVA : ${data.clientVatNumber}` : '',
+        data.clientAddress,
+        `${data.clientPostalCode} ${data.clientCity}, ${data.clientCountry}`,
+      ], true);
 
       let y = 344;
       const columns = [42, 245, 314, 397, 465];

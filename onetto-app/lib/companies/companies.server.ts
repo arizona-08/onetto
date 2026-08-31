@@ -23,6 +23,7 @@ export type CompanyService = {
   category: string;
   wtPrice: number;
   totalPrice: number;
+  itemType: 'GOODS' | 'SERVICES';
 };
 
 export type CompanyClient = {
@@ -34,6 +35,11 @@ export type CompanyClient = {
   city: string;
   postalCode: string;
   country: string;
+  clientType: 'BUSINESS' | 'CLIENT';
+  siren?: string | null;
+  vatNumber?: string | null;
+  electronicAddress?: string | null;
+  electronicAddressScheme?: string | null;
 };
 
 export function getMyCompaniesServer() {

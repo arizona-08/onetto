@@ -4,6 +4,8 @@ export type ApiError = {
   statusCode: number;
   message: string | string[];
   error?: string;
+  code?: string;
+  upstreamStatusCode?: number;
   details?: unknown;
 };
 
@@ -60,6 +62,11 @@ function toApiError(payload: unknown, statusCode: number): ApiError {
       statusCode: typeof errorPayload.statusCode === "number" ? errorPayload.statusCode : statusCode,
       message: errorPayload.message ?? `API error ${statusCode}`,
       error: errorPayload.error,
+      code: typeof errorPayload.code === "string" ? errorPayload.code : undefined,
+      upstreamStatusCode:
+        typeof errorPayload.upstreamStatusCode === "number"
+          ? errorPayload.upstreamStatusCode
+          : undefined,
       details: payload,
     };
   }

@@ -10,6 +10,8 @@ import DocumentForm from './DocumentForm';
 import DocumentPreview from './DocumentPreview';
 import { useToast } from '../../context/ToastContext';
 import DocumentVersionSelector from '../../molecules/DocumentVersionSelector';
+import GoCardlessReconnectModal from '../../molecules/GoCardlessReconnectModal';
+import { isGoCardlessAccessTokenInactive } from '@/lib/gocardless/access-token';
 
 function toDateInputValue(date: Date) {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
@@ -41,6 +43,11 @@ interface DocumentCreateProps {
 function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: DocumentCreateProps) {
   const [client, setClient] = React.useState<Client | null>(null);
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([])
+  const operationNature = React.useMemo<'GOODS' | 'SERVICES' | 'MIXED'>(() => {
+    const itemTypes = new Set(lineItems.map((lineItem) => lineItem.itemType ?? 'SERVICES'));
+    if (itemTypes.has('GOODS') && itemTypes.has('SERVICES')) return 'MIXED';
+    return itemTypes.has('GOODS') ? 'GOODS' : 'SERVICES';
+  }, [lineItems]);
   const [documentDates, setDocumentDates] = React.useState<DocumentDates>(() =>{
     const d = new Date()
     // set to one month ahead, handling month overflow
@@ -57,6 +64,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
   const [numberOfInstalments, setNumberOfInstalments] = useState<2 | 3>(2);
   const [firstDueDate, setFirstDueDate] = useState(() => addCalendarMonths(toDateInputValue(new Date()), 1));
   const [canUseInstalments, setCanUseInstalments] = useState(false);
+  const [goCardlessReconnectCompanyId, setGoCardlessReconnectCompanyId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadPlanAccess() {
@@ -75,7 +83,12 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
         address: document.clientAddress,
         city: document.clientCity,
         postalCode: document.clientPostalCode,
-        country: document.clientCountry
+        country: document.clientCountry,
+        clientType: document.clientType === 'BUSINESS' ? 'BUSINESS' : 'CLIENT',
+        siren: document.clientSiren ?? undefined,
+        vatNumber: document.clientVatNumber ?? undefined,
+        electronicAddress: document.clientElectronicAddress ?? undefined,
+        electronicAddressScheme: document.clientElectronicAddressScheme ?? undefined,
       });
 
       setLineItems(document.services ? document.services?.map(service => ({
@@ -84,7 +97,8 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
         taxRate: service.taxRate,
         unit: service.unit,
         quantity: service.quantity,
-        unitPrice: service.unitPrice
+        unitPrice: service.unitPrice,
+        itemType: service.itemType ?? 'SERVICES',
       })) : []);
 
       setDocumentDates({
@@ -177,8 +191,8 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       return null;
     }
 
-    const { name, email, address, city, postalCode, country } = client as Client;
-    const clientData = { name, email, address, city, postalCode, country };
+    const { name, email, address, city, postalCode, country, clientType, siren, vatNumber, electronicAddress, electronicAddressScheme } = client as Client;
+    const clientData = { name, email, address, city, postalCode, country, clientType, siren, vatNumber, electronicAddress, electronicAddressScheme };
 
     let response;
 
@@ -186,6 +200,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       response = await createDocument({
         type: documentType,
         client: clientData,
+        operationNature,
         lineItems,
         documentDates,
         instalmentsDetails: documentType === 'INVOICE' && paymentMode === 'INSTALMENTS'
@@ -195,6 +210,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
     } else {
       response = await updateDraftDocument(document?.id as string, {
         client: clientData,
+        operationNature,
         lineItems,
         documentDates,
         instalmentsDetails: isInvoice && paymentMode === 'INSTALMENTS'
@@ -242,6 +258,10 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
     setIsSending(false);
 
     if (!response.ok) {
+      if (isGoCardlessAccessTokenInactive(response.error)) {
+        setGoCardlessReconnectCompanyId(savedDocument.companyId);
+        return;
+      }
       showToast("Le document est enregistré, mais l’envoi au client a échoué.", "error");
       return;
     }
@@ -261,6 +281,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
       {document && <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="edit" />{!isEditable && <p className="text-sm font-medium text-zinc-500">Cette version est en lecture seule.</p>}</div>}
 
       <fieldset disabled={!canEditDocument}>
+        {(isInvoice || isCreatingInvoice) && <div className="mx-auto mb-5 flex max-w-2xl flex-col gap-1"><p className="text-sm font-semibold text-zinc-700">Nature de l’opération</p><p className="text-sm text-zinc-600">{operationNature === 'MIXED' ? 'Biens et services' : operationNature === 'GOODS' ? 'Vente de biens' : 'Prestation de services'} <span className="text-zinc-400">(calculée à partir des lignes)</span></p></div>}
         <DocumentForm
           onClientChange={setClient}
           onLineItemsChange={setLineItems}
@@ -344,6 +365,12 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
+      )}
+      {goCardlessReconnectCompanyId && (
+        <GoCardlessReconnectModal
+          companyId={goCardlessReconnectCompanyId}
+          onClose={() => setGoCardlessReconnectCompanyId(null)}
+        />
       )}
     </div>
   )

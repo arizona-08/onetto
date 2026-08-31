@@ -6,6 +6,7 @@ import { GoCardlessWebhookDto } from './webhook-handlers/dtos/event.dto';
 import { GoCardlessBillingRequestWebhookHandler } from './webhook-handlers/gocardless-billing-request-webhook.handler';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { $Enums } from '@prisma/client';
+import { GoCardlessOAuthService } from './gocardless-oauth.service';
 
 @Injectable()
 export class GoCardlessWebhookService {
@@ -18,6 +19,7 @@ export class GoCardlessWebhookService {
     private readonly mandateHandler: GoCardlessMandateWebhookHandler,
     private readonly paymentHandler: GoCardlessPaymentWebhookHandler,
     private readonly subscriptionHandler: GoCardlessPaymentWebhookHandler,
+    private readonly gocardlessOAuthService: GoCardlessOAuthService,
   ) {}
 
   async redirectWebhookToHandler(webhook: GoCardlessWebhookDto): Promise<void> {
@@ -66,6 +68,17 @@ export class GoCardlessWebhookService {
           throw error;
         }
       } catch (error) {
+        const tokenWasRevoked = await Promise.resolve(
+          this.gocardlessOAuthService.markProviderAccountDisconnectedIfTokenInactive(
+            event.organisation_id,
+            error,
+          ),
+        ).catch(() => false);
+        if (tokenWasRevoked) {
+          this.logger.warn(
+            `Connexion GoCardless désactivée après le webhook ${event.id}: jeton inactif ou révoqué.`,
+          );
+        }
         this.logger.error(
           `Erreur lors du traitement de l'événement GoCardless ${event.id}`,
           error instanceof Error ? error.stack : error,

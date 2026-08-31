@@ -16,6 +16,7 @@ describe('GoCardlessWebhookService', () => {
   const schedulesHandler = { handleWebhook: jest.fn() };
   const mandateHandler = { handleWebhook: jest.fn() };
   const paymentHandler = { handleWebhook: jest.fn() };
+  const oauth = { markProviderAccountDisconnectedIfTokenInactive: jest.fn().mockResolvedValue(false) };
   let service: GoCardlessWebhookService;
 
   const webhook = {
@@ -32,6 +33,7 @@ describe('GoCardlessWebhookService', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     prisma.processedWebhookEvents.create.mockResolvedValue({ id: 'event-1' });
+    oauth.markProviderAccountDisconnectedIfTokenInactive.mockResolvedValue(false);
     service = new GoCardlessWebhookService(
       prisma as never,
       billingRequestHandler as never,
@@ -39,6 +41,7 @@ describe('GoCardlessWebhookService', () => {
       mandateHandler as never,
       paymentHandler as never,
       paymentHandler as never,
+      oauth as never,
     );
   });
 
