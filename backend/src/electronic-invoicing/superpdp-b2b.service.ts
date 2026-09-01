@@ -78,9 +78,7 @@ export class SuperPdpB2bService {
     try {
       const facturX = existing?.status === 'FAILED' && !existing.providerInvoiceId
         ? await this.facturX.regenerateForFailedB2BTransmission(document.id, input.user)
-        : document.facturXContent
-          ? Buffer.from(document.facturXContent)
-          : await this.facturX.archive(document.id, input.user);
+        : await this.facturX.archive(document.id, input.user);
       await this.validateElectronicInvoice(facturX, document.documentNumber ?? document.id, 'pdf');
       // The directory endpoint selected for Tricatel accepts Peppol BIS
       // Billing 3.0. We retain the French Factur-X as the immutable archive

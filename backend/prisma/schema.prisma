@@ -287,7 +287,10 @@ model Document {
 
   urlDocumentPdf                 String?
   facturXContent                 Bytes?
+  facturXArchiveKey              String?                 @unique
+  facturXContentSha256           String?
   facturXGeneratedAt             DateTime?
+  facturXArchivedAt              DateTime?
   answerDueAt                    DateTime?                       @default(now())
   paymentDueAt                   DateTime
   invoiceStatus                  InvoiceStatus                   @default(DRAFT)

@@ -18,9 +18,10 @@ import { SuperPdpSynchronizationService } from './superpdp-synchronization.servi
 import { SuperPdpIncomingInvoicesService } from './superpdp-incoming-invoices.service';
 import { SuperPdpIncomingInvoicesController } from './superpdp-incoming-invoices.controller';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { StorageModule } from 'src/storage/storage.module';
 
 @Module({
-  imports: [PrismaModule, UserModule, PdfModule, NotificationsModule],
+  imports: [PrismaModule, UserModule, PdfModule, NotificationsModule, StorageModule],
   controllers: [SuperPdpOAuthController, SuperPdpEreportingController, FacturXController, SuperPdpDirectoryController, SuperPdpB2bController, SuperPdpIncomingInvoicesController],
   providers: [
     ElectronicInvoicingClassifierService,
