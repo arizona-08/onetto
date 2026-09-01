@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { S3StorageService } from 'src/storage/s3-storage.service';
+import { ElectronicInvoiceValidationService } from './electronic-invoice-validation.service';
 import { SuperPdpOAuthService } from './superpdp-oauth.service';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class SuperPdpIncomingInvoicesService {
     private readonly oauth: SuperPdpOAuthService,
     private readonly notifications: NotificationsService,
     private readonly storage: S3StorageService,
+    private readonly validator: ElectronicInvoiceValidationService,
   ) {}
 
   async synchronizeAll() {
@@ -124,6 +126,7 @@ export class SuperPdpIncomingInvoicesService {
     if (!stored.originalArchiveKey) {
       try {
         const original = await this.fetchOriginalInvoice(companyId, providerInvoiceId, invoiceNumber, stored.id);
+        this.validator.validateIncomingOriginal(original.buffer, original.contentType);
         const archive = await this.storage.archiveSupplierInvoiceOriginal({
           companyId,
           invoiceId: stored.id,
@@ -136,6 +139,8 @@ export class SuperPdpIncomingInvoicesService {
           data: {
             originalArchiveKey: archive.key,
             originalSha256: archive.sha256,
+            originalArchiveVersion: archive.objectVersionId,
+            originalEvidenceKey: archive.evidenceKey,
             originalContentType: original.contentType,
             originalFileName: original.fileName,
             originalArchivedAt: archive.archivedAt,

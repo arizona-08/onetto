@@ -73,7 +73,7 @@ export class S3StorageService {
     const sha256 = this.sha256(input.content);
     const key = `companies/${input.companyId}/documents/${input.documentId}/rendered/${sha256}.pdf`;
     try {
-      await this.client.send(new PutObjectCommand({
+      const uploaded = await this.client.send(new PutObjectCommand({
         Bucket: this.documentsBucket,
         Key: key,
         Body: input.content,
@@ -126,6 +126,7 @@ export class S3StorageService {
   }) {
     const sha256 = this.sha256(input.content);
     const key = `companies/${input.companyId}/${input.keyPrefix}/${input.recordId}/${input.kind}/${sha256}.${input.extension}`;
+    const evidenceKey = `companies/${input.companyId}/${input.keyPrefix}/${input.recordId}/evidence/${sha256}.json`;
     const retainUntil = new Date(Date.now() + this.retentionDays * 24 * 60 * 60 * 1000);
     let operation = 'vérification de l’archive existante';
 
@@ -134,10 +135,10 @@ export class S3StorageService {
       // before the DB transaction completed, rerunning the migration must not
       // create another retained object version.
       const existing = await this.existingArchiveMatches(key, sha256);
-      if (existing) return { key, sha256, archivedAt: existing };
+      if (existing) return { key, sha256, archivedAt: existing, objectVersionId: null, evidenceKey };
 
       operation = 'écriture de l’objet avec chiffrement KMS et rétention Object Lock';
-      await this.client.send(new PutObjectCommand({
+      const uploaded = await this.client.send(new PutObjectCommand({
         Bucket: this.archiveBucket,
         Key: key,
         Body: input.content,
@@ -158,7 +159,19 @@ export class S3StorageService {
 
       operation = 'relecture et vérification de l’objet archivé';
       await this.verifyArchivedFacturX(key, sha256);
-      return { key, sha256, archivedAt: new Date() };
+      const archivedAt = new Date();
+      await this.storeArchiveEvidence({
+        key: evidenceKey,
+        companyId: input.companyId,
+        recordId: input.recordId,
+        recordType: input.keyPrefix,
+        objectKey: key,
+        objectVersionId: uploaded.VersionId ?? null,
+        sha256,
+        contentType: input.contentType,
+        archivedAt,
+      });
+      return { key, sha256, archivedAt, objectVersionId: uploaded.VersionId ?? null, evidenceKey };
     } catch (error) {
       if (error instanceof InternalServerErrorException) throw error;
       const awsError = error as {
@@ -240,6 +253,25 @@ export class S3StorageService {
 
   private sha256(content: Buffer): string {
     return createHash('sha256').update(content).digest('hex');
+  }
+
+  private async storeArchiveEvidence(input: {
+    key: string; companyId: string; recordId: string; recordType: string; objectKey: string;
+    objectVersionId: string | null; sha256: string; contentType: string; archivedAt: Date;
+  }) {
+    const evidence = Buffer.from(JSON.stringify({
+      schema: 'onetto.archive-evidence/v1', companyId: input.companyId, recordId: input.recordId,
+      recordType: input.recordType, objectKey: input.objectKey, objectVersionId: input.objectVersionId,
+      sha256: input.sha256, contentType: input.contentType, archivedAt: input.archivedAt.toISOString(),
+    }));
+    await this.client.send(new PutObjectCommand({
+      Bucket: this.archiveBucket, Key: input.key, Body: evidence, ContentType: 'application/json',
+      ServerSideEncryption: ServerSideEncryption.aws_kms, SSEKMSKeyId: this.archiveKmsKeyId,
+      ChecksumSHA256: Buffer.from(this.sha256(evidence), 'hex').toString('base64'),
+      Metadata: { companyid: input.companyId, recordid: input.recordId, type: 'archive-evidence' },
+      ObjectLockMode: this.retentionMode,
+      ObjectLockRetainUntilDate: new Date(Date.now() + this.retentionDays * 24 * 60 * 60 * 1000),
+    }));
   }
 
   private required(name: string): string {

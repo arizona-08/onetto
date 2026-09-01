@@ -17,6 +17,7 @@ import { SuperPdpB2bService } from './superpdp-b2b.service';
 import { SuperPdpSynchronizationService } from './superpdp-synchronization.service';
 import { SuperPdpIncomingInvoicesService } from './superpdp-incoming-invoices.service';
 import { SuperPdpIncomingInvoicesController } from './superpdp-incoming-invoices.controller';
+import { ElectronicInvoiceValidationService } from './electronic-invoice-validation.service';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { StorageModule } from 'src/storage/storage.module';
 
@@ -33,6 +34,7 @@ import { StorageModule } from 'src/storage/storage.module';
     SuperPdpB2bService,
     SuperPdpSynchronizationService,
     SuperPdpIncomingInvoicesService,
+    ElectronicInvoiceValidationService,
   ],
   exports: [ElectronicInvoicingClassifierService, SuperPdpOAuthService, SuperPdpEreportingService, FacturXService, SuperPdpB2bService],
 })

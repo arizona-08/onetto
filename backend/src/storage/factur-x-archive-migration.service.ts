@@ -35,6 +35,8 @@ export class FacturXArchiveMigrationService {
           data: {
             facturXArchiveKey: archived.key,
             facturXContentSha256: archived.sha256,
+            facturXArchiveVersion: archived.objectVersionId,
+            facturXEvidenceKey: archived.evidenceKey,
             facturXArchivedAt: archived.archivedAt,
             facturXContent: null,
           },

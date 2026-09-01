@@ -2,6 +2,7 @@ import { BadGatewayException, BadRequestException, Injectable, NotFoundException
 import { PdfService } from 'src/pdf/pdf.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { S3StorageService } from 'src/storage/s3-storage.service';
+import { ElectronicInvoiceValidationService } from './electronic-invoice-validation.service';
 import type { User } from 'src/types/extended-request.types';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class FacturXService {
     private readonly prisma: PrismaService,
     private readonly pdf: PdfService,
     private readonly storage: S3StorageService,
+    private readonly validator: ElectronicInvoiceValidationService,
   ) {}
 
   async generate(documentId: string, user: User): Promise<Buffer> {
@@ -138,6 +140,7 @@ export class FacturXService {
   }
 
   private async persistArchive(documentId: string, companyId: string, file: Buffer) {
+    this.validator.validateFacturXPdf(file);
     const archive = await this.storage.archiveFacturX({ companyId, documentId, content: file });
     // The DB byte payload is cleared only after S3 has accepted and re-read
     // the object with the matching SHA-256 checksum.
@@ -146,6 +149,8 @@ export class FacturXService {
       data: {
         facturXArchiveKey: archive.key,
         facturXContentSha256: archive.sha256,
+        facturXArchiveVersion: archive.objectVersionId,
+        facturXEvidenceKey: archive.evidenceKey,
         facturXGeneratedAt: new Date(),
         facturXArchivedAt: archive.archivedAt,
         facturXContent: null,

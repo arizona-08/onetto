@@ -1,7 +1,7 @@
 'use client';
 import React from 'react'
 import BurgerMenu from './molecules/BurgerMenu'
-import { Bell, Building, FileChartColumnIncreasing, LayoutDashboardIcon, LogOut, SettingsIcon, UserIcon, Waypoints } from 'lucide-react';
+import { Archive, Bell, Building, FileChartColumnIncreasing, LayoutDashboardIcon, LogOut, SettingsIcon, UserIcon, Waypoints } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/auth/auth';
 import { getMyCompanies, selectCompany } from '@/lib/companies/companies';
@@ -17,6 +17,7 @@ const links = [
   { name: 'Mes Clients', href: '/customers', icon: <UserIcon />  },
   { name: 'Mes Biens & Services', href: '/services', icon: <Waypoints /> },
   { name: 'Notifications', href: '/notifications', icon: <Bell /> },
+  { name: 'Archives', href: '/archives', icon: <Archive /> },
   { name: 'Paramètres', href: '/settings/account', icon: <SettingsIcon />  },
 ]
 

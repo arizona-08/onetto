@@ -291,6 +291,8 @@ model Document {
   facturXContent                 Bytes?
   facturXArchiveKey              String?                 @unique
   facturXContentSha256           String?
+  facturXArchiveVersion           String?
+  facturXEvidenceKey              String?
   facturXGeneratedAt             DateTime?
   facturXArchivedAt              DateTime?
   answerDueAt                    DateTime?                       @default(now())
@@ -792,6 +794,8 @@ model ReceivedElectronicInvoice {
   documentFingerprint String?
   originalArchiveKey  String?                         @unique
   originalSha256      String?
+  originalArchiveVersion String?
+  originalEvidenceKey  String?
   originalContentType String?
   originalFileName    String?
   originalArchivedAt  DateTime?
