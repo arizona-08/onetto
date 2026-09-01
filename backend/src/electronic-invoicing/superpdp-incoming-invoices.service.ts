@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -33,6 +33,67 @@ export class SuperPdpIncomingInvoicesService {
     }
     const payload = await response.json() as { data?: Array<Record<string, unknown>>; has_after?: boolean };
     for (const invoice of payload.data ?? []) await this.upsertIncoming(companyId, invoice);
+  }
+
+  async downloadInvoice(companyId: string, invoiceId: string) {
+    const invoice = await this.prisma.receivedElectronicInvoice.findFirst({
+      where: { id: invoiceId, companyId, provider: 'SUPER_PDP' },
+      select: { providerInvoiceId: true, invoiceNumber: true },
+    });
+    if (!invoice) {
+      throw new BadRequestException('Facture fournisseur introuvable.');
+    }
+
+    const token = await this.oauth.getAccessToken(companyId);
+    const response = await fetch(
+      `https://api.superpdp.tech/v1.beta/invoices/${encodeURIComponent(invoice.providerInvoiceId)}/download`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!response.ok) {
+      const body = await response.text();
+      this.logger.error(`SuperPDP invoice download HTTP ${response.status}${body ? `: ${body}` : ''}`);
+      throw new BadGatewayException('Le document de la facture fournisseur est indisponible pour le moment.');
+    }
+
+    const original = Buffer.from(await response.arrayBuffer());
+    const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
+    const isPdf = contentType.toLowerCase().includes('pdf') || original.subarray(0, 4).toString() === '%PDF';
+    const baseName = (invoice.invoiceNumber ?? `facture-fournisseur-${invoiceId}`)
+      .replace(/[^a-zA-Z0-9._-]/g, '_')
+      .slice(0, 120);
+
+    if (isPdf) {
+      return {
+        buffer: original,
+        contentType: 'application/pdf',
+        fileName: `${baseName}.pdf`,
+      };
+    }
+
+    const converted = await fetch(
+      `https://api.superpdp.tech/v1.beta/invoices/${encodeURIComponent(invoice.providerInvoiceId)}?format=factur-x`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/pdf',
+        },
+      },
+    );
+    if (!converted.ok) {
+      const body = await converted.text();
+      this.logger.error(`SuperPDP Factur-X conversion HTTP ${converted.status}${body ? `: ${body}` : ''}`);
+      throw new BadGatewayException('Impossible de convertir cette facture XML en PDF Factur-X.');
+    }
+    const facturX = Buffer.from(await converted.arrayBuffer());
+    if (facturX.subarray(0, 4).toString() !== '%PDF') {
+      throw new BadGatewayException('SuperPDP n’a pas retourné un PDF Factur-X valide.');
+    }
+
+    return {
+      buffer: facturX,
+      contentType: 'application/pdf',
+      fileName: `factur-x-${baseName}.pdf`,
+    };
   }
 
   private async upsertIncoming(companyId: string, invoice: Record<string, unknown>) {

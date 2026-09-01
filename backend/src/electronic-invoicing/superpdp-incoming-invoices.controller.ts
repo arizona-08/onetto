@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Req, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
 import { AuthGuard } from 'src/auth/auth.guard';
 import type { ExtendedRequest } from 'src/types/extended-request.types';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -27,5 +28,20 @@ export class SuperPdpIncomingInvoicesController {
       where: { companyId, company: { OR: [{ ownerId: req.user.id }, { companyUsers: { some: { userId: req.user.id, role: 'ADMIN', isHidden: false } } }] } },
       orderBy: { receivedAt: 'desc' }, take: 100,
     });
+  }
+
+  @Get(':invoiceId/download')
+  async download(
+    @Param('companyId') companyId: string,
+    @Param('invoiceId') invoiceId: string,
+    @Req() req: ExtendedRequest,
+    @Res() response: Response,
+  ) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    await this.assertAccess(companyId, req.user.id);
+    const file = await this.incoming.downloadInvoice(companyId, invoiceId);
+    response.setHeader('Content-Type', file.contentType);
+    response.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
+    response.send(file.buffer);
   }
 }
