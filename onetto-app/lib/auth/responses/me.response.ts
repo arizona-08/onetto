@@ -4,4 +4,5 @@ interface MeResponse {
   lastname: string;
   email: string;
   role: string;
+  emailVerifiedAt: string | null;
 }

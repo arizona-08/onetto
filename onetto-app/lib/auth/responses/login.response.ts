@@ -4,6 +4,7 @@ export interface AuthUser {
   lastname: string;
   email: string;
   role: string;
+  emailVerifiedAt: string | null;
 }
 
 export interface LoginResponse {

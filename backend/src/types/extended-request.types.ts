@@ -9,6 +9,7 @@ export type User = {
   accountType: string;
   subscriptionPlan: string | null;
   lastConnectedCompanyId?: string;
+  passwordChangedAt?: Date | null;
 };
 
 export interface ExtendedRequest extends Response {

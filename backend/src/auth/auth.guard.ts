@@ -27,6 +27,13 @@ export class AuthGuard implements CanActivate {
         secret: process.env.JWT_SECRET,
       });
       const authUser = await this.userService.findBy("email", payload.email);
+      if (
+        authUser.passwordChangedAt &&
+        payload.iat &&
+        payload.iat * 1000 < authUser.passwordChangedAt.getTime()
+      ) {
+        throw new UnauthorizedException();
+      }
       request['user'] = {
         ...payload,
         ...authUser

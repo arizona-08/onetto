@@ -4,6 +4,7 @@ import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { JwtModule } from "@nestjs/jwt";
 import { UserModule } from "src/user/user.module";
+import { MailModule } from "src/mail/mail.module";
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { UserModule } from "src/user/user.module";
       global: true,
     }),
     UserModule,
+    MailModule,
     PrismaModule
   ],
   controllers: [AuthController],

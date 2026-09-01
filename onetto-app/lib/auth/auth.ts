@@ -20,6 +20,38 @@ export async function login(data: LoginDto): Promise<Result<LoginResponse, ApiEr
   });
 }
 
+export async function confirmEmail(token: string): Promise<Result<{ message: string }, ApiError>> {
+  return apiClient<{ message: string }>("api/auth/confirm-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export async function resendEmailVerification(email: string): Promise<Result<{ message: string }, ApiError>> {
+  return apiClient<{ message: string }>("api/auth/resend-email-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function requestPasswordReset(email: string): Promise<Result<{ message: string }, ApiError>> {
+  return apiClient<{ message: string }>("api/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(
+  token: string,
+  password: string,
+  confirmationPassword: string,
+): Promise<Result<{ message: string }, ApiError>> {
+  return apiClient<{ message: string }>("api/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, password, confirmationPassword }),
+  });
+}
+
 export async function me(): Promise<Result<MeResponse, ApiError>> {
   return apiClient<MeResponse>("api/auth/me", {
     method: "GET",

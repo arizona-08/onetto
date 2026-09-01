@@ -46,6 +46,10 @@ function isPublicAuthPath(path: string): boolean {
   return [
     "api/auth/login",
     "api/auth/refresh",
+    "api/auth/confirm-email",
+    "api/auth/resend-email-verification",
+    "api/auth/forgot-password",
+    "api/auth/reset-password",
     "api/users/create",
   ].includes(normalizedPath);
 }
