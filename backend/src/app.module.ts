@@ -15,6 +15,7 @@ import { AutomaticRemindersModule } from './automatic-reminders-cron/automatic-r
 import { ElectronicInvoicingModule } from './electronic-invoicing/electronic-invoicing.module';
 import { validateSuperPdpConfiguration } from './electronic-invoicing/superpdp.config';
 import { NotificationsModule } from './notifications/notifications.module';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     AutomaticRemindersModule,
     ElectronicInvoicingModule,
     NotificationsModule,
+    StorageModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [AppController],

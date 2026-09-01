@@ -1,11 +1,18 @@
 import { BadGatewayException, BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PdfService } from 'src/pdf/pdf.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { S3StorageService } from 'src/storage/s3-storage.service';
+import { ElectronicInvoiceValidationService } from './electronic-invoice-validation.service';
 import type { User } from 'src/types/extended-request.types';
 
 @Injectable()
 export class FacturXService {
-  constructor(private readonly prisma: PrismaService, private readonly pdf: PdfService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pdf: PdfService,
+    private readonly storage: S3StorageService,
+    private readonly validator: ElectronicInvoiceValidationService,
+  ) {}
 
   async generate(documentId: string, user: User): Promise<Buffer> {
     const document = await this.prisma.document.findFirst({
@@ -14,6 +21,11 @@ export class FacturXService {
     });
     if (!document) throw new NotFoundException('Facture introuvable ou accès non autorisé.');
     if (!document.documentNumber) throw new BadRequestException('La facture doit avoir un numéro.');
+    if (document.facturXArchiveKey) {
+      return this.storage.getArchivedFacturX(document.facturXArchiveKey, document.facturXContentSha256);
+    }
+    // Compatibility during the one-off migration: an old archive remains
+    // readable until the S3 copy has been verified and its DB content cleared.
     if (document.facturXContent) return Buffer.from(document.facturXContent);
     const enInvoice = this.toEn16931(document);
     const pdf = await this.pdf.generate({ ...document, company: document.company });
@@ -33,8 +45,15 @@ export class FacturXService {
   }
 
   async archive(documentId: string, user: User): Promise<Buffer> {
-    const file = await this.generate(documentId, user);
-    await this.prisma.document.update({ where: { id: documentId }, data: { facturXContent: Uint8Array.from(file), facturXGeneratedAt: new Date() } });
+    const document = await this.findInvoice(documentId, user);
+    if (document.facturXArchiveKey) {
+      return this.storage.getArchivedFacturX(document.facturXArchiveKey, document.facturXContentSha256);
+    }
+
+    const file = document.facturXContent
+      ? Buffer.from(document.facturXContent)
+      : await this.generate(documentId, user);
+    await this.persistArchive(document.id, document.companyId, file);
     return file;
   }
 
@@ -97,8 +116,46 @@ export class FacturXService {
       throw this.facturXRejection(document.id, response.status, (await response.text()).slice(0, 1500));
     }
     const file = Buffer.from(await response.arrayBuffer());
-    await this.prisma.document.update({ where: { id: documentId }, data: { facturXContent: Uint8Array.from(file), facturXGeneratedAt: new Date() } });
+    await this.persistArchive(document.id, document.companyId, file);
     return file;
+  }
+
+  private async findInvoice(documentId: string, user: User) {
+    const document = await this.prisma.document.findFirst({
+      where: {
+        id: documentId,
+        type: 'INVOICE',
+        company: { OR: [{ ownerId: user.id }, { companyUsers: { some: { userId: user.id } } }] },
+      },
+      select: {
+        id: true,
+        companyId: true,
+        facturXArchiveKey: true,
+        facturXContentSha256: true,
+        facturXContent: true,
+      },
+    });
+    if (!document) throw new NotFoundException('Facture introuvable ou accès non autorisé.');
+    return document;
+  }
+
+  private async persistArchive(documentId: string, companyId: string, file: Buffer) {
+    this.validator.validateFacturXPdf(file);
+    const archive = await this.storage.archiveFacturX({ companyId, documentId, content: file });
+    // The DB byte payload is cleared only after S3 has accepted and re-read
+    // the object with the matching SHA-256 checksum.
+    await this.prisma.document.update({
+      where: { id: documentId },
+      data: {
+        facturXArchiveKey: archive.key,
+        facturXContentSha256: archive.sha256,
+        facturXArchiveVersion: archive.objectVersionId,
+        facturXEvidenceKey: archive.evidenceKey,
+        facturXGeneratedAt: new Date(),
+        facturXArchivedAt: archive.archivedAt,
+        facturXContent: null,
+      },
+    });
   }
 
   private facturXRejection(documentId: string, status: number, details: string) {

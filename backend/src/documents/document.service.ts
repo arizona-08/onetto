@@ -25,6 +25,7 @@ import { FacturXService } from 'src/electronic-invoicing/factur-x.service';
 import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ereporting.service';
 import { SuperPdpB2bService } from 'src/electronic-invoicing/superpdp-b2b.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { S3StorageService } from 'src/storage/s3-storage.service';
 
 @Injectable()
 export class DocumentService {
@@ -42,6 +43,7 @@ export class DocumentService {
     private readonly superPdpEreportingService: SuperPdpEreportingService,
     private readonly superPdpB2bService: SuperPdpB2bService,
     private readonly notifications: NotificationsService,
+    private readonly storage: S3StorageService,
   ) {
     this.callbackUrl =
       this.configService.get<string>('BRIDGE_CALLBACK_URL') || '';
@@ -1299,11 +1301,27 @@ export class DocumentService {
 
   async generateDocumentPdf(documentId: string, user: User): Promise<Buffer> {
     const document = await this.getDocumentById(documentId, user, true);
+    if (document.sentAt && document.urlDocumentPdf?.startsWith('companies/')) {
+      return this.storage.getOperationalDocumentPdf(document.urlDocumentPdf, document.documentPdfSha256);
+    }
     const company = await this.getInvoiceCompany(document.companyId);
-
-    return this.pdfService.generate({
+    const pdf = await this.pdfService.generate({
       ...document,
       company,
+    });
+    if (document.sentAt) await this.storeDocumentPdf(document.id, document.companyId, pdf);
+    return pdf;
+  }
+
+  private async storeDocumentPdf(documentId: string, companyId: string, pdf: Buffer) {
+    const stored = await this.storage.storeOperationalDocumentPdf({ companyId, documentId, content: pdf });
+    await this.prismaService.document.update({
+      where: { id: documentId },
+      data: {
+        urlDocumentPdf: stored.key,
+        documentPdfSha256: stored.sha256,
+        documentPdfStoredAt: stored.storedAt,
+      },
     });
   }
 
@@ -1782,6 +1800,7 @@ export class DocumentService {
 
       if (isInvoice) {
         await this.facturXService.archive(document.id, user);
+        await this.storeDocumentPdf(document.id, document.companyId, invoicePdf!);
       }
 
       const mailContent = isInvoice
