@@ -16,11 +16,21 @@ type ArchiveFacturXInput = {
   content: Buffer;
 };
 
+type ArchiveSupplierInvoiceInput = {
+  companyId: string;
+  invoiceId: string;
+  content: Buffer;
+  contentType: string;
+  fileExtension: 'pdf' | 'xml';
+};
+
 @Injectable()
 export class S3StorageService {
   private readonly client: S3Client;
   private readonly archiveBucket: string;
   private readonly archiveKmsKeyId: string;
+  private readonly documentsBucket: string;
+  private readonly documentsKmsKeyId: string;
   private readonly retentionMode: ObjectLockMode;
   private readonly retentionDays: number;
 
@@ -28,14 +38,94 @@ export class S3StorageService {
     const region = this.required('AWS_REGION');
     this.archiveBucket = this.required('S3_ARCHIVE_BUCKET');
     this.archiveKmsKeyId = this.required('S3_ARCHIVE_KMS_KEY_ID');
+    this.documentsBucket = this.required('S3_DOCUMENTS_BUCKET');
+    this.documentsKmsKeyId = this.required('S3_DOCUMENTS_KMS_KEY_ID');
     this.retentionMode = this.parseRetentionMode(this.required('S3_ARCHIVE_RETENTION_MODE'));
     this.retentionDays = this.parseRetentionDays(this.required('S3_ARCHIVE_RETENTION_DAYS'));
     this.client = new S3Client({ region });
   }
 
   async archiveFacturX(input: ArchiveFacturXInput) {
+    return this.archiveImmutableDocument({
+      companyId: input.companyId,
+      recordId: input.documentId,
+      content: input.content,
+      contentType: 'application/pdf',
+      keyPrefix: 'issued-invoices',
+      kind: 'factur-x',
+      extension: 'pdf',
+    });
+  }
+
+  async archiveSupplierInvoiceOriginal(input: ArchiveSupplierInvoiceInput) {
+    return this.archiveImmutableDocument({
+      companyId: input.companyId,
+      recordId: input.invoiceId,
+      content: input.content,
+      contentType: input.contentType,
+      keyPrefix: 'supplier-invoices',
+      kind: 'original',
+      extension: input.fileExtension,
+    });
+  }
+
+  async storeOperationalDocumentPdf(input: { companyId: string; documentId: string; content: Buffer }) {
     const sha256 = this.sha256(input.content);
-    const key = `companies/${input.companyId}/documents/${input.documentId}/factur-x/${sha256}.pdf`;
+    const key = `companies/${input.companyId}/documents/${input.documentId}/rendered/${sha256}.pdf`;
+    try {
+      await this.client.send(new PutObjectCommand({
+        Bucket: this.documentsBucket,
+        Key: key,
+        Body: input.content,
+        ContentType: 'application/pdf',
+        ServerSideEncryption: ServerSideEncryption.aws_kms,
+        SSEKMSKeyId: this.documentsKmsKeyId,
+        ChecksumSHA256: Buffer.from(sha256, 'hex').toString('base64'),
+        Metadata: {
+          companyid: input.companyId,
+          documentid: input.documentId,
+          sha256,
+          type: 'rendered-document-pdf',
+        },
+      }));
+      return { key, sha256, storedAt: new Date() };
+    } catch (error) {
+      throw new BadGatewayException(
+        'Impossible de stocker le PDF du document.',
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  }
+
+  async getOperationalDocumentPdf(key: string, expectedSha256?: string | null): Promise<Buffer> {
+    try {
+      const response = await this.client.send(new GetObjectCommand({ Bucket: this.documentsBucket, Key: key }));
+      if (!response.Body) throw new InternalServerErrorException('Le stockage S3 ne contient aucun PDF.');
+      const content = Buffer.from(await response.Body.transformToByteArray());
+      if (expectedSha256 && this.sha256(content) !== expectedSha256) {
+        throw new InternalServerErrorException('Le hash du PDF stocké ne correspond pas au document attendu.');
+      }
+      return content;
+    } catch (error) {
+      if (error instanceof InternalServerErrorException) throw error;
+      throw new BadGatewayException(
+        'Impossible de lire le PDF du document depuis le stockage.',
+        error instanceof Error ? error.message : undefined,
+      );
+    }
+  }
+
+  private async archiveImmutableDocument(input: {
+    companyId: string;
+    recordId: string;
+    content: Buffer;
+    contentType: string;
+    keyPrefix: 'issued-invoices' | 'supplier-invoices';
+    kind: 'factur-x' | 'original';
+    extension: 'pdf' | 'xml';
+  }) {
+    const sha256 = this.sha256(input.content);
+    const key = `companies/${input.companyId}/${input.keyPrefix}/${input.recordId}/${input.kind}/${sha256}.${input.extension}`;
     const retainUntil = new Date(Date.now() + this.retentionDays * 24 * 60 * 60 * 1000);
     let operation = 'vérification de l’archive existante';
 
@@ -51,13 +141,14 @@ export class S3StorageService {
         Bucket: this.archiveBucket,
         Key: key,
         Body: input.content,
-        ContentType: 'application/pdf',
+        ContentType: input.contentType,
         ServerSideEncryption: ServerSideEncryption.aws_kms,
         SSEKMSKeyId: this.archiveKmsKeyId,
         ChecksumSHA256: Buffer.from(sha256, 'hex').toString('base64'),
         Metadata: {
           companyid: input.companyId,
-          documentid: input.documentId,
+          recordid: input.recordId,
+          recordtype: input.keyPrefix,
           sha256,
           archivedat: new Date().toISOString(),
         },
@@ -85,7 +176,7 @@ export class S3StorageService {
         requestId: awsError.$metadata?.requestId,
       });
       throw new BadGatewayException(
-        'Impossible de stocker la facture Factur-X dans l’archive sécurisée.',
+        'Impossible de stocker le document dans l’archive sécurisée.',
         error instanceof Error ? error.message : undefined,
       );
     }

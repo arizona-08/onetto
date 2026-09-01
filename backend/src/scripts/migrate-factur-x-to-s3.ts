@@ -9,11 +9,11 @@ async function run() {
   // This is intentionally a small standalone command, rather than a Nest
   // application context: it should open exactly one database connection and
   // not start HTTP, schedulers, or any provider unrelated to the migration.
-  const prisma = new PrismaService();
   // Parse the file explicitly: ConfigService receives the intended values
   // even if Docker still has an older environment variable injected.
   const environment = parse(await readFile('.env'));
   const config = new ConfigService(environment);
+  const prisma = new PrismaService(config);
   const migration = new FacturXArchiveMigrationService(prisma, new S3StorageService(config));
   try {
     await prisma.$connect();

@@ -286,6 +286,8 @@ model Document {
   convertedDocuments Document[] @relation("DocumentConversion")
 
   urlDocumentPdf                 String?
+  documentPdfSha256              String?
+  documentPdfStoredAt            DateTime?
   facturXContent                 Bytes?
   facturXArchiveKey              String?                 @unique
   facturXContentSha256           String?
@@ -788,6 +790,12 @@ model ReceivedElectronicInvoice {
   documentFormat      String?
   providerDocumentUrl String?
   documentFingerprint String?
+  originalArchiveKey  String?                         @unique
+  originalSha256      String?
+  originalContentType String?
+  originalFileName    String?
+  originalArchivedAt  DateTime?
+  originalArchiveError String?
   metadata            Json?
   receivedAt          DateTime                        @default(now())
   lastSyncedAt        DateTime?

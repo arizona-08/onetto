@@ -14,6 +14,7 @@ import { PdfModule } from 'src/pdf/pdf.module';
 import { PlanAccessModule } from 'src/plan-access/plan-access.module';
 import { ElectronicInvoicingModule } from 'src/electronic-invoicing/electronic-invoicing.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { StorageModule } from 'src/storage/storage.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     PaymentProviderModule,
     ElectronicInvoicingModule,
     NotificationsModule,
+    StorageModule,
   ],
   controllers: [
     DocumentController,
