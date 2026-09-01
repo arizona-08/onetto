@@ -6,6 +6,7 @@ import { createCompany, getSuperPdpConnectionStatus, getSuperPdpEreportingOvervi
 import { useRouter } from 'next/navigation';
 import { notifyCompanyUpdated } from '@/lib/companies/company-events';
 import { useToast } from '../../context/ToastContext';
+import { refreshAuthenticationCookies } from '@/lib/auth/auth';
 import React, { useEffect, useState } from 'react'
 
 interface CreateCompanyFormProps {
@@ -155,6 +156,12 @@ function CreateCompanyForm({ companyToEdit, onSuccess, onCancel }: CreateCompany
   async function handleConnectSuperPdp() {
     if (!companyToEdit) return;
     setIsConnectingSuperPdp(true);
+    const refreshResponse = await refreshAuthenticationCookies();
+    if (!refreshResponse.ok) {
+      setIsConnectingSuperPdp(false);
+      showToast('Votre session a expiré. Reconnectez-vous avant de connecter SuperPDP.', 'error');
+      return;
+    }
     const response = await startSuperPdpAuthorization(companyToEdit.id);
     setIsConnectingSuperPdp(false);
     if (!response.ok) {

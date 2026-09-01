@@ -20,6 +20,13 @@ export async function login(data: LoginDto): Promise<Result<LoginResponse, ApiEr
   });
 }
 
+/** Refreshes the browser cookies before leaving Onetto for an OAuth provider. */
+export async function refreshAuthenticationCookies(): Promise<Result<{ message: string }, ApiError>> {
+  return apiClient<{ message: string }>("api/auth/refresh", {
+    method: "POST",
+  });
+}
+
 export async function confirmEmail(token: string): Promise<Result<{ message: string }, ApiError>> {
   return apiClient<{ message: string }>("api/auth/confirm-email", {
     method: "POST",
