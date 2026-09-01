@@ -53,6 +53,14 @@ type PaymentReceiptMailInput = {
 
 type AppNotificationMailInput = { title: string; message: string; href?: string };
 
+type EmailVerificationMailInput = {
+  verificationUrl: string;
+};
+
+type PasswordResetMailInput = {
+  resetUrl: string;
+};
+
 type ReminderMailInput = {
   clientName: string;
   documentNumber: string | null;
@@ -86,6 +94,139 @@ export class MailService {
       text: `${input.title}\n\n${input.message}${link ? `\n\nVoir dans Onetto : ${link}` : ''}`,
       html: `<h1>${input.title}</h1><p>${input.message}</p>${link ? `<p><a href="${link}">Voir dans Onetto</a></p>` : ''}`,
     };
+  }
+
+  createEmailVerificationMail(
+    input: EmailVerificationMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    return {
+      subject: 'Confirmez votre adresse e-mail — Onetto',
+      text: [
+        'Bienvenue sur Onetto,',
+        '',
+        'Confirmez votre adresse e-mail pour activer votre compte :',
+        input.verificationUrl,
+        '',
+        'Ce lien expire dans 24 heures. Si vous n’avez pas créé de compte, vous pouvez ignorer cet e-mail.',
+      ].join('\n'),
+      html: this.createAuthenticationTemplate({
+        eyebrow: 'ACTIVATION DU COMPTE',
+        title: 'Bienvenue sur Onetto',
+        message: 'Confirmez votre adresse e-mail pour activer votre compte et accéder à votre espace de gestion.',
+        actionLabel: 'Confirmer mon adresse e-mail',
+        actionUrl: input.verificationUrl,
+        expiry: 'Ce lien expire dans 24 heures.',
+        notice: 'Vous n’avez pas créé de compte ? Vous pouvez ignorer cet e-mail.',
+      }),
+    };
+  }
+
+  createPasswordResetMail(
+    input: PasswordResetMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    return {
+      subject: 'Réinitialisez votre mot de passe — Onetto',
+      text: [
+        'Bonjour,',
+        '',
+        'Vous avez demandé la réinitialisation de votre mot de passe Onetto.',
+        'Choisissez un nouveau mot de passe ici :',
+        input.resetUrl,
+        '',
+        'Ce lien expire dans une heure. Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail.',
+      ].join('\n'),
+      html: this.createAuthenticationTemplate({
+        eyebrow: 'SÉCURITÉ DU COMPTE',
+        title: 'Réinitialisez votre mot de passe',
+        message: 'Une demande de réinitialisation de votre mot de passe Onetto a été reçue.',
+        actionLabel: 'Choisir un nouveau mot de passe',
+        actionUrl: input.resetUrl,
+        expiry: 'Ce lien expire dans une heure.',
+        notice: 'Vous n’êtes pas à l’origine de cette demande ? Vous pouvez ignorer cet e-mail : votre mot de passe actuel reste inchangé.',
+      }),
+    };
+  }
+
+  private createAuthenticationTemplate(input: {
+    eyebrow: string;
+    title: string;
+    message: string;
+    actionLabel: string;
+    actionUrl: string;
+    expiry: string;
+    notice: string;
+  }): string {
+    const actionUrl = this.escapeHtml(input.actionUrl);
+
+    return `<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="x-apple-disable-message-reformatting">
+    <title>${this.escapeHtml(input.title)} — Onetto</title>
+  </head>
+  <body style="margin:0;padding:0;background:#F9F9FB;color:#231942;font-family:Arial,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#F9F9FB;">
+      <tr>
+        <td align="center" style="padding:36px 16px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;">
+            <tr>
+              <td style="padding:0 8px 18px;color:#454ADE;font-family:Arial,sans-serif;font-size:26px;font-weight:800;letter-spacing:1.5px;">ONETTO</td>
+            </tr>
+            <tr>
+              <td style="overflow:hidden;border:1px solid #E6E6F2;border-radius:16px;background:#FFFFFF;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td style="height:6px;background:#454ADE;font-size:0;line-height:0;">&nbsp;</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:40px 40px 16px;">
+                      <p style="margin:0 0 18px;color:#454ADE;font-size:11px;font-weight:700;letter-spacing:1.2px;">${this.escapeHtml(input.eyebrow)}</p>
+                      <h1 style="margin:0;color:#231942;font-size:28px;line-height:36px;font-weight:700;letter-spacing:-0.4px;">${this.escapeHtml(input.title)}</h1>
+                      <p style="margin:18px 0 0;color:#5B5870;font-size:16px;line-height:25px;">${this.escapeHtml(input.message)}</p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:16px 40px 28px;">
+                      <a href="${actionUrl}" style="display:inline-block;border-radius:8px;background:#454ADE;color:#FFFFFF;font-size:15px;font-weight:700;line-height:20px;padding:14px 20px;text-decoration:none;">${this.escapeHtml(input.actionLabel)}</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:0 40px 32px;">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-radius:8px;background:#F2F2FE;">
+                        <tr>
+                          <td style="padding:14px 16px;color:#454ADE;font-size:13px;line-height:20px;">${this.escapeHtml(input.expiry)}</td>
+                        </tr>
+                      </table>
+                      <p style="margin:20px 0 0;color:#77738C;font-size:13px;line-height:20px;">${this.escapeHtml(input.notice)}</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 16px 0;color:#918EA1;font-size:12px;line-height:18px;text-align:center;">Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br><a href="${actionUrl}" style="color:#454ADE;word-break:break-all;">${actionUrl}</a></td>
+            </tr>
+            <tr>
+              <td style="padding:18px 16px 0;color:#AAA7B5;font-size:12px;text-align:center;">© ${new Date().getFullYear()} Onetto</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+  }
+
+  private escapeHtml(value: string): string {
+    return value.replace(/[&<>'"]/g, (character) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;',
+    })[character] ?? character);
   }
 
   createInvoiceMail(

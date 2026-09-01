@@ -9,9 +9,10 @@ import { UserService } from './user.service';
 
 describe('UserService', () => {
   const prisma = {
-    user: { findUniqueOrThrow: jest.fn(), update: jest.fn() },
+    user: { findUniqueOrThrow: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
   };
-  const service = new UserService(prisma as never);
+  const mailService = { sendMail: jest.fn(), createEmailVerificationMail: jest.fn() };
+  const service = new UserService(prisma as never, mailService as never);
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -44,6 +45,30 @@ describe('UserService', () => {
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { id: 'user-1' },
       data: { password: 'nouveau-hash' },
+    });
+  });
+
+  it('confirme un jeton d’e-mail valide et le rend inutilisable', async () => {
+    prisma.user.findFirst.mockResolvedValue({ id: 'user-1', emailVerifiedAt: null });
+
+    await expect(service.confirmEmail('token-valide')).resolves.toEqual({
+      message: 'Votre adresse e-mail a été confirmée. Vous pouvez maintenant vous connecter.',
+    });
+
+    expect(prisma.user.findFirst).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        emailVerificationTokenHash: expect.any(String),
+        emailVerificationExpiresAt: { gt: expect.any(Date) },
+      }),
+      select: { id: true, emailVerifiedAt: true },
+    });
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: {
+        emailVerifiedAt: expect.any(Date),
+        emailVerificationTokenHash: null,
+        emailVerificationExpiresAt: null,
+      },
     });
   });
 });

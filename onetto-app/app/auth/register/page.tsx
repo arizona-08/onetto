@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation';
 import React from 'react'
 import AuthShell from '../AuthShell'
-import { login, register } from '@/lib/auth/auth';
+import { register } from '@/lib/auth/auth';
 import { ApiError } from '@/lib/api';
 
 function getErrorMessage(error: ApiError): string {
@@ -39,16 +39,9 @@ function RegisterPage() {
       return;
     }
 
-    const loginResult = await login({ email: registrationData.email, password: registrationData.password });
     setIsLoading(false);
-
-    if (!loginResult.ok) {
-      setError('Compte créé, mais la connexion automatique a échoué. Connectez-vous pour créer votre entreprise.');
-      return;
-    }
-
-    setSuccess('Votre compte a bien été créé. Créons maintenant votre entreprise.');
-    setTimeout(() => router.push('/auth/register/create-company'), 900);
+    setSuccess('Votre compte a été créé. Vérifiez votre boîte e-mail pour l’activer.');
+    setTimeout(() => router.push(`/auth/check-email?email=${encodeURIComponent(registrationData.email)}`), 900);
   }
 
   return (

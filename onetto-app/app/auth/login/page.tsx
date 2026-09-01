@@ -98,9 +98,9 @@ function LoginPage() {
             <input type="checkbox" className="h-4 w-4 rounded border-zinc-300 accent-primary" />
             Se souvenir de moi
           </label>
-          <a href="#" className="font-semibold text-primary hover:text-primary-hover">
+          <Link href="/auth/forgot-password" className="font-semibold text-primary hover:text-primary-hover">
             Mot de passe oublié ?
-          </a>
+          </Link>
         </div>
 
         <button

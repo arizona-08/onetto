@@ -13,7 +13,7 @@ export type ChangePasswordInput = {
   confirmationPassword: string;
 };
 
-export function updateMyProfile(input: UpdateProfileInput): Promise<Result<{ message: string; user: UpdateProfileInput & { id: string; accountType: string } }, ApiError>> {
+export function updateMyProfile(input: UpdateProfileInput): Promise<Result<{ message: string; user: UpdateProfileInput & { id: string; accountType: string; emailVerifiedAt: string | null } }, ApiError>> {
   return apiClient('api/users/me', { method: 'PATCH', body: JSON.stringify(input) });
 }
 

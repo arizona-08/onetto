@@ -27,8 +27,8 @@ export default function AccountPage() {
       return;
     }
     const { user: updatedUser } = response.data;
-    setUser({ id: updatedUser.id, firstname: updatedUser.firstname, lastname: updatedUser.lastname, email: updatedUser.email, role: updatedUser.accountType });
-    showToast('Profil mis à jour.', 'success');
+    setUser({ id: updatedUser.id, firstname: updatedUser.firstname, lastname: updatedUser.lastname, email: updatedUser.email, role: updatedUser.accountType, emailVerifiedAt: updatedUser.emailVerifiedAt });
+    showToast(response.data.message, 'success');
   }
 
   return <main className="mx-auto w-full max-w-3xl p-4 sm:p-6">

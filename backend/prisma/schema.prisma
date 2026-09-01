@@ -17,6 +17,12 @@ model User {
   lastname               String
   email                  String            @unique
   password               String
+  emailVerifiedAt        DateTime?
+  emailVerificationTokenHash String?
+  emailVerificationExpiresAt DateTime?
+  passwordResetTokenHash  String?
+  passwordResetExpiresAt  DateTime?
+  passwordChangedAt       DateTime?
   accountType            AccountType       @default(BUSINESS_OWNER)
   subscriptionPlan       SubscriptionPlan?
   lastConnectedCompanyId String?
