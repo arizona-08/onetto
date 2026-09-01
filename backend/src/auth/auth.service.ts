@@ -23,7 +23,9 @@ export class AuthService {
     response.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      // OAuth providers redirect the browser back to Onetto from another site.
+      // Lax keeps cookies off cross-site subrequests while allowing that top-level GET.
+      sameSite: 'lax',
       maxAge: 15 * 60 * 1000,
     });
   }
@@ -32,7 +34,8 @@ export class AuthService {
     response.cookie('refresh_token', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      // Required so the refresh cookie also survives an OAuth return journey.
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
   }

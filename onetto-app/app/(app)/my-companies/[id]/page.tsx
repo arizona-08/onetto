@@ -8,6 +8,7 @@ import {
 } from "@/lib/companies/companies";
 import { Company } from "@/lib/companies/dtos/create-company.dto";
 import { ArrowLeft, Building2, Landmark } from "lucide-react";
+import { refreshAuthenticationCookies } from "@/lib/auth/auth";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import React from "react";
@@ -66,6 +67,13 @@ function MyCompanyPage() {
     setIsGoCardlessAuthorizationPending(true);
     setGoCardlessAuthorizationError(null);
 
+    const refreshResponse = await refreshAuthenticationCookies();
+    if (!refreshResponse.ok) {
+      setGoCardlessAuthorizationError('Votre session a expiré. Reconnectez-vous avant de connecter GoCardless.');
+      setIsGoCardlessAuthorizationPending(false);
+      return;
+    }
+
     const response = await getGoCardlessAuthorizationUrl(
       company.id,
       company.email,
@@ -84,11 +92,17 @@ function MyCompanyPage() {
     window.location.assign(response.data.url);
   }
 
-  function verifyGoCardlessAccount() {
+  async function verifyGoCardlessAccount() {
     const companyPaymentAccountId = company?.companyPaymentAccount?.id;
     if (!companyPaymentAccountId) return;
 
     setIsGoCardlessVerificationPending(true);
+    const refreshResponse = await refreshAuthenticationCookies();
+    if (!refreshResponse.ok) {
+      setGoCardlessAuthorizationError('Votre session a expiré. Reconnectez-vous avant de poursuivre la vérification.');
+      setIsGoCardlessVerificationPending(false);
+      return;
+    }
     window.location.assign(
       getGoCardlessVerificationStatusUrl(companyPaymentAccountId),
     );
@@ -216,7 +230,7 @@ function MyCompanyPage() {
                   </p>
                   <button
                     type="button"
-                    onClick={verifyGoCardlessAccount}
+                    onClick={() => void verifyGoCardlessAccount()}
                     disabled={isGoCardlessVerificationPending}
                     className="mt-4 rounded-md bg-orange-300 p-3 text-sm hover:bg-orange-200 disabled:cursor-not-allowed disabled:opacity-60"
                   >
@@ -282,7 +296,7 @@ function MyCompanyPage() {
                 <CreateCompanyForm
                   companyToEdit={company}
                   onCancel={() => router.push("/my-companies")}
-                  onSuccess={() => router.push("/my-companies")}
+                  onSuccess={(updatedCompany) => setCompany(updatedCompany)}
                 />
               </div>
             </section>
