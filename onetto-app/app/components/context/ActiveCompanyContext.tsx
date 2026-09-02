@@ -2,6 +2,7 @@
 import { getMyActiveCompany } from '@/lib/companies/companies';
 import { Company } from '@/lib/companies/dtos/create-company.dto';
 import React from 'react'
+import { useToast } from './ToastContext';
 
 export type ActiveCompanyContextType = {
   activeCompany: Company | null;
@@ -16,17 +17,18 @@ interface ActiveCompanyProviderProps {
 
 function ActiveCompanyProvider({ children }: ActiveCompanyProviderProps) {
   const [activeCompany, setActiveCompany] = React.useState<Company | null>(null);
+  const { showToast } = useToast();
 
   async function fetchActiveCompany() {
     try {
       const response = await getMyActiveCompany();
       if(!response.ok){
-        console.error("Erreur lors de la récupération de l'entreprise active :", response.error);
+        showToast("Impossible de charger l’entreprise active. Veuillez actualiser la page.", 'error');
       } else {
         setActiveCompany(response.data);
       }
-    } catch (error) {
-      console.error("Erreur lors de la récupération de l'entreprise active :", error);
+    } catch {
+      showToast("Impossible de charger l’entreprise active. Veuillez actualiser la page.", 'error');
     }
   }
 

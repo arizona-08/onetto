@@ -206,10 +206,6 @@ function DocumentsTable({
     setIsDeleting(false);
 
     if (!response.ok) {
-      console.error(
-        "Erreur lors de la suppression des documents :",
-        response.error,
-      );
       const message =
         typeof response.error.message === "string"
           ? response.error.message
