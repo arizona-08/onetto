@@ -185,6 +185,11 @@ function CreateCompanyForm({ companyToEdit, onSuccess, onCancel }: CreateCompany
                 ? 'La connexion SuperPDP doit être renouvelée pour utiliser la facturation électronique.'
                 : 'Connectez cette entreprise à SuperPDP avant d’envoyer vos déclarations B2C.'}
           </p>
+          {superPdpConnection?.status !== 'ACTIVE' && (
+            <p role="note" className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+              Avant de connecter SuperPDP, vous devez déjà y avoir créé un compte et ajouté cette entreprise. Sinon, la connexion ne pourra pas aboutir.
+            </p>
+          )}
           <button type="button" onClick={handleConnectSuperPdp} disabled={isConnectingSuperPdp} className="mt-3 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60">
             {isConnectingSuperPdp ? 'Redirection…' : superPdpConnection?.status === 'ACTIVE' ? 'Reconnecter SuperPDP' : 'Connecter SuperPDP'}
           </button>

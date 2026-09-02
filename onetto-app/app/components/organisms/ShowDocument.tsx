@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import GoCardlessReconnectModal from '../molecules/GoCardlessReconnectModal';
 import { isGoCardlessAccessTokenInactive } from '@/lib/gocardless/access-token';
+import { useActiveCompany } from '../context/ActiveCompanyContext';
 
 interface ShowDocumentProps {
   document: Document;
@@ -43,6 +44,8 @@ function ShowDocument({ document }: ShowDocumentProps) {
   const canSendB2B = document.type === 'INVOICE' && Boolean(document.sentAt) && document.clientType === 'BUSINESS' && !b2bTransmission?.providerInvoiceId;
 
   const { showToast } = useToast();
+  const { activeCompany } = useActiveCompany();
+  const isSendingBlocked = activeCompany?.hasRequiredAction === true;
 
   useEffect(() => {
     async function loadNegociations() {
@@ -274,12 +277,16 @@ function ShowDocument({ document }: ShowDocumentProps) {
               </button>
             )}
             {(isDraftEstimate || isDraftInvoice) && (
-              <button
-                className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-primary bg-primary px-4 py-2 text-center text-white transition-all duration-150 hover:bg-primary/90"
-                onClick={handleSendDocument}
-              >
-                Confirmer et envoyer <Send />
-              </button>
+              <div className="flex flex-col items-center gap-2">
+                <button
+                  disabled={isSendingBlocked}
+                  className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-primary bg-primary px-4 py-2 text-center text-white transition-all duration-150 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={handleSendDocument}
+                >
+                  Confirmer et envoyer <Send />
+                </button>
+                {isSendingBlocked && <p role="alert" className="max-w-xs text-center text-xs text-red-600">Envoi bloqué : complétez les actions requises dans « Mes entreprises ».</p>}
+              </div>
             )}
 
             {(isDraftEstimate || isDraftInvoice) && (

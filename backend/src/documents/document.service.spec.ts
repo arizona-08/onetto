@@ -80,6 +80,8 @@ const company = {
   vatNumber: 'FR123',
   IBAN: 'FR761234',
   BIC: 'ABCDFRPP',
+  companyPaymentAccount: { verificationStatus: 'VERIFIED' },
+  electronicInvoicingConnection: { status: 'ACTIVE' },
 };
 
 describe('DocumentService', () => {

@@ -12,6 +12,7 @@ import { useToast } from '../../context/ToastContext';
 import DocumentVersionSelector from '../../molecules/DocumentVersionSelector';
 import GoCardlessReconnectModal from '../../molecules/GoCardlessReconnectModal';
 import { isGoCardlessAccessTokenInactive } from '@/lib/gocardless/access-token';
+import { useActiveCompany } from '../../context/ActiveCompanyContext';
 
 function toDateInputValue(date: Date) {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
@@ -120,6 +121,8 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
   const [isSending, setIsSending] = useState(false);
   const [isSent, setIsSent] = useState(false);
   const { showToast } = useToast();
+  const { activeCompany } = useActiveCompany();
+  const isSendingBlocked = activeCompany?.hasRequiredAction === true;
 
   const isLineItemsEmpty = lineItems.length === 0;
   const isCreatingInvoice = mode === 'create' && documentType === 'INVOICE';
@@ -314,12 +317,18 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
         creationDate={issuanceDate}
       />
 
-      <div className="w-full max-w-2xl mx-auto mt-12 flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row-reverse sm:items-center">
+      <div className="w-full max-w-2xl mx-auto mt-12">
+        {isSendingBlocked && (
+          <p role="alert" className="mb-3 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-primary">
+            L’envoi de la facture est bloqué tant que toutes les actions requises pour l’entreprise active ne sont pas complétées. Rendez-vous dans « Mes entreprises » pour les finaliser.
+          </p>
+        )}
+        <div className="flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row-reverse sm:items-center">
         <button
           type="button"
-          disabled={isLineItemsEmpty || isSending || isSent || !canEditDocument}
+          disabled={isLineItemsEmpty || isSending || isSent || !canEditDocument || isSendingBlocked}
           onClick={handleConfirmAndSend}
-          className="disabled:cursor-not-allowed flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-white disabled:opacity-45"
+          className="flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
          {(isInCreationEstimate || isDraftEstimate) && (isSent ? 'Devis envoyé' : isSending ? 'Envoi du devis…' : 'Confirmer et envoyer le devis')}
          {(isDraftInvoice || isCreatingInvoice) && 'Confirmer et envoyer la facture'}
@@ -335,6 +344,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
         >
           Enregistrer en tant que brouillon
         </button>
+        </div>
       </div>
 
       {showSuccessToast && (

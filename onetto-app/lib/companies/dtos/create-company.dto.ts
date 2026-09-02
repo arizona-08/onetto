@@ -44,6 +44,8 @@ export type Company = CreateCompanyDto & {
   closingReason?: string | null;
   closedAt?: string | null;
   isPaymentAccountConnected: boolean;
+  /** True when GoCardless or SuperPDP needs setup, reconnection, or verification. */
+  hasRequiredAction?: boolean;
   companyPaymentAccount?: {
     id: string;
     provider: 'GO_CARDLESS' | 'STRIPE' | 'PAYPAL';
