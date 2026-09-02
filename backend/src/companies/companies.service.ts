@@ -112,12 +112,29 @@ export class CompaniesService {
               verificationStatus: true,
             },
           },
+          electronicInvoicingConnection: {
+            select: { status: true },
+          },
         },
         orderBy: { name: 'asc' },
       }),
       this.prismaService.companyUser.findMany({
         where: { userId },
-        include: { company: true },
+        include: {
+          company: {
+            include: {
+              companyPaymentAccount: {
+                select: {
+                  id: true,
+                  companyId: true,
+                  creditorId: true,
+                  verificationStatus: true,
+                },
+              },
+              electronicInvoicingConnection: { select: { status: true } },
+            },
+          },
+        },
       }),
       this.prismaService.user.findUnique({
         where: { id: userId },
@@ -136,15 +153,19 @@ export class CompaniesService {
       companiesById.set(companyUser.companyId, {
         ...companyUser.company,
         isHidden: companyUser.isHidden,
-        companyPaymentAccount:
-          ownedCompanies.find((c) => c.id === companyUser.companyId)
-            ?.companyPaymentAccount ?? null,
+        companyPaymentAccount: companyUser.company.companyPaymentAccount,
       });
     }
 
-    const companies = [...companiesById.values()].sort((first, second) =>
-      first.name.localeCompare(second.name),
-    );
+    const companies = [...companiesById.values()]
+      .map((company) => ({
+        ...company,
+        hasRequiredAction:
+          !company.companyPaymentAccount ||
+          company.companyPaymentAccount.verificationStatus !== 'VERIFIED' ||
+          company.electronicInvoicingConnection?.status !== 'ACTIVE',
+      }))
+      .sort((first, second) => first.name.localeCompare(second.name));
 
     return { companies, activeCompanyId: user?.lastConnectedCompanyId ?? null };
   }
@@ -168,6 +189,7 @@ export class CompaniesService {
                   verificationStatus: true,
                 },
               },
+              electronicInvoicingConnection: { select: { status: true } },
             },
           },
         },
@@ -177,8 +199,13 @@ export class CompaniesService {
         return null;
       }
 
+      const company = user.lastConnectedCompany;
       return {
-        ...user.lastConnectedCompany,
+        ...company,
+        hasRequiredAction:
+          !company.companyPaymentAccount ||
+          company.companyPaymentAccount.verificationStatus !== 'VERIFIED' ||
+          company.electronicInvoicingConnection?.status !== 'ACTIVE',
       };
     } catch (error) {
       this.handleDatabaseError(error, "récupération de l'entreprise active.");

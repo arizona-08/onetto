@@ -1,7 +1,7 @@
 'use client';
 import React from 'react'
 import BurgerMenu from './molecules/BurgerMenu'
-import { Archive, Bell, Building, FileChartColumnIncreasing, LayoutDashboardIcon, LogOut, SettingsIcon, UserIcon, Waypoints } from 'lucide-react';
+import { Archive, Bell, Building, FileChartColumnIncreasing, LayoutDashboardIcon, LogOut, SettingsIcon, TriangleAlert, UserIcon, Waypoints } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/auth/auth';
 import { getMyCompanies, selectCompany } from '@/lib/companies/companies';
@@ -61,6 +61,7 @@ function TopSidebar() {
 
   const activeCompany = companies.find((company) => company.id === activeCompanyId);
   const otherCompanies = companies.filter((company) => company.id !== activeCompanyId && !company.isHidden);
+  const hasCompanyActionRequired = companies.length === 0 || companies.some((company) => company.hasRequiredAction);
 
   function getInitials(name: string) {
     return name
@@ -160,6 +161,12 @@ function TopSidebar() {
                 >
                   {link.icon}
                   {link.name}
+                  {link.href === '/my-companies' && hasCompanyActionRequired && (
+                    <TriangleAlert
+                      aria-label="Une action est requise sur une entreprise"
+                      className="ml-auto h-4 w-4 shrink-0 text-red-500"
+                    />
+                  )}
                 </a>
               </li>
             )})}

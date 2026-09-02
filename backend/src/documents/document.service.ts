@@ -1758,6 +1758,8 @@ export class DocumentService {
         throw new BadRequestException('Cette facture a déjà été envoyée.');
       }
 
+      await this.assertCompanyCanSendDocuments(document.companyId);
+
       const isInvoice = document.type === 'INVOICE';
       const negociation = !isInvoice
         ? await this.prismaService.estimateNegociation.create({
@@ -2216,6 +2218,33 @@ export class DocumentService {
     }
 
     return company;
+  }
+
+  /** A draft is deliberately not concerned by this check: only publication is. */
+  private async assertCompanyCanSendDocuments(companyId: string) {
+    const company = await this.prismaService.company.findUnique({
+      where: { id: companyId },
+      select: {
+        companyPaymentAccount: { select: { verificationStatus: true } },
+        electronicInvoicingConnection: { select: { status: true } },
+      },
+    });
+
+    if (!company?.companyPaymentAccount) {
+      throw new BadRequestException(
+        'L’envoi est impossible : créez et reliez d’abord le compte GoCardless de cette entreprise.',
+      );
+    }
+    if (company.companyPaymentAccount.verificationStatus !== 'VERIFIED') {
+      throw new BadRequestException(
+        'L’envoi est impossible : le compte GoCardless de cette entreprise doit être vérifié.',
+      );
+    }
+    if (company.electronicInvoicingConnection?.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'L’envoi est impossible : créez, reliez et vérifiez d’abord le compte SuperPDP de cette entreprise.',
+      );
+    }
   }
 
   private createInvoiceAttachment(

@@ -3,6 +3,8 @@ import { getMyActiveCompany } from '@/lib/companies/companies';
 import { Company } from '@/lib/companies/dtos/create-company.dto';
 import React from 'react'
 import { useToast } from './ToastContext';
+import { useAuthUser } from './AuthUserContext';
+import { COMPANY_UPDATED_EVENT } from '@/lib/companies/company-events';
 
 export type ActiveCompanyContextType = {
   activeCompany: Company | null;
@@ -18,9 +20,14 @@ interface ActiveCompanyProviderProps {
 function ActiveCompanyProvider({ children }: ActiveCompanyProviderProps) {
   const [activeCompany, setActiveCompany] = React.useState<Company | null>(null);
   const { showToast } = useToast();
+  const { user } = useAuthUser();
 
-  async function fetchActiveCompany() {
+  const fetchActiveCompany = React.useCallback(async () => {
     try {
+      if (!user) {
+        setActiveCompany(null);
+        return;
+      }
       const response = await getMyActiveCompany();
       if(!response.ok){
         showToast("Impossible de charger l’entreprise active. Veuillez actualiser la page.", 'error');
@@ -30,11 +37,13 @@ function ActiveCompanyProvider({ children }: ActiveCompanyProviderProps) {
     } catch {
       showToast("Impossible de charger l’entreprise active. Veuillez actualiser la page.", 'error');
     }
-  }
+  }, [showToast, user]);
 
   React.useEffect(() => {
-    fetchActiveCompany();
-  }, []);
+    void fetchActiveCompany();
+    window.addEventListener(COMPANY_UPDATED_EVENT, fetchActiveCompany);
+    return () => window.removeEventListener(COMPANY_UPDATED_EVENT, fetchActiveCompany);
+  }, [fetchActiveCompany]);
 
   const value = React.useMemo(() => ({
     activeCompany,
