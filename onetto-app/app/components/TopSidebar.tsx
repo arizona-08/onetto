@@ -9,6 +9,7 @@ import { Company } from '@/lib/companies/dtos/create-company.dto';
 import Link from 'next/link';
 import { useAuthUser } from './context/AuthUserContext';
 import { COMPANY_UPDATED_EVENT, notifyCompanyUpdated } from '@/lib/companies/company-events';
+import { useToast } from './context/ToastContext';
 
 const links = [
   { name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboardIcon />  },
@@ -24,6 +25,7 @@ const links = [
 function TopSidebar() {
   const [isOpen, setIsOpen] = React.useState(false)
   const { user } = useAuthUser();
+  const { showToast } = useToast();
 
   const pathname = usePathname();
   const router = useRouter();
@@ -32,7 +34,8 @@ function TopSidebar() {
     const response = await logout();
 
     if(!response.ok) {
-      console.error('Failed to logout');
+      showToast('La déconnexion a échoué. Veuillez réessayer.', 'error');
+      return;
     }
 
     router.push("/auth/login")
@@ -72,7 +75,7 @@ function TopSidebar() {
   async function handleCompanySelection(companyId: string) {
     const response = await selectCompany(companyId);
     if (!response.ok) {
-      console.error('Failed to select company');
+      showToast('Impossible de sélectionner cette entreprise. Veuillez réessayer.', 'error');
       return;
     }
 

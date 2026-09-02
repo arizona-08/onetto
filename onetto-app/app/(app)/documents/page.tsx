@@ -24,14 +24,6 @@ async function DocumentsPage() {
     getInvoiceStatsServer(),
   ]);
 
-  if (!estimatesResponse.ok) {
-    console.error('Impossible de récupérer les devis :', estimatesResponse.error);
-  }
-  if (!invoicesResponse.ok) {
-    console.error('Impossible de récupérer les factures :', invoicesResponse.error);
-  }
-  // console.log('Documents response:', documentsResponse);
-
   const estimates = estimatesResponse.ok ? estimatesResponse.data.documents : [];
   const invoices = invoicesResponse.ok ? invoicesResponse.data.documents : [];
   const invoiceStats = invoiceStatsResponse.ok
@@ -49,9 +41,8 @@ async function DocumentsPage() {
       <h1 className="text-2xl md:text-4xl font-semibold font-title">Gérer mes factures et devis</h1>
 
       {(!estimatesResponse.ok || !invoicesResponse.ok) && (
-        // À modifier en production pour afficher un message d'erreur plus convivial
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="alert">
-          Les factures et devis ne peuvent pas être chargés pour le moment. Vérifiez que l&apos;API est démarrée, puis réessayez.
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+          Une partie de vos documents n’a pas pu être chargée. Actualisez la page ou réessayez dans quelques instants.
         </div>
       )}
 

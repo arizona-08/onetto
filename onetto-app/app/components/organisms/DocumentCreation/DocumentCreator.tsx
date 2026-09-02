@@ -171,13 +171,11 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
 
     if(!checkClient.ok){
       setDocumentClientErrors(checkClient.error)
-      console.error(checkClient.error);
       return null;
     }
 
     if(!checkDates.ok){
       setDocumentDatesErrors(checkDates.error)
-      console.error(checkDates.error);
       return null;
     }
 
@@ -220,7 +218,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
     }
 
     if(!response.ok) {
-      console.error("Erreur lors de la création de la facture", response.error);
+      showToast("Impossible d’enregistrer le document. Veuillez réessayer.", "error");
       return null;
     }
 
