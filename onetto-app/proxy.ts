@@ -6,6 +6,7 @@ const AUTH_ROUTE_PREFIX = "/auth";
 const NEGOCIATIONS_ROUTE = "/negociations";
 const PAYMENT_ROUTE_PREFIX = "/payment";
 const SUBSCRIPTION_SUCCESS_ROUTE = "/subscriptions/success";
+const LEGAL_ROUTE = "/legal";
 const ME_ENDPOINT = "/api/auth/me";
 
 function isAuthRoute(pathname: string): boolean {
@@ -21,7 +22,8 @@ export async function proxy(request: NextRequest) {
     isAuthRoute(request.nextUrl.pathname) ||
     isPaymentRoute(request.nextUrl.pathname) ||
     request.nextUrl.pathname === NEGOCIATIONS_ROUTE ||
-    request.nextUrl.pathname === SUBSCRIPTION_SUCCESS_ROUTE
+    request.nextUrl.pathname === SUBSCRIPTION_SUCCESS_ROUTE ||
+    request.nextUrl.pathname === LEGAL_ROUTE
   ) {
     return NextResponse.next();
   }

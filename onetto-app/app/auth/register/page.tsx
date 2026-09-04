@@ -143,7 +143,11 @@ function RegisterPage() {
         <label className="flex items-start gap-2 text-xs leading-5 text-zinc-500">
           <input type="checkbox" required className="mt-1 h-4 w-4 rounded border-zinc-300 accent-primary" />
           <span>
-            J'accepte les conditions d'utilisation et la politique de confidentialité d'Onetto.
+            J'accepte les <Link href="/legal#CGU" className="text-primary font-medium hover:text-primary-hover underline">
+              conditions d'utilisation
+            </Link> et la <Link href="/legal#politique-de-confidentialite" className="text-primary font-medium hover:text-primary-hover underline">
+              politique de confidentialité
+            </Link> d'Onetto.
           </span>
         </label>
 
