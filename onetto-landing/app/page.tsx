@@ -30,7 +30,7 @@ export default function Home() {
               Se connecter
             </button>
             <button className="rounded-full bg-[#454ADE] px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-[#454ADE]/30 transition-transform hover:-translate-y-0.5">
-              S'inscrire gratuitement
+              S’inscrire gratuitement
             </button>
           </div>
         </header>
@@ -47,8 +47,7 @@ export default function Home() {
               </h1>
               <p className="max-w-xl text-lg leading-8 text-slate-600">
                 ONETTO cree vos factures, genere un lien de paiement pour vos clients et
-                vous encaisse en un clic. <span className="font-semibold textGradient">1 € par facture, 100% de votre travail qui reste
-                chez vous.</span> 
+                vous aide à suivre vos encaissements. <span className="font-semibold textGradient">Aucune commission Onetto sur vos factures payées.</span>
               </p>
               <p className="max-w-xl text-base leading-7 text-slate-500">
                 
@@ -56,7 +55,7 @@ export default function Home() {
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <button className="rounded-full bg-[#454ADE] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#454ADE]/30 transition-transform hover:-translate-y-0.5">
-                Rejoindre la liste d'attente
+                Rejoindre la liste d’attente
               </button>
               <button className="rounded-full border border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:text-slate-900">
                 Voir comment ca marche
@@ -71,10 +70,10 @@ export default function Home() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-[#454ADE]">1 €</span>
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-[#454ADE]">0 €</span>
                 <div>
-                  <p className="font-semibold text-slate-800">Commission unique</p>
-                  <p>Sans pourcentage</p>
+                  <p className="font-semibold text-slate-800">Sans commission Onetto</p>
+                  <p>Frais selon votre offre GoCardless</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -165,9 +164,9 @@ export default function Home() {
             </p>
           </div>
           <div className="space-y-3">
-            <p className="text-sm font-semibold text-[#454ADE]">1 € de commission</p>
+            <p className="text-sm font-semibold text-[#454ADE]">Paiements flexibles</p>
             <p className="text-lg font-semibold text-slate-900">
-              Pas de pourcentage cache : vos marges restent a vous.
+              Créez des liens de paiement et suivez vos encaissements simplement.
             </p>
           </div>
         </div>
@@ -176,20 +175,20 @@ export default function Home() {
       <section id="pricing" className="mx-auto w-full max-w-6xl px-6 pb-24 sm:px-10">
         <div className="grid gap-8 rounded-[36px] bg-[#454ADE] px-8 py-12 text-white md:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-4">
-            <p className="text-xs uppercase tracking-[0.2em] text-white/70">Tarification transparente</p>
-            <h2 className="text-3xl font-semibold">Une commission fixe, pas un pourcentage.</h2>
+            <p className="text-xs uppercase tracking-[0.2em] text-white/70">Paiements transparents</p>
+            <h2 className="text-3xl font-semibold">Des frais définis avec votre prestataire.</h2>
             <p className="text-white/80">
-              ONETTO prend 1 € par facture payee. Rien de plus. Vous conservez vos
-              revenus et preservez votre tresorerie.
+              ONETTO ne prélève pas de commission sur vos factures payées. Les frais
+              liés aux liens de paiement sont ceux prévus par votre offre GoCardless.
             </p>
           </div>
           <div className="rounded-3xl bg-white/10 p-6">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-white/70">Commission par facture</p>
-              <p className="text-3xl font-semibold">1 €</p>
+              <p className="text-sm text-white/70">Frais de paiement</p>
+              <p className="text-3xl font-semibold">GoCardless</p>
             </div>
             <p className="mt-4 text-sm text-white/70">
-              Inclut relances, suivi et encaissement securise.
+              Le montant dépend de l’offre souscrite auprès de votre prestataire.
             </p>
             <button className="mt-6 w-full rounded-full bg-white px-4 py-3 text-sm font-semibold text-[#454ADE]">
               Demarrer avec ONETTO
