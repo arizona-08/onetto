@@ -4,11 +4,11 @@ import { ShieldCheck } from "lucide-react";
 
 function formatSubscriptionPlan(plan: string | undefined) {
   const labels: Record<string, string> = {
-    FREE: "Gratuite",
-    STARTER_MONTHLY: "Starter mensuel",
-    STARTER_YEARLY: "Starter annuel",
-    PRO_MONTHLY: "Pro mensuel",
-    PRO_YEARLY: "Pro annuel",
+    FREE: "ABONNEMENT GRATUIT",
+    STARTER_MONTHLY: "ABONNEMENT STARTER MENSUEL",
+    STARTER_YEARLY: "ABONNEMENT STARTER ANNUEL",
+    PRO_MONTHLY: "ABONNEMENT PRO MENSUEL",
+    PRO_YEARLY: "ABONNEMENT PRO ANNUEL",
   };
 
   return labels[plan ?? "FREE"] ?? plan ?? "Gratuite";
@@ -27,7 +27,7 @@ async function SubscriptionPage() {
           <div>
             <p className="text-sm font-medium text-zinc-500">Mon abonnement</p>
             <h1 className="mt-1 font-title text-2xl font-semibold text-zinc-900">
-              Formule {formatSubscriptionPlan(currentPlan)}
+              {formatSubscriptionPlan(currentPlan)}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">
               {subscription?.willCancelAtPeriodEnd
@@ -49,7 +49,11 @@ async function SubscriptionPage() {
       </section>
 
       {subscriptionResult.ok ? (
-        <SubscriptionPlans currentPlan={currentPlan} />
+        <SubscriptionPlans
+          currentPlan={currentPlan}
+          pendingPlan={subscription?.pendingSubscriptionPlan ?? null}
+          pendingPlanEffectiveAt={subscription?.pendingPlanEffectiveAt ?? null}
+        />
       ) : (
         <section className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-600">
           L’abonnement est géré par le propriétaire de l’entreprise.

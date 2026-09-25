@@ -299,11 +299,6 @@ export class GoCardlessInstalmentRetryService {
     if (company.ownerId !== user.id && company.companyUsers.length === 0) {
       throw new ForbiddenException('Vous n’avez pas accès à cette échéance.');
     }
-    await this.planAccessService.assertFeatureAvailable(
-      instalment.invoiceInstalmentPlan.invoice.companyId,
-      'instalments',
-    );
-
     return instalment;
   }
 

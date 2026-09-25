@@ -270,12 +270,6 @@ implements
 
   async createInstalmentsPaymentLink(input: CreatePaymentLinkInput, paymentAccessToken: string): Promise<PaymentLinkResponse> {
     try {
-      await this.planAccessService.assertFeatureAvailable(
-        input.companyId,
-        'instalments',
-      );
-      
-      
       const client = await this.gocardlessOAuthService.getClientForCompany(input.companyId);
       
       const billingRequestId = await this.createBillingRequest('INSTALMENTS', input.companyId, {

@@ -53,6 +53,15 @@ export class SubscriptionWebhookService {
         await this.markEventAsProcessed(event.id);
         break;
       }
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const subscriptionId = invoice.parent?.subscription_details?.subscription;
+        if (typeof subscriptionId === 'string') {
+          await this.syncSubscription(subscriptionId);
+        }
+        await this.markEventAsProcessed(event.id);
+        break;
+      }
       default:
         this.logger.warn(`Unhandled event type: ${event.type}`);
     }
@@ -71,8 +80,9 @@ export class SubscriptionWebhookService {
     }
 
     const subscriptionPlan = this.matchPriceIdToSubscriptionPlan(priceId);
+    const isCanceled = subscription.status === 'canceled';
     const customerId = this.getStripeId(subscription.customer);
-    const isActive = this.isSubscriptionActive(subscription.status);
+    const isActive = !isCanceled && this.isSubscriptionActive(subscription.status);
     const canceledAtPeriodEnd = subscription.cancel_at
       ? new Date(subscription.cancel_at * 1000)
       : subscription.canceled_at
@@ -115,7 +125,13 @@ export class SubscriptionWebhookService {
         return;
       }
 
-      const willCancelAtPeriodEnd = canceledAtPeriodEnd != null;
+      const existingLocalSubscription = await tx.userSubscription.findUnique({
+        where: { userId },
+        select: { pendingSubscriptionPlan: true },
+      });
+      const pendingPlanWasApplied =
+        existingLocalSubscription?.pendingSubscriptionPlan === subscriptionPlan;
+      const willCancelAtPeriodEnd = !isCanceled && canceledAtPeriodEnd != null;
       await tx.userSubscription.upsert({
         // UserSubscription.userId is the business invariant: one row per user.
         // A price change must update that row even if Stripe's customer changes.
@@ -128,6 +144,9 @@ export class SubscriptionWebhookService {
           isActive,
           canceledAtPeriodEnd,
           willCancelAtPeriodEnd: willCancelAtPeriodEnd,
+          pendingSubscriptionPlan: null,
+          pendingPlanEffectiveAt: null,
+          pendingStripeScheduleId: null,
         },
         update: {
           subscriptionId: subscription.id,
@@ -135,6 +154,15 @@ export class SubscriptionWebhookService {
           isActive,
           canceledAtPeriodEnd,
           willCancelAtPeriodEnd: willCancelAtPeriodEnd,
+          pendingSubscriptionPlan: isCanceled || pendingPlanWasApplied
+            ? null
+            : undefined,
+          pendingPlanEffectiveAt: isCanceled || pendingPlanWasApplied
+            ? null
+            : undefined,
+          pendingStripeScheduleId: isCanceled || pendingPlanWasApplied
+            ? null
+            : undefined,
         },
       });
 

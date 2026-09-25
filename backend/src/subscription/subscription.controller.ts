@@ -41,4 +41,16 @@ export class SubscriptionController {
       user?.id,
     );
   }
+
+  @Post('schedule-free')
+  async scheduleFree(@Req() req: ExtendedRequest) {
+    if (!req.user) throw new UnauthorizedException('User not authenticated');
+    return this.subscriptionService.scheduleFreePlan(req.user.id);
+  }
+
+  @Post('cancel-pending-change')
+  async cancelPendingChange(@Req() req: ExtendedRequest) {
+    if (!req.user) throw new UnauthorizedException('User not authenticated');
+    return this.subscriptionService.cancelPendingPlanChange(req.user.id);
+  }
 }
