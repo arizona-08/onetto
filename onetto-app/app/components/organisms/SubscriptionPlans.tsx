@@ -3,20 +3,33 @@
 import Link from 'next/link'
 import React from 'react'
 import { Check, CreditCard, ExternalLink, Sparkles } from 'lucide-react'
-import { getCheckoutSession } from '@/lib/subscription/subscription'
+import { cancelPendingPlanChange, getCheckoutSession, scheduleFreePlan } from '@/lib/subscription/subscription'
 import { STRIPE_PRODUCTS } from '@/shared/constants'
 import { formatCurrency } from '@/shared/utils'
 import { useToast } from '../context/ToastContext'
 
 type SubscriptionPlansProps = {
   currentPlan: string
+  pendingPlan: string | null
+  pendingPlanEffectiveAt: string | null
 }
 
 function getProductPlan(productName: string) {
   return productName.toUpperCase()
 }
 
-function SubscriptionPlans({ currentPlan }: SubscriptionPlansProps) {
+function formatSubscriptionPlan(plan: string) {
+  const labels: Record<string, string> = {
+    FREE: 'ABONNEMENT GRATUIT',
+    STARTER_MONTHLY: 'ABONNEMENT STARTER MENSUEL',
+    STARTER_YEARLY: 'ABONNEMENT STARTER ANNUEL',
+    PRO_MONTHLY: 'ABONNEMENT PRO MENSUEL',
+    PRO_YEARLY: 'ABONNEMENT PRO ANNUEL',
+  }
+  return labels[plan] ?? plan
+}
+
+function SubscriptionPlans({ currentPlan, pendingPlan, pendingPlanEffectiveAt }: SubscriptionPlansProps) {
   const { showToast } = useToast()
 
   async function purchaseSubscriptionPlan(
@@ -30,15 +43,44 @@ function SubscriptionPlans({ currentPlan }: SubscriptionPlansProps) {
         showToast('Une erreur est survenue lors de la création de la session de paiement.', 'error')
         return
       }
-      window.location.assign(responseUrl.data.url)
+      if (responseUrl.data.url) {
+        window.location.assign(responseUrl.data.url)
+      } else {
+        showToast(responseUrl.data.message ?? 'Votre changement de formule est en cours de confirmation.', 'success')
+        window.location.reload()
+      }
     } catch {
       showToast('Une erreur est survenue lors de la création de la session de paiement.', 'error')
     }
   }
 
+  async function scheduleFree() {
+    const response = await scheduleFreePlan()
+    if (!response.ok) {
+      showToast("Impossible de programmer le passage à l'offre gratuite.", 'error')
+      return
+    }
+    window.location.reload()
+  }
+
+  async function keepCurrentPlan() {
+    const response = await cancelPendingPlanChange()
+    if (!response.ok) {
+      showToast('Impossible d’annuler le changement programmé.', 'error')
+      return
+    }
+    window.location.reload()
+  }
+
   return (
     <>
       <section aria-labelledby="plans-heading">
+        {pendingPlan && (
+          <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+            <p>Votre offre passera à <strong>{formatSubscriptionPlan(pendingPlan)}</strong>{pendingPlanEffectiveAt ? ` le ${new Intl.DateTimeFormat('fr-FR').format(new Date(pendingPlanEffectiveAt))}` : ' à la fin de la période en cours'}. Vous conservez votre abonnement actuel jusque-là.</p>
+            <button type="button" onClick={() => void keepCurrentPlan()} className="shrink-0 rounded-xl border border-amber-400 bg-white px-4 py-2 font-semibold text-amber-900">Conserver {formatSubscriptionPlan(currentPlan)}</button>
+          </div>
+        )}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 id="plans-heading" className="font-title text-xl font-semibold text-zinc-900">Choisir la formule adaptée</h2>
@@ -76,7 +118,7 @@ function SubscriptionPlans({ currentPlan }: SubscriptionPlansProps) {
 
                 <div className="mt-auto flex w-full flex-col gap-2 pt-7">
                   {isFree ? (
-                    <div className="flex min-h-11 w-full items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm font-semibold text-zinc-600">{isCurrentPlan ? 'Formule actuelle' : 'Formule incluse'}</div>
+                    isCurrentPlan ? <div className="flex min-h-11 w-full items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm font-semibold text-zinc-600">Formule actuelle</div> : <button type="button" onClick={() => void scheduleFree()} className="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800 transition hover:border-primary hover:text-primary">Passer à l’offre gratuite en fin de période</button>
                   ) : isCurrentPlan ? (
                     <div className="flex min-h-11 w-full items-center justify-center rounded-xl border border-primary/20 bg-primary/5 px-4 text-sm font-semibold text-primary">Votre formule actuelle</div>
                   ) : (

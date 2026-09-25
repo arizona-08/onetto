@@ -52,6 +52,9 @@ model UserSubscription {
   updatedAt             DateTime         @updatedAt
   canceledAtPeriodEnd   DateTime?
   willCancelAtPeriodEnd Boolean          @default(false)
+  pendingSubscriptionPlan SubscriptionPlan?
+  pendingPlanEffectiveAt  DateTime?
+  pendingStripeScheduleId String?          @unique
 }
 
 model UserSubscriptionHistory {

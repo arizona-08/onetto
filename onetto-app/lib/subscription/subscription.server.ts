@@ -5,6 +5,8 @@ export type UserSubscription = {
   isActive: boolean | null;
   canceledAtPeriodEnd: string | null;
   willCancelAtPeriodEnd: boolean | null;
+  pendingSubscriptionPlan: string | null;
+  pendingPlanEffectiveAt: string | null;
   currentPlan: 'FREE' | 'STARTER' | 'PRO';
   features: {
     negotiation: boolean;

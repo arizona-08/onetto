@@ -49,6 +49,30 @@ describe('PlanAccessService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('bloque une création qui rendrait un downgrade Starter impossible', async () => {
+    prisma.user.findUniqueOrThrow.mockResolvedValue({
+      accountType: 'BUSINESS_OWNER',
+      subscription: {
+        subscriptionPlan: 'PRO_MONTHLY',
+        isActive: true,
+        pendingSubscriptionPlan: 'STARTER_MONTHLY',
+      },
+    });
+    prisma.company.count.mockResolvedValue(1);
+
+    await expect(
+      service.assertCanCreateCompany('owner-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('refuse un downgrade incompatible avec les entreprises actives', async () => {
+    prisma.company.count.mockResolvedValue(2);
+
+    await expect(
+      service.assertCanSchedulePlanChange('owner-1', 'STARTER_MONTHLY'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('résout les droits depuis le propriétaire de la société', async () => {
     prisma.company.findUniqueOrThrow.mockResolvedValue({
       owner: {

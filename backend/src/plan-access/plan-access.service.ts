@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { $Enums } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { getPlanTier } from 'src/subscription/subscription-plan.utils';
 
 export type PlanFeature =
   | 'negotiation'
@@ -66,10 +67,7 @@ export class PlanAccessService {
   constructor(private readonly prismaService: PrismaService) {}
 
   normalizePlan(plan?: $Enums.SubscriptionPlan | null): OnettoPlan {
-    if (plan === 'STARTER_MONTHLY' || plan === 'STARTER_YEARLY')
-      return 'STARTER';
-    if (plan === 'PRO_MONTHLY' || plan === 'PRO_YEARLY') return 'PRO';
-    return 'FREE';
+    return getPlanTier(plan);
   }
 
   getAccess(plan?: $Enums.SubscriptionPlan | null) {
@@ -82,7 +80,13 @@ export class PlanAccessService {
       where: { id: userId },
       select: {
         accountType: true,
-        subscription: { select: { subscriptionPlan: true, isActive: true } },
+        subscription: {
+          select: {
+            subscriptionPlan: true,
+            isActive: true,
+            pendingSubscriptionPlan: true,
+          },
+        },
       },
     });
 
@@ -92,9 +96,13 @@ export class PlanAccessService {
       );
     }
 
-    return this.getAccess(
+    const access = this.getAccess(
       user.subscription?.isActive ? user.subscription.subscriptionPlan : 'FREE',
     );
+    return {
+      ...access,
+      pendingSubscriptionPlan: user.subscription?.pendingSubscriptionPlan ?? null,
+    };
   }
 
   async getCompanyAccess(companyId: string) {
@@ -129,15 +137,37 @@ export class PlanAccessService {
   async assertCanCreateCompany(userId: string) {
     const access = await this.getUserAccess(userId);
     const ownedCompanies = await this.prismaService.company.count({
-      where: { ownerId: userId },
+      where: { ownerId: userId, status: 'ACTIVE' },
     });
+    const pendingAccess = access.pendingSubscriptionPlan
+      ? this.getAccess(access.pendingSubscriptionPlan)
+      : null;
+    const maxOwnedCompanies = Math.min(
+      access.maxOwnedCompanies,
+      pendingAccess?.maxOwnedCompanies ?? access.maxOwnedCompanies,
+    );
 
-    if (ownedCompanies >= access.maxOwnedCompanies) {
+    if (ownedCompanies >= maxOwnedCompanies) {
       throw new BadRequestException(
-        `Votre formule ${access.currentPlan} permet de posséder au maximum ${access.maxOwnedCompanies} entreprise${access.maxOwnedCompanies > 1 ? 's' : ''}.`,
+        `Votre formule ${pendingAccess?.currentPlan ?? access.currentPlan} permet de posséder au maximum ${maxOwnedCompanies} entreprise${maxOwnedCompanies > 1 ? 's' : ''}.`,
       );
     }
 
     return access;
+  }
+
+  async assertCanSchedulePlanChange(
+    userId: string,
+    targetPlan: $Enums.SubscriptionPlan,
+  ) {
+    const ownedCompanies = await this.prismaService.company.count({
+      where: { ownerId: userId, status: 'ACTIVE' },
+    });
+    const targetAccess = this.getAccess(targetPlan);
+    if (ownedCompanies > targetAccess.maxOwnedCompanies) {
+      throw new BadRequestException(
+        `Votre offre ${targetAccess.currentPlan} permet de gérer au maximum ${targetAccess.maxOwnedCompanies} entreprise${targetAccess.maxOwnedCompanies > 1 ? 's' : ''}. Fermez les entreprises supplémentaires avant de changer d'offre.`,
+      );
+    }
   }
 }
