@@ -81,17 +81,38 @@ export class SubscriptionWebhookService {
 
     await this.prismaService.$transaction(async (tx) => {
       const metadataUserId = subscription.metadata.userId;
-      const existingSubscription = metadataUserId
-        ? await tx.userSubscription.findUnique({
-            where: { userId: metadataUserId },
-          })
-        : await tx.userSubscription.findUnique({ where: { customerId } });
-      const userId = metadataUserId ?? existingSubscription?.userId;
+      // A Stripe subscription can outlive the local user that created its
+      // Checkout session. Never use its metadata as a foreign key before
+      // checking that the user still exists.
+      const [metadataUser, existingSubscription] = await Promise.all([
+        metadataUserId
+          ? tx.user.findUnique({
+              where: { id: metadataUserId },
+              select: { id: true, subscriptionPlan: true },
+            })
+          : null,
+        tx.userSubscription.findUnique({ where: { customerId } }),
+      ]);
+      const userId = metadataUser?.id ?? existingSubscription?.userId;
 
       if (!userId) {
-        throw new Error(
-          `Subscription ${stripeSubscriptionId} has no userId metadata and no local subscription for customer ${customerId}.`,
+        this.logger.warn(
+          `Ignoring Stripe subscription ${stripeSubscriptionId}: its metadata user ${metadataUserId ?? '(missing)'} does not exist and customer ${customerId} has no local subscription.`,
         );
+        return;
+      }
+
+      const user =
+        metadataUser ??
+        (await tx.user.findUnique({
+          where: { id: userId },
+          select: { id: true, subscriptionPlan: true },
+        }));
+      if (!user) {
+        this.logger.warn(
+          `Ignoring Stripe subscription ${stripeSubscriptionId}: local user ${userId} does not exist.`,
+        );
+        return;
       }
 
       const willCancelAtPeriodEnd = canceledAtPeriodEnd != null;
@@ -120,10 +141,6 @@ export class SubscriptionWebhookService {
       const userPlan = isActive
         ? subscriptionPlan
         : $Enums.SubscriptionPlan.FREE;
-      const user = await tx.user.findUniqueOrThrow({
-        where: { id: userId },
-        select: { subscriptionPlan: true },
-      });
 
       await tx.user.update({
         where: { id: userId },

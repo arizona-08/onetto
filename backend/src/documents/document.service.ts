@@ -381,33 +381,27 @@ export class DocumentService {
     );
 
     const firstDueDate = parseDateOnly(instalmentsDetails.firstDueDate);
-    const issuedAt = new Date(invoice.createdAt);
-    const issueDate = new Date(
-      Date.UTC(
-        issuedAt.getUTCFullYear(),
-        issuedAt.getUTCMonth(),
-        issuedAt.getUTCDate(),
-        12,
-      ),
-    );
     const authorizationDeadline = new Date(
       firstDueDate.getTime() -
         REMINDER_RULES.INSTALMENT_AUTHORIZATION_LEAD_DAYS * 24 * 60 * 60 * 1000,
     );
-    if (
-      Number.isNaN(firstDueDate.getTime()) ||
-      authorizationDeadline < issueDate
-    ) {
+    if (Number.isNaN(firstDueDate.getTime())) {
       throw new BadRequestException(
-        "La première échéance doit laisser le temps nécessaire à l'autorisation du prélèvement.",
+        'La date de première échéance est invalide.',
       );
     }
+
+    // Test mode: weekly instalments can be scheduled without the usual
+    // five-day mandate-authorisation lead time. Restore the
+    // `authorizationDeadline < issueDate` validation when switching back to
+    // monthly instalments.
 
     const totalAmountInCents = Math.round(invoice.totalPrice * 100);
     const schedule = buildInstalmentSchedule(
       totalAmountInCents,
       instalmentsDetails.numberOfInstalments,
       firstDueDate,
+      'WEEKLY',
     );
     const amountPerInstalmentInCents = Math.floor(
       totalAmountInCents / instalmentsDetails.numberOfInstalments,
@@ -418,13 +412,13 @@ export class DocumentService {
       create: {
         invoiceId: invoice.id,
         paymentMode: 'INSTALMENTS',
-        paymentModeFrequency: 'MONTHLY',
+        paymentModeFrequency: 'WEEKLY',
         numberOfInstalments: instalmentsDetails.numberOfInstalments,
         amountPerInstalmentInCents,
       },
       update: {
         paymentMode: 'INSTALMENTS',
-        paymentModeFrequency: 'MONTHLY',
+        paymentModeFrequency: 'WEEKLY',
         numberOfInstalments: instalmentsDetails.numberOfInstalments,
         amountPerInstalmentInCents,
       },
@@ -1246,6 +1240,14 @@ export class DocumentService {
         },
         include: {
           services: withServices,
+          invoicePaymentMode: true,
+          invoiceInstalmentPlan: {
+            include: {
+              invoicePaymentInstalments: {
+                orderBy: { instalmentNumber: 'asc' },
+              },
+            },
+          },
           electronicInvoiceTransmissions: {
             where: { provider: 'SUPER_PDP', flow: 'B2B_FR' },
             select: {
@@ -2163,6 +2165,14 @@ export class DocumentService {
           invoice: {
             include: {
               services: true,
+              invoicePaymentMode: true,
+              invoiceInstalmentPlan: {
+                include: {
+                  invoicePaymentInstalments: {
+                    orderBy: { instalmentNumber: 'asc' },
+                  },
+                },
+              },
               company: {
                 select: {
                   name: true,

@@ -18,10 +18,9 @@ function toDateInputValue(date: Date) {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
 }
 
-function addCalendarMonths(dateValue: string, months: number) {
+function addCalendarWeeks(dateValue: string, weeks: number) {
   const [year, month, day] = dateValue.split('-').map(Number);
-  const lastDay = new Date(year, month + months, 0).getDate();
-  return toDateInputValue(new Date(year, month - 1 + months, Math.min(day, lastDay)));
+  return toDateInputValue(new Date(year, month - 1, day + weeks * 7));
 }
 
 function buildInstalmentPreview(totalInCents: number, count: 2 | 3, firstDueDate: string) {
@@ -31,7 +30,7 @@ function buildInstalmentPreview(totalInCents: number, count: 2 | 3, firstDueDate
   return Array.from({ length: count }, (_, index) => ({
     sequence: index + 1,
     amountInCents: base + (index < remainder ? 1 : 0),
-    dueDate: addCalendarMonths(firstDueDate, index),
+    dueDate: addCalendarWeeks(firstDueDate, index),
   }));
 }
 
@@ -63,7 +62,7 @@ function DocumentCreator({ document, mode, documentType = 'ESTIMATE' }: Document
   })
   const [paymentMode, setPaymentMode] = useState<'ONE_TIME' | 'INSTALMENTS'>('ONE_TIME');
   const [numberOfInstalments, setNumberOfInstalments] = useState<2 | 3>(2);
-  const [firstDueDate, setFirstDueDate] = useState(() => addCalendarMonths(toDateInputValue(new Date()), 1));
+  const [firstDueDate, setFirstDueDate] = useState(() => addCalendarWeeks(toDateInputValue(new Date()), 1));
   const [canUseInstalments, setCanUseInstalments] = useState(false);
   const [goCardlessReconnectCompanyId, setGoCardlessReconnectCompanyId] = useState<string | null>(null);
 
