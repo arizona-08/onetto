@@ -7,6 +7,7 @@ export type User = {
   firstname: string;
   lastname: string;
   accountType: string;
+  isAdmin: boolean;
   subscriptionPlan: string | null;
   lastConnectedCompanyId?: string;
   passwordChangedAt?: Date | null;
