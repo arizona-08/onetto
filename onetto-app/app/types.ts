@@ -131,7 +131,7 @@ export type DocumentService = {
 export type PublicPayment = {
   paymentLink: string;
   expiresAt: string;
-  document: Pick<Document, 'documentNumber' | 'clientName' | 'totalPrice' | 'totalPriceExcludingTax' | 'paymentDueAt' | 'services'> & {
+  document: Pick<Document, 'documentNumber' | 'clientName' | 'totalPrice' | 'totalPriceExcludingTax' | 'paymentDueAt' | 'services' | 'invoicePaymentMode' | 'invoiceInstalmentPlan'> & {
     company: {
       name: string;
       email: string;

@@ -3,9 +3,11 @@
 import { PublicPayment } from '@/app/types';
 import { formatCurrency, formatDate } from '@/shared/utils';
 import { CreditCard, FileText } from 'lucide-react';
+import InstalmentSchedule from '../components/molecules/InstalmentSchedule';
 
 export default function PaymentSummary({ payment }: { payment: PublicPayment }) {
   const { document } = payment;
+  const instalments = document.invoiceInstalmentPlan?.invoicePaymentInstalments ?? [];
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,#e8e9ff_0,transparent_38%),#f9f9fb] px-4 py-8 text-zinc-900 sm:px-6 lg:py-12">
@@ -44,6 +46,7 @@ export default function PaymentSummary({ payment }: { payment: PublicPayment }) 
               <div className="flex justify-between text-zinc-500"><span>Sous-total</span><span>{formatCurrency(document.totalPriceExcludingTax)}</span></div>
               <div className="mt-2 flex justify-between border-t border-zinc-200 pt-3 font-semibold text-primary"><span>Total TTC</span><span>{formatCurrency(document.totalPrice)}</span></div>
             </div>
+            <InstalmentSchedule instalments={instalments} className="mt-7" />
             <a href={payment.paymentLink} className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90">
               <CreditCard className="h-4 w-4" />
               Payer la facture

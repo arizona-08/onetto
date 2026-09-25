@@ -94,6 +94,7 @@ function DocumentForm({ client, lineItems, documentDates, onClientChange, onLine
               </div>
               <div className="mt-5 rounded-md bg-zinc-50 p-4">
                 <h3 className="font-medium text-zinc-900">Échéancier</h3>
+                <p className="mt-1 text-sm text-zinc-600">Les échéances sont prévues chaque semaine.</p>
                 <ul className="mt-3 space-y-2 text-sm text-zinc-700">
                   {instalments.map((instalment) => (
                     <li key={instalment.sequence} className="flex justify-between gap-4">

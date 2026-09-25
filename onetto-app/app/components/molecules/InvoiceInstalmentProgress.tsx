@@ -103,13 +103,32 @@ export default function InvoiceInstalmentProgress({
         </p>
         <div className="flex h-2 w-40 gap-1 rounded-full" role="img" aria-label={paidInstalments + ' échéance(s) réglée(s) sur ' + instalments.length}>
           {instalments.map((instalment) => (
-            <span key={instalment.instalmentNumber} className={`min-w-0 flex-1 rounded-full ${instalment.instalmentStatus === 'SUCCESS' ? 'bg-emerald-500' : 'bg-zinc-200'}`} />
+            <span
+              key={instalment.instalmentNumber}
+              title={`Échéance ${instalment.instalmentNumber} : ${formatDate(instalment.dueDate)} — ${formatCurrency(instalment.amountInCents / 100)}`}
+              className={`min-w-0 flex-1 rounded-full ${instalment.instalmentStatus === 'SUCCESS' ? 'bg-emerald-500' : 'bg-zinc-200'}`}
+            />
           ))}
         </div>
       </div>
       <div className="hidden h-2 w-full gap-px overflow-visible rounded-full bg-zinc-100 md:flex" role="img" aria-label={paidInstalments + ' échéance(s) réglée(s) sur ' + instalments.length}>
         {instalments.map((instalment) => (
-          <span key={instalment.instalmentNumber} className={`min-w-0 flex-1 rounded-full ${instalment.instalmentStatus === 'SUCCESS' ? 'bg-emerald-500' : 'bg-zinc-200'}`} />
+          <span
+            key={instalment.instalmentNumber}
+            tabIndex={0}
+            className="group relative min-w-0 flex-1 outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            aria-label={`Échéance ${instalment.instalmentNumber}, prélèvement prévu le ${formatDate(instalment.dueDate)}, montant ${formatCurrency(instalment.amountInCents / 100)}`}
+          >
+            <span className={`block h-2 w-full rounded-full ${instalment.instalmentStatus === 'SUCCESS' ? 'bg-emerald-500' : 'bg-zinc-200'}`} />
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute bottom-4 left-1/2 z-20 w-max -translate-x-1/2 rounded-md bg-zinc-900 px-3 py-2 text-center text-xs leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+            >
+              <span className="block font-semibold">Échéance {instalment.instalmentNumber}</span>
+              <span className="block">Prélèvement prévu le {formatDate(instalment.dueDate)}</span>
+              <span className="block">{formatCurrency(instalment.amountInCents / 100)}</span>
+            </span>
+          </span>
         ))}
       </div>
       {retryableInstalments.map((instalment) => {

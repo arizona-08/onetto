@@ -27,4 +27,15 @@ describe('instalment plan utilities', () => {
       ),
     ).toEqual(['2026-09-21', '2026-10-21', '2026-11-21']);
   });
+
+  it('creates weekly dates when the plan frequency is weekly', () => {
+    expect(
+      buildInstalmentSchedule(
+        1_000,
+        3,
+        parseDateOnly('2026-09-21'),
+        'WEEKLY',
+      ).map((instalment) => instalment.dueDate.toISOString().slice(0, 10)),
+    ).toEqual(['2026-09-21', '2026-09-28', '2026-10-05']);
+  });
 });
