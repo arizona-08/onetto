@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { apiServer } from "@/lib/api-server";
 type Users = {
   items: Array<{
@@ -37,7 +38,12 @@ export default async function AdminUsersPage() {
             {response.data.items.map((user) => (
               <tr key={user.id} className="border-t border-zinc-100">
                 <td className="p-4 font-medium">
-                  {user.firstname} {user.lastname}
+                  <Link
+                    href={`/admin/users/${user.id}`}
+                    className="hover:text-primary"
+                  >
+                    {user.firstname} {user.lastname}
+                  </Link>
                   {user.isAdmin && (
                     <span className="ml-2 text-xs text-primary">ADMIN</span>
                   )}

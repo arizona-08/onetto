@@ -19,6 +19,6 @@ import { PlanAccessModule } from 'src/plan-access/plan-access.module';
   ],
   controllers: [SubscriptionController, SubscriptionWebhookController],
   providers: [SubscriptionService, SubscriptionWebhookService],
-  exports: [SubscriptionService],
+  exports: [SubscriptionService, SubscriptionWebhookService],
 })
 export class SubscriptionModule {}
