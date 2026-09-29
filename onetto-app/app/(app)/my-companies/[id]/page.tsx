@@ -69,7 +69,9 @@ function MyCompanyPage() {
 
     const refreshResponse = await refreshAuthenticationCookies();
     if (!refreshResponse.ok) {
-      setGoCardlessAuthorizationError('Votre session a expiré. Reconnectez-vous avant de connecter GoCardless.');
+      setGoCardlessAuthorizationError(
+        "Votre session a expiré. Reconnectez-vous avant de connecter GoCardless.",
+      );
       setIsGoCardlessAuthorizationPending(false);
       return;
     }
@@ -99,7 +101,9 @@ function MyCompanyPage() {
     setIsGoCardlessVerificationPending(true);
     const refreshResponse = await refreshAuthenticationCookies();
     if (!refreshResponse.ok) {
-      setGoCardlessAuthorizationError('Votre session a expiré. Reconnectez-vous avant de poursuivre la vérification.');
+      setGoCardlessAuthorizationError(
+        "Votre session a expiré. Reconnectez-vous avant de poursuivre la vérification.",
+      );
       setIsGoCardlessVerificationPending(false);
       return;
     }

@@ -99,7 +99,7 @@ export class BridgeWebhookHandler {
             providerReference_providerPaymentId: {
               providerReference: webhookContent.payment_transaction_id,
               providerPaymentId: webhookContent.payment_request_id,
-            }
+            },
           },
           select: { paymentStatus: true },
         });
@@ -167,7 +167,9 @@ export class BridgeWebhookHandler {
       });
 
     if (!payByBankPayment) {
-      console.error(`No payByBankPayment found for payment_link_id: ${paymentLinkId}`);
+      console.error(
+        `No payByBankPayment found for payment_link_id: ${paymentLinkId}`,
+      );
       return {
         ok: false,
         message: `No payByBankPayment found for payment_link_id: ${paymentLinkId}`,

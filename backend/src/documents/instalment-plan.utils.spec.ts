@@ -14,10 +14,12 @@ describe('instalment plan utilities', () => {
   });
 
   it('uses calendar months and clamps end-of-month dates', () => {
-    expect(addCalendarMonths(parseDateOnly('2026-01-31'), 1).toISOString())
-      .toBe('2026-02-28T12:00:00.000Z');
-    expect(addCalendarMonths(parseDateOnly('2028-01-31'), 1).toISOString())
-      .toBe('2028-02-29T12:00:00.000Z');
+    expect(
+      addCalendarMonths(parseDateOnly('2026-01-31'), 1).toISOString(),
+    ).toBe('2026-02-28T12:00:00.000Z');
+    expect(
+      addCalendarMonths(parseDateOnly('2028-01-31'), 1).toISOString(),
+    ).toBe('2028-02-29T12:00:00.000Z');
   });
 
   it('creates monthly dates from the selected first due date', () => {

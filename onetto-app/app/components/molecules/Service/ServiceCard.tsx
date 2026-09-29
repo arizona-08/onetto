@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { Wrench } from 'lucide-react';
-import { Service } from '../../../types';
-import ServiceCardMenu from './ServiceCardMenu';
+import React from "react";
+import { Wrench } from "lucide-react";
+import { Service } from "../../../types";
+import ServiceCardMenu from "./ServiceCardMenu";
 
 interface ServiceCardProps {
   service: Service;
@@ -11,10 +11,15 @@ interface ServiceCardProps {
   triggerDelete?: (serviceId: string) => void;
 }
 
-function ServiceCard({ service, triggerEdit, triggerDelete }: ServiceCardProps) {
-  const unitPriceValue = typeof service.unitPrice === 'number'
-    ? service.unitPrice
-    : Number(service.unitPrice);
+function ServiceCard({
+  service,
+  triggerEdit,
+  triggerDelete,
+}: ServiceCardProps) {
+  const unitPriceValue =
+    typeof service.unitPrice === "number"
+      ? service.unitPrice
+      : Number(service.unitPrice);
   const hasUnitPrice = Number.isFinite(unitPriceValue);
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
@@ -37,9 +42,11 @@ function ServiceCard({ service, triggerEdit, triggerDelete }: ServiceCardProps) 
           triggerDelete={triggerDelete}
         />
       </div>
-      <h4 className="mt-5 text-lg font-semibold text-zinc-900">{service.name}</h4>
+      <h4 className="mt-5 text-lg font-semibold text-zinc-900">
+        {service.name}
+      </h4>
       <p className="mt-2 min-h-10 text-sm leading-5 text-zinc-500">
-        {service.description || 'Aucune description renseignée.'}
+        {service.description || "Aucune description renseignée."}
       </p>
       <div className="mt-5 flex items-end justify-between border-t border-zinc-100 pt-4">
         <div>
@@ -47,8 +54,10 @@ function ServiceCard({ service, triggerEdit, triggerDelete }: ServiceCardProps) 
             Prix unitaire
           </p>
           <p className="mt-1 text-lg font-semibold text-zinc-900">
-            {hasUnitPrice ? unitPriceValue.toFixed(2) : 'N/A'} €
-            <span className="ml-1 text-sm font-medium text-zinc-400">/ {service.unit}</span>
+            {hasUnitPrice ? unitPriceValue.toFixed(2) : "N/A"} €
+            <span className="ml-1 text-sm font-medium text-zinc-400">
+              / {service.unit}
+            </span>
           </p>
         </div>
         <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">

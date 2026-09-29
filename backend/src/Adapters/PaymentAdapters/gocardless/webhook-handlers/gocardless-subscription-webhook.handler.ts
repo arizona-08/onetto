@@ -1,18 +1,14 @@
-import { Injectable } from "@nestjs/common";
-import { WebhookHandlerInterface } from "../../Interfaces/WebhookHandler.interface";
+import { Injectable } from '@nestjs/common';
+import { WebhookHandlerInterface } from '../../Interfaces/WebhookHandler.interface';
 
 @Injectable()
 export class GoCardlessSubscriptionWebhookHandler implements WebhookHandlerInterface {
   constructor() {}
 
-    async handleWebhook(webhook: any): Promise<void> {
-
-  }
+  async handleWebhook(webhook: any): Promise<void> {}
 
   isRelevantAction(action: string): boolean {
-    const relevantActions = [
-      ''
-    ]
+    const relevantActions = [''];
 
     return relevantActions.includes(action);
   }

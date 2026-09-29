@@ -1,35 +1,35 @@
-'use client';
+"use client";
 
-import Link from 'next/link'
-import { useRouter } from 'next/navigation';
-import React from 'react'
-import AuthShell from '../AuthShell'
-import { register } from '@/lib/auth/auth';
-import { ApiError } from '@/lib/api';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import React from "react";
+import AuthShell from "../AuthShell";
+import { register } from "@/lib/auth/auth";
+import { ApiError } from "@/lib/api";
 
 function getErrorMessage(error: ApiError): string {
-  return Array.isArray(error.message) ? error.message.join(' ') : error.message;
+  return Array.isArray(error.message) ? error.message.join(" ") : error.message;
 }
 
 function RegisterPage() {
   const router = useRouter();
-  const [error, setError] = React.useState('');
-  const [success, setSuccess] = React.useState('');
+  const [error, setError] = React.useState("");
+  const [success, setSuccess] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
     setIsLoading(true);
 
     const formData = new FormData(event.currentTarget);
     const registrationData = {
-      firstname: String(formData.get('firstname') || ''),
-      lastname: String(formData.get('lastname') || ''),
-      email: String(formData.get('email') || ''),
-      password: String(formData.get('password') || ''),
-      confirmationPassword: String(formData.get('confirmationPassword') || ''),
+      firstname: String(formData.get("firstname") || ""),
+      lastname: String(formData.get("lastname") || ""),
+      email: String(formData.get("email") || ""),
+      password: String(formData.get("password") || ""),
+      confirmationPassword: String(formData.get("confirmationPassword") || ""),
     };
     const result = await register(registrationData);
 
@@ -40,8 +40,16 @@ function RegisterPage() {
     }
 
     setIsLoading(false);
-    setSuccess('Votre compte a été créé. Vérifiez votre boîte e-mail pour l’activer.');
-    setTimeout(() => router.push(`/auth/check-email?email=${encodeURIComponent(registrationData.email)}`), 900);
+    setSuccess(
+      "Votre compte a été créé. Vérifiez votre boîte e-mail pour l’activer.",
+    );
+    setTimeout(
+      () =>
+        router.push(
+          `/auth/check-email?email=${encodeURIComponent(registrationData.email)}`,
+        ),
+      900,
+    );
   }
 
   return (
@@ -68,7 +76,10 @@ function RegisterPage() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <label htmlFor="firstname" className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600">
+            <label
+              htmlFor="firstname"
+              className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600"
+            >
               Prénom
             </label>
             <input
@@ -82,7 +93,10 @@ function RegisterPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label htmlFor="lastname" className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600">
+            <label
+              htmlFor="lastname"
+              className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600"
+            >
               Nom
             </label>
             <input
@@ -97,7 +111,10 @@ function RegisterPage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label htmlFor="email" className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600">
+          <label
+            htmlFor="email"
+            className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600"
+          >
             Email
           </label>
           <input
@@ -112,7 +129,10 @@ function RegisterPage() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
-            <label htmlFor="password" className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600">
+            <label
+              htmlFor="password"
+              className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600"
+            >
               Mot de passe
             </label>
             <input
@@ -126,7 +146,10 @@ function RegisterPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label htmlFor="confirmationPassword" className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600">
+            <label
+              htmlFor="confirmationPassword"
+              className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600"
+            >
               Confirmation
             </label>
             <input
@@ -141,13 +164,27 @@ function RegisterPage() {
         </div>
 
         <label className="flex items-start gap-2 text-xs leading-5 text-zinc-500">
-          <input type="checkbox" required className="mt-1 h-4 w-4 rounded border-zinc-300 accent-primary" />
+          <input
+            type="checkbox"
+            required
+            className="mt-1 h-4 w-4 rounded border-zinc-300 accent-primary"
+          />
           <span>
-            J'accepte les <Link href="/legal#CGU" className="text-primary font-medium hover:text-primary-hover underline">
+            J'accepte les{" "}
+            <Link
+              href="/legal#CGU"
+              className="text-primary font-medium hover:text-primary-hover underline"
+            >
               conditions d'utilisation
-            </Link> et la <Link href="/legal#politique-de-confidentialite" className="text-primary font-medium hover:text-primary-hover underline">
+            </Link>{" "}
+            et la{" "}
+            <Link
+              href="/legal#politique-de-confidentialite"
+              className="text-primary font-medium hover:text-primary-hover underline"
+            >
               politique de confidentialité
-            </Link> d'Onetto.
+            </Link>{" "}
+            d'Onetto.
           </span>
         </label>
 
@@ -156,7 +193,7 @@ function RegisterPage() {
           disabled={isLoading}
           className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {isLoading ? 'Création...' : 'Créer mon compte'}
+          {isLoading ? "Création..." : "Créer mon compte"}
         </button>
 
         {error && (
@@ -173,13 +210,16 @@ function RegisterPage() {
       </form>
 
       <p className="mt-6 text-sm text-zinc-500">
-        Déjà un compte ?{' '}
-        <Link href="/auth/login" className="font-semibold text-primary hover:text-primary-hover">
+        Déjà un compte ?{" "}
+        <Link
+          href="/auth/login"
+          className="font-semibold text-primary hover:text-primary-hover"
+        >
           Se connecter
         </Link>
       </p>
     </AuthShell>
-  )
+  );
 }
 
-export default RegisterPage
+export default RegisterPage;

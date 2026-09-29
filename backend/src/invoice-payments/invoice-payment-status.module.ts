@@ -6,7 +6,12 @@ import { ElectronicInvoicingModule } from 'src/electronic-invoicing/electronic-i
 import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
-  imports: [PrismaModule, MailModule, ElectronicInvoicingModule, NotificationsModule],
+  imports: [
+    PrismaModule,
+    MailModule,
+    ElectronicInvoicingModule,
+    NotificationsModule,
+  ],
   providers: [InvoicePaymentStatusService],
   exports: [InvoicePaymentStatusService],
 })

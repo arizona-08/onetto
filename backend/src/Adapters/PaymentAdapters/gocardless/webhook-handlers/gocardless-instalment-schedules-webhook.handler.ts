@@ -19,12 +19,7 @@ export class GoCardlessInstalmentSchedulesWebhookHandler implements WebhookHandl
   }
 
   isRelevantAction(action: string): boolean {
-    const relevantActions = [
-      'created',
-      'updated',
-      'deleted',
-      'errored',
-    ];
+    const relevantActions = ['created', 'updated', 'deleted', 'errored'];
 
     return relevantActions.includes(action);
   }

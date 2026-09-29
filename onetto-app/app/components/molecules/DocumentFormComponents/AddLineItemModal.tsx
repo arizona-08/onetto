@@ -1,39 +1,48 @@
-
-import { Service, ServiceLineItem } from '@/app/types';
-import { ChevronDown } from 'lucide-react';
-import React from 'react'
-import { getActiveCompanyServices } from '@/lib/companies/catalog';
+import { Service, ServiceLineItem } from "@/app/types";
+import { ChevronDown } from "lucide-react";
+import React from "react";
+import { getActiveCompanyServices } from "@/lib/companies/catalog";
 
 interface AddLineItemModalProps {
-  isVisible: boolean
-  onClose: () => void
+  isVisible: boolean;
+  onClose: () => void;
   onAddLineItem: (lineItem: ServiceLineItem) => void;
   lineItemToModify: {
-    item: ServiceLineItem | null
-    index: number | null
+    item: ServiceLineItem | null;
+    index: number | null;
   } | null;
   onEditLineItem: (lineItem: ServiceLineItem, index: number) => void;
 }
 
-function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify, onEditLineItem }: AddLineItemModalProps) {
-
-  const [lineItemDetails, setLineItemDetails] = React.useState<ServiceLineItem>({
-    description: "",
-    quantity: 1,
-    unitPrice: 0,
-    taxRate: 0.00,
-    unit: "",
-    itemType: 'SERVICES',
-  })
+function AddLineItemModal({
+  isVisible,
+  onClose,
+  onAddLineItem,
+  lineItemToModify,
+  onEditLineItem,
+}: AddLineItemModalProps) {
+  const [lineItemDetails, setLineItemDetails] = React.useState<ServiceLineItem>(
+    {
+      description: "",
+      quantity: 1,
+      unitPrice: 0,
+      taxRate: 0.0,
+      unit: "",
+      itemType: "SERVICES",
+    },
+  );
 
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
-  const [preSelectedService, setPreSelectedService] = React.useState<Service | null>(null);
-  const [predefinedServices, setPredefinedServices] = React.useState<Service[]>([]);
+  const [preSelectedService, setPreSelectedService] =
+    React.useState<Service | null>(null);
+  const [predefinedServices, setPredefinedServices] = React.useState<Service[]>(
+    [],
+  );
   const [isLoadingServices, setIsLoadingServices] = React.useState(true);
 
   function handleServiceSelect(service: Service | null) {
     setPreSelectedService(service);
-    if(service) {
+    if (service) {
       setLineItemDetails({
         description: service.description as string,
         quantity: 1,
@@ -41,34 +50,36 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
         taxRate: service.taxRate,
         unit: service.unit,
         itemType: service.itemType,
-      })
+      });
     } else {
       setLineItemDetails({
         description: "",
         quantity: 1,
         unitPrice: 0,
-        taxRate: 0.00,
+        taxRate: 0.0,
         unit: "",
-        itemType: 'SERVICES',
-      })
+        itemType: "SERVICES",
+      });
     }
     setIsDropdownOpen(false);
   }
 
   React.useEffect(() => {
     if (lineItemToModify) {
-      setLineItemDetails(lineItemToModify.item || {
-        description: "",
-        quantity: 1,
-        unitPrice: 0,
-        taxRate: 0.00,
-        unit: "",
-        itemType: 'SERVICES',
-      })
+      setLineItemDetails(
+        lineItemToModify.item || {
+          description: "",
+          quantity: 1,
+          unitPrice: 0,
+          taxRate: 0.0,
+          unit: "",
+          itemType: "SERVICES",
+        },
+      );
     } else {
-      resetLineItemDetails()
+      resetLineItemDetails();
     }
-  }, [lineItemToModify])
+  }, [lineItemToModify]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -81,10 +92,12 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
       }
 
       if (response.ok) {
-        setPredefinedServices(response.data.map((service) => ({
-          ...service,
-          taxRate: service.taxRate ?? 0,
-        })));
+        setPredefinedServices(
+          response.data.map((service) => ({
+            ...service,
+            taxRate: service.taxRate ?? 0,
+          })),
+        );
       }
 
       setIsLoadingServices(false);
@@ -102,19 +115,21 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
       description: "",
       quantity: 1,
       unitPrice: 0,
-      taxRate: 0.00,
+      taxRate: 0.0,
       unit: "",
-      itemType: 'SERVICES',
-    })
+      itemType: "SERVICES",
+    });
   }
-
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
-    setLineItemDetails(prev => ({
+    setLineItemDetails((prev) => ({
       ...prev,
-      [name]: name === "quantity" || name === "unitPrice" || name === "taxRate" ? Number(value) : value
-    }))
+      [name]:
+        name === "quantity" || name === "unitPrice" || name === "taxRate"
+          ? Number(value)
+          : value,
+    }));
   }
 
   return (
@@ -124,21 +139,29 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
           <div className="fixed inset-0 z-50 bg-black/25 backdrop-blur-xl"></div>
           <div className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-180 -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-md bg-white p-4 sm:p-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-title font-semibold mb-4">Ajouter un service</h2>
+              <h2 className="text-lg font-title font-semibold mb-4">
+                Ajouter un service
+              </h2>
               {/* service dropdown */}
               <div
                 className="relative flex items-center gap-2 border border-gray-300 rounded-md px-2 py-1 cursor-pointer"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               >
-                <ChevronDown/> <span className={`${preSelectedService ? 'text-gray-700' : 'text-gray-400'}`}>{preSelectedService?.name || "Choisir un service"}</span>
-
-                <ul className={`absolute top-full right-0 z-10 mt-1 w-75 max-w-[calc(100vw-2rem)] bg-white border border-gray-300 rounded-md ${isDropdownOpen ? 'block' : 'hidden'}`}>
+                <ChevronDown />{" "}
+                <span
+                  className={`${preSelectedService ? "text-gray-700" : "text-gray-400"}`}
+                >
+                  {preSelectedService?.name || "Choisir un service"}
+                </span>
+                <ul
+                  className={`absolute top-full right-0 z-10 mt-1 w-75 max-w-[calc(100vw-2rem)] bg-white border border-gray-300 rounded-md ${isDropdownOpen ? "block" : "hidden"}`}
+                >
                   <li
                     className="px-3 py-1 text-gray-400 hover:bg-gray-200"
                     onClick={() => handleServiceSelect(null)}
-                    >
-                      Choisir un service
-                    </li>
+                  >
+                    Choisir un service
+                  </li>
                   {isLoadingServices && (
                     <li className="px-3 py-1 text-gray-400">
                       Chargement des services…
@@ -149,8 +172,12 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
                       Aucun service enregistré
                     </li>
                   )}
-                  {predefinedServices.map(service => (
-                    <li key={service.id} className=" px-3 py-1 hover:bg-gray-200" onClick={() => handleServiceSelect(service)}>
+                  {predefinedServices.map((service) => (
+                    <li
+                      key={service.id}
+                      className=" px-3 py-1 hover:bg-gray-200"
+                      onClick={() => handleServiceSelect(service)}
+                    >
                       {service.name}
                     </li>
                   ))}
@@ -160,7 +187,12 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
             {/* Formulaire d'ajout de service */}
             <form className="space-y-4">
               <div>
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700">Titre du service</label>
+                <label
+                  htmlFor="description"
+                  className="block text-sm font-medium text-gray-700"
+                >
+                  Titre du service
+                </label>
                 <input
                   type="text"
                   id="description"
@@ -173,29 +205,57 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
               </div>
 
               <fieldset>
-                <legend className="mb-2 block text-sm font-medium text-gray-700">Type de ligne</legend>
+                <legend className="mb-2 block text-sm font-medium text-gray-700">
+                  Type de ligne
+                </legend>
                 <div className="flex gap-3">
                   <label className="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm">
-                    <input type="radio" name="itemType" value="GOODS" checked={lineItemDetails.itemType === 'GOODS'} onChange={() => setLineItemDetails((item) => ({ ...item, itemType: 'GOODS' }))} />
+                    <input
+                      type="radio"
+                      name="itemType"
+                      value="GOODS"
+                      checked={lineItemDetails.itemType === "GOODS"}
+                      onChange={() =>
+                        setLineItemDetails((item) => ({
+                          ...item,
+                          itemType: "GOODS",
+                        }))
+                      }
+                    />
                     Bien
                   </label>
                   <label className="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm">
-                    <input type="radio" name="itemType" value="SERVICES" checked={lineItemDetails.itemType === 'SERVICES'} onChange={() => setLineItemDetails((item) => ({ ...item, itemType: 'SERVICES' }))} />
+                    <input
+                      type="radio"
+                      name="itemType"
+                      value="SERVICES"
+                      checked={lineItemDetails.itemType === "SERVICES"}
+                      onChange={() =>
+                        setLineItemDetails((item) => ({
+                          ...item,
+                          itemType: "SERVICES",
+                        }))
+                      }
+                    />
                     Service / prestation
                   </label>
                 </div>
               </fieldset>
 
               <div className="flex flex-col gap-4 items-center bg-primary/10 p-4 rounded-md">
-
                 <div className="w-full flex flex-col gap-4 md:flex-row">
                   <div className="md:w-1/2">
-                    <label htmlFor="quantity" className="block text-sm font-medium text-gray-700">Quantité</label>
+                    <label
+                      htmlFor="quantity"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Quantité
+                    </label>
                     <input
                       type="number"
                       id="quantity"
                       name="quantity"
-                      placeholder='1'
+                      placeholder="1"
                       className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
                       value={lineItemDetails.quantity}
                       onChange={handleChange}
@@ -203,12 +263,17 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
                   </div>
 
                   <div className="md:w-1/2">
-                    <label htmlFor="unitPrice" className="block text-sm font-medium text-gray-700">Prix unitaire (€)</label>
+                    <label
+                      htmlFor="unitPrice"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Prix unitaire (€)
+                    </label>
                     <input
                       type="number"
                       id="unitPrice"
                       name="unitPrice"
-                      placeholder='5000'
+                      placeholder="5000"
                       className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
                       value={lineItemDetails.unitPrice}
                       onChange={handleChange}
@@ -217,28 +282,37 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
                 </div>
 
                 <div className="w-full flex flex-col gap-4 md:flex-row">
-
                   <div className="md:w-1/2">
-                    <label htmlFor="unit" className="block text-sm font-medium text-gray-700">Unité</label>
+                    <label
+                      htmlFor="unit"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Unité
+                    </label>
                     <input
                       type="text"
                       id="unit"
                       name="unit"
-                      placeholder='application'
+                      placeholder="application"
                       className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
                       value={lineItemDetails.unit}
-                      
+
                       onChange={handleChange}
                     />
                   </div>
 
                   <div className="md:w-1/2">
-                    <label htmlFor="taxRate" className="block text-sm font-medium text-gray-700">TVA (%)</label>
+                    <label
+                      htmlFor="taxRate"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      TVA (%)
+                    </label>
                     <input
                       type="number"
                       id="taxRate"
                       name="taxRate"
-                      placeholder='20'
+                      placeholder="20"
                       className="bg-primary/20 p-3 mt-1 block w-full text-primary placeholder:text-primary/50 rounded-md outline-none focus:ring-primary focus:border-primary sm:text-sm"
                       value={lineItemDetails.taxRate}
                       min={0}
@@ -250,24 +324,39 @@ function AddLineItemModal({ isVisible, onClose, onAddLineItem, lineItemToModify,
               </div>
 
               <div className="flex justify-end gap-4">
-                <button type="button" className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors" onClick={onClose}>Annuler</button>
-                <button type="submit" className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-hover transition-colors" onClick={(e) => {
-                  e.preventDefault();
-                  if (lineItemToModify) {
-                    onEditLineItem(lineItemDetails, lineItemToModify.index || 0);
-                  } else {
-                    onAddLineItem(lineItemDetails);
-                  }
-                  resetLineItemDetails();
-                  onClose();
-                }}>{lineItemToModify ? "Modifier" : "Ajouter"}</button>
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+                  onClick={onClose}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-hover transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (lineItemToModify) {
+                      onEditLineItem(
+                        lineItemDetails,
+                        lineItemToModify.index || 0,
+                      );
+                    } else {
+                      onAddLineItem(lineItemDetails);
+                    }
+                    resetLineItemDetails();
+                    onClose();
+                  }}
+                >
+                  {lineItemToModify ? "Modifier" : "Ajouter"}
+                </button>
               </div>
             </form>
           </div>
         </>
       )}
     </>
-  )
+  );
 }
 
-export default AddLineItemModal
+export default AddLineItemModal;

@@ -1,4 +1,4 @@
-import { apiServer } from '../api-server';
+import { apiServer } from "../api-server";
 
 export type UserSubscription = {
   subscriptionPlan: string | null;
@@ -7,7 +7,7 @@ export type UserSubscription = {
   willCancelAtPeriodEnd: boolean | null;
   pendingSubscriptionPlan: string | null;
   pendingPlanEffectiveAt: string | null;
-  currentPlan: 'FREE' | 'STARTER' | 'PRO';
+  currentPlan: "FREE" | "STARTER" | "PRO";
   features: {
     negotiation: boolean;
     instalments: boolean;
@@ -19,5 +19,5 @@ export type UserSubscription = {
 };
 
 export function getMySubscriptionServer() {
-  return apiServer<UserSubscription | null>('api/subscriptions/me');
+  return apiServer<UserSubscription | null>("api/subscriptions/me");
 }

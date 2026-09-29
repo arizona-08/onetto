@@ -1,5 +1,12 @@
-import { Type } from "class-transformer";
-import { IsDefined, IsEnum, IsNumber, IsOptional, IsString, ValidateNested } from "class-validator";
+import { Type } from 'class-transformer';
+import {
+  IsDefined,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 
 class WebhookTransactionContentDto {
   @IsOptional()
@@ -29,14 +36,19 @@ class WebhookTransactionContentDto {
 
   @IsOptional()
   @IsString()
-  status_reason?: string
+  status_reason?: string;
 }
 
-export type BridgeWebhookTransactionStatus = 'CREA' | 'ACTC' | 'PDNG' | 'ACSC' | 'RJCT';
-export type BridgeWebhookLinkStatus = 'valid' | 'expired' | 'revoked' | 'completed';
+export type BridgeWebhookTransactionStatus =
+  'CREA' | 'ACTC' | 'PDNG' | 'ACSC' | 'RJCT';
+export type BridgeWebhookLinkStatus =
+  'valid' | 'expired' | 'revoked' | 'completed';
 
-
-type WebhookTransactionType = 'payment.transaction.created' | 'payment.transaction.updated' | 'payment.link.updated' | 'TEST_EVENT';
+type WebhookTransactionType =
+  | 'payment.transaction.created'
+  | 'payment.transaction.updated'
+  | 'payment.link.updated'
+  | 'TEST_EVENT';
 
 export class WebhookTransactionDto {
   @IsDefined()
@@ -50,4 +62,3 @@ export class WebhookTransactionDto {
   @IsString()
   type: WebhookTransactionType;
 }
-

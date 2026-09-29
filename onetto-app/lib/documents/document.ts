@@ -63,7 +63,7 @@ export async function massDeleteDocuments(documentIds: string[]) {
 export async function deleteDraftDocument(documentId: string) {
   return apiClient<{ success: true; message: string }>(
     `api/documents/${documentId}/draft`,
-    { method: 'DELETE' },
+    { method: "DELETE" },
   );
 }
 
@@ -127,17 +127,23 @@ export type SuperPdpB2bTransmission = {
   events?: Array<{ id: string; providerStatus: string; occurredAt: string }>;
 };
 
-export function sendB2BInvoiceToSuperPdp(companyId: string, documentId: string) {
+export function sendB2BInvoiceToSuperPdp(
+  companyId: string,
+  documentId: string,
+) {
   return apiClient<SuperPdpB2bTransmission>(
     `api/electronic-invoicing/superpdp/companies/${companyId}/documents/${documentId}/b2b/send`,
-    { method: 'POST' },
+    { method: "POST" },
   );
 }
 
-export function syncB2BInvoiceWithSuperPdp(companyId: string, documentId: string) {
+export function syncB2BInvoiceWithSuperPdp(
+  companyId: string,
+  documentId: string,
+) {
   return apiClient<SuperPdpB2bTransmission>(
     `api/electronic-invoicing/superpdp/companies/${companyId}/documents/${documentId}/b2b/sync`,
-    { method: 'POST' },
+    { method: "POST" },
   );
 }
 
@@ -164,14 +170,14 @@ export async function retryInstalmentPayment(
 ) {
   return apiClient<InstalmentRetryCapability>(
     `api/documents/${documentId}/instalments/${instalmentNumber}/retry`,
-    { method: 'POST' },
+    { method: "POST" },
   );
 }
 
 export async function resendInstalmentMandateAuthorisation(documentId: string) {
   return apiClient<{ success: true; message: string }>(
     `api/documents/${documentId}/resend-instalment-mandate-authorisation`,
-    { method: 'POST' },
+    { method: "POST" },
   );
 }
 
@@ -209,14 +215,18 @@ export async function downloadDocumentPdf(documentId: string) {
 export async function downloadFacturX(documentId: string) {
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/electronic-invoicing/factur-x/documents/${documentId}/download`,
-    { credentials: 'include' },
+    { credentials: "include" },
   );
   if (!response.ok) {
-    let message = 'Impossible de générer le Factur-X.';
+    let message = "Impossible de générer le Factur-X.";
     try {
-      const body = await response.json() as { message?: string | string[] };
-      message = Array.isArray(body.message) ? body.message.join(', ') : body.message ?? message;
-    } catch { /* The API can return a non-JSON error page. */ }
+      const body = (await response.json()) as { message?: string | string[] };
+      message = Array.isArray(body.message)
+        ? body.message.join(", ")
+        : (body.message ?? message);
+    } catch {
+      /* The API can return a non-JSON error page. */
+    }
     throw new Error(message);
   }
   return response.blob();

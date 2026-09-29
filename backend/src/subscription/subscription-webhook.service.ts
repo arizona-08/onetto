@@ -55,7 +55,8 @@ export class SubscriptionWebhookService {
       }
       case 'invoice.payment_failed': {
         const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = invoice.parent?.subscription_details?.subscription;
+        const subscriptionId =
+          invoice.parent?.subscription_details?.subscription;
         if (typeof subscriptionId === 'string') {
           await this.syncSubscription(subscriptionId);
         }
@@ -82,7 +83,8 @@ export class SubscriptionWebhookService {
     const subscriptionPlan = this.matchPriceIdToSubscriptionPlan(priceId);
     const isCanceled = subscription.status === 'canceled';
     const customerId = this.getStripeId(subscription.customer);
-    const isActive = !isCanceled && this.isSubscriptionActive(subscription.status);
+    const isActive =
+      !isCanceled && this.isSubscriptionActive(subscription.status);
     const canceledAtPeriodEnd = subscription.cancel_at
       ? new Date(subscription.cancel_at * 1000)
       : subscription.canceled_at
@@ -154,15 +156,12 @@ export class SubscriptionWebhookService {
           isActive,
           canceledAtPeriodEnd,
           willCancelAtPeriodEnd: willCancelAtPeriodEnd,
-          pendingSubscriptionPlan: isCanceled || pendingPlanWasApplied
-            ? null
-            : undefined,
-          pendingPlanEffectiveAt: isCanceled || pendingPlanWasApplied
-            ? null
-            : undefined,
-          pendingStripeScheduleId: isCanceled || pendingPlanWasApplied
-            ? null
-            : undefined,
+          pendingSubscriptionPlan:
+            isCanceled || pendingPlanWasApplied ? null : undefined,
+          pendingPlanEffectiveAt:
+            isCanceled || pendingPlanWasApplied ? null : undefined,
+          pendingStripeScheduleId:
+            isCanceled || pendingPlanWasApplied ? null : undefined,
         },
       });
 

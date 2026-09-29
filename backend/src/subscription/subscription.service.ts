@@ -26,15 +26,15 @@ export class SubscriptionService {
   async getSubscriptionForUser(userId: string) {
     const [subscription, access] = await Promise.all([
       this.prismaService.userSubscription.findUnique({
-      where: { userId },
-      select: {
-        subscriptionPlan: true,
-        isActive: true,
-        canceledAtPeriodEnd: true,
-        willCancelAtPeriodEnd: true,
-        pendingSubscriptionPlan: true,
-        pendingPlanEffectiveAt: true,
-      },
+        where: { userId },
+        select: {
+          subscriptionPlan: true,
+          isActive: true,
+          canceledAtPeriodEnd: true,
+          willCancelAtPeriodEnd: true,
+          pendingSubscriptionPlan: true,
+          pendingPlanEffectiveAt: true,
+        },
       }),
       this.planAccessService.getUserAccess(userId),
     ]);
@@ -45,10 +45,15 @@ export class SubscriptionService {
   async createCheckoutSession(planProductId: string, userId: string) {
     await this.planAccessService.getUserAccess(userId);
     const targetPlan = this.matchPriceIdToSubscriptionPlan(planProductId);
-    const existingSubscription = await this.prismaService.userSubscription.findUnique({
-      where: { userId },
-      select: { subscriptionId: true, subscriptionPlan: true, isActive: true },
-    });
+    const existingSubscription =
+      await this.prismaService.userSubscription.findUnique({
+        where: { userId },
+        select: {
+          subscriptionId: true,
+          subscriptionPlan: true,
+          isActive: true,
+        },
+      });
 
     if (existingSubscription?.isActive && existingSubscription.subscriptionId) {
       return this.changeExistingSubscription(
@@ -137,26 +142,49 @@ export class SubscriptionService {
 
   private async changeExistingSubscription(
     userId: string,
-    current: { subscriptionId: string | null; subscriptionPlan: $Enums.SubscriptionPlan; isActive: boolean },
+    current: {
+      subscriptionId: string | null;
+      subscriptionPlan: $Enums.SubscriptionPlan;
+      isActive: boolean;
+    },
     targetPlan: $Enums.SubscriptionPlan,
     targetPriceId: string,
   ) {
     const changeType = getPlanChangeType(current.subscriptionPlan, targetPlan);
     if (changeType === 'SAME_PLAN') return { unchanged: true };
-    if (changeType === 'DOWNGRADE' || changeType === 'SAME_TIER_INTERVAL_CHANGE') {
-      await this.planAccessService.assertCanSchedulePlanChange(userId, targetPlan);
-      return this.schedulePlanChange(current.subscriptionId!, targetPlan, targetPriceId, userId);
+    if (
+      changeType === 'DOWNGRADE' ||
+      changeType === 'SAME_TIER_INTERVAL_CHANGE'
+    ) {
+      await this.planAccessService.assertCanSchedulePlanChange(
+        userId,
+        targetPlan,
+      );
+      return this.schedulePlanChange(
+        current.subscriptionId!,
+        targetPlan,
+        targetPriceId,
+        userId,
+      );
     }
 
-    const stripeSubscription = await this.stripe.subscriptions.retrieve(current.subscriptionId!);
+    const stripeSubscription = await this.stripe.subscriptions.retrieve(
+      current.subscriptionId!,
+    );
     const item = stripeSubscription.items.data[0];
-    if (!item) throw new Error('La souscription Stripe ne contient aucune offre.');
-    const updated = await this.stripe.subscriptions.update(current.subscriptionId!, {
-      items: [{ id: item.id, price: targetPriceId, quantity: item.quantity ?? 1 }],
-      proration_behavior: 'always_invoice',
-      payment_behavior: 'pending_if_incomplete',
-      expand: ['latest_invoice.payment_intent'],
-    });
+    if (!item)
+      throw new Error('La souscription Stripe ne contient aucune offre.');
+    const updated = await this.stripe.subscriptions.update(
+      current.subscriptionId!,
+      {
+        items: [
+          { id: item.id, price: targetPriceId, quantity: item.quantity ?? 1 },
+        ],
+        proration_behavior: 'always_invoice',
+        payment_behavior: 'pending_if_incomplete',
+        expand: ['latest_invoice.payment_intent'],
+      },
+    );
     // Stripe webhooks are the only authority that can activate the new plan.
     return {
       pendingPayment: Boolean(updated.pending_update),
@@ -176,8 +204,10 @@ export class SubscriptionService {
       from_subscription: subscriptionId,
     });
     const currentPhase = schedule.current_phase ?? schedule.phases[0];
-    if (!currentPhase) throw new Error('Stripe ne retourne pas la période en cours.');
-    const subscription = await this.stripe.subscriptions.retrieve(subscriptionId);
+    if (!currentPhase)
+      throw new Error('Stripe ne retourne pas la période en cours.');
+    const subscription =
+      await this.stripe.subscriptions.retrieve(subscriptionId);
     const currentItems = subscription.items.data.map((item) => ({
       price: item.price.id,
       quantity: item.quantity ?? 1,
@@ -195,7 +225,8 @@ export class SubscriptionService {
           start_date: currentPhase.end_date,
           items: [{ price: targetPriceId, quantity: 1 }],
           duration: {
-            interval: getBillingInterval(targetPlan) === 'YEARLY' ? 'year' : 'month',
+            interval:
+              getBillingInterval(targetPlan) === 'YEARLY' ? 'year' : 'month',
             interval_count: 1,
           },
           proration_behavior: 'none',
@@ -227,17 +258,25 @@ export class SubscriptionService {
 
   private currentPeriodEnd(subscription: Stripe.Subscription): Date {
     const periodEnd = subscription.items.data[0]?.current_period_end;
-    if (!periodEnd) throw new Error('Stripe ne retourne pas la fin de période.');
+    if (!periodEnd)
+      throw new Error('Stripe ne retourne pas la fin de période.');
     return new Date(periodEnd * 1000);
   }
 
-  private matchPriceIdToSubscriptionPlan(priceId: string): $Enums.SubscriptionPlan {
+  private matchPriceIdToSubscriptionPlan(
+    priceId: string,
+  ): $Enums.SubscriptionPlan {
     switch (priceId) {
-      case process.env.STRIPE_STARTER_MONTHLY_PRICE_ID: return 'STARTER_MONTHLY';
-      case process.env.STRIPE_STARTER_YEARLY_PRICE_ID: return 'STARTER_YEARLY';
-      case process.env.STRIPE_PRO_MONTHLY_PRICE_ID: return 'PRO_MONTHLY';
-      case process.env.STRIPE_PRO_YEARLY_PRICE_ID: return 'PRO_YEARLY';
-      default: throw new Error('Offre Stripe inconnue.');
+      case process.env.STRIPE_STARTER_MONTHLY_PRICE_ID:
+        return 'STARTER_MONTHLY';
+      case process.env.STRIPE_STARTER_YEARLY_PRICE_ID:
+        return 'STARTER_YEARLY';
+      case process.env.STRIPE_PRO_MONTHLY_PRICE_ID:
+        return 'PRO_MONTHLY';
+      case process.env.STRIPE_PRO_YEARLY_PRICE_ID:
+        return 'PRO_YEARLY';
+      default:
+        throw new Error('Offre Stripe inconnue.');
     }
   }
 }

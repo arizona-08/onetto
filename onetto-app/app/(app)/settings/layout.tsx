@@ -1,8 +1,8 @@
-import SettingsNavigation from '@/app/components/molecules/Settings/SettingsNavigation'
-import React from 'react'
+import SettingsNavigation from "@/app/components/molecules/Settings/SettingsNavigation";
+import React from "react";
 
 interface SettingsLayoutProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 function SettingsLayout({ children }: SettingsLayoutProps) {
   return (
@@ -11,7 +11,7 @@ function SettingsLayout({ children }: SettingsLayoutProps) {
 
       {children}
     </div>
-  )
+  );
 }
 
-export default SettingsLayout
+export default SettingsLayout;

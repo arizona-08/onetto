@@ -23,7 +23,8 @@ type InstalmentWithPlan = {
   instalmentNumber: number;
   amountInCents: number;
   providerPaymentId: string | null;
-  instalmentStatus: 'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'OVERDUE';
+  instalmentStatus:
+    'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'OVERDUE';
   automaticRetryScheduled: boolean;
   invoiceInstalmentPlan: {
     invoiceId: string;
@@ -151,14 +152,15 @@ export class GoCardlessInstalmentRetryService {
     documentId: string,
     user: User,
   ): Promise<boolean> {
-    const instalment = await this.prismaService.invoicePaymentInstalment.findFirst({
-      where: {
-        instalmentStatus: { in: ['FAILED', 'OVERDUE'] },
-        invoiceInstalmentPlan: { invoiceId: documentId },
-      },
-      select: { instalmentNumber: true },
-      orderBy: { instalmentNumber: 'asc' },
-    });
+    const instalment =
+      await this.prismaService.invoicePaymentInstalment.findFirst({
+        where: {
+          instalmentStatus: { in: ['FAILED', 'OVERDUE'] },
+          invoiceInstalmentPlan: { invoiceId: documentId },
+        },
+        select: { instalmentNumber: true },
+        orderBy: { instalmentNumber: 'asc' },
+      });
     if (!instalment) return false;
 
     const capability = await this.getCapability(
@@ -173,7 +175,9 @@ export class GoCardlessInstalmentRetryService {
     instalment: InstalmentWithPlan,
   ): Promise<InstalmentRetryCapability> {
     if (!instalment.providerPaymentId) {
-      return this.unavailable('Le prélèvement GoCardless n’est pas encore disponible.');
+      return this.unavailable(
+        'Le prélèvement GoCardless n’est pas encore disponible.',
+      );
     }
 
     const client = await this.gocardlessOAuthService.getClientForCompany(
@@ -191,7 +195,8 @@ export class GoCardlessInstalmentRetryService {
         automaticRetryScheduled: false,
         mandateActionRequired: false,
         ...(nextChargeDate ? { nextChargeDate } : {}),
-        message: 'Le prélèvement est déjà en cours de traitement par GoCardless.',
+        message:
+          'Le prélèvement est déjà en cours de traitement par GoCardless.',
       };
     }
 
@@ -219,9 +224,8 @@ export class GoCardlessInstalmentRetryService {
 
     const mandate = await client.mandates.find(mandateId);
     if (!mandate || mandate.status !== 'active') {
-      const mandateActionRequired = !mandate || INVALID_MANDATE_STATUSES.has(
-        mandate.status ?? '',
-      );
+      const mandateActionRequired =
+        !mandate || INVALID_MANDATE_STATUSES.has(mandate.status ?? '');
       return {
         canRetryManually: false,
         automaticRetryScheduled: false,
@@ -255,33 +259,35 @@ export class GoCardlessInstalmentRetryService {
     instalmentNumber: number,
     user: User,
   ): Promise<InstalmentWithPlan> {
-    const instalment = await this.prismaService.invoicePaymentInstalment.findFirst({
-      where: {
-        instalmentNumber,
-        invoiceInstalmentPlan: { invoiceId: documentId },
-      },
-      select: {
-        id: true,
-        instalmentNumber: true,
-        amountInCents: true,
-        instalmentStatus: true,
-        providerPaymentId: true,
-        automaticRetryScheduled: true,
-        invoiceInstalmentPlan: {
-          select: {
-            invoiceId: true,
-            providerMandateId: true,
-            invoice: {
-              select: {
-                id: true,
-                type: true,
-                companyId: true,
-                company: {
-                  select: {
-                    ownerId: true,
-                    companyUsers: {
-                      where: { userId: user.id },
-                      select: { id: true },
+    const instalment =
+      await this.prismaService.invoicePaymentInstalment.findFirst({
+        where: {
+          instalmentNumber,
+          invoiceInstalmentPlan: { invoiceId: documentId },
+        },
+        select: {
+          id: true,
+          instalmentNumber: true,
+          amountInCents: true,
+          instalmentStatus: true,
+          providerPaymentId: true,
+          automaticRetryScheduled: true,
+          invoiceInstalmentPlan: {
+            select: {
+              invoiceId: true,
+              providerMandateId: true,
+              invoice: {
+                select: {
+                  id: true,
+                  type: true,
+                  companyId: true,
+                  company: {
+                    select: {
+                      ownerId: true,
+                      companyUsers: {
+                        where: { userId: user.id },
+                        select: { id: true },
+                      },
                     },
                   },
                 },
@@ -289,9 +295,11 @@ export class GoCardlessInstalmentRetryService {
             },
           },
         },
-      },
-    });
-    if (!instalment || instalment.invoiceInstalmentPlan.invoice.type !== 'INVOICE') {
+      });
+    if (
+      !instalment ||
+      instalment.invoiceInstalmentPlan.invoice.type !== 'INVOICE'
+    ) {
       throw new NotFoundException('Échéance introuvable.');
     }
 

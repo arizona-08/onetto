@@ -62,7 +62,9 @@ describe('GoCardlessInstalmentRetryService', () => {
   });
 
   it('autorise le retry manuel uniquement pour un Payment failed et un mandat actif', async () => {
-    await expect(service.getCapability('invoice-1', 2, user)).resolves.toMatchObject({
+    await expect(
+      service.getCapability('invoice-1', 2, user),
+    ).resolves.toMatchObject({
       canRetryManually: true,
       automaticRetryScheduled: false,
       mandateActionRequired: false,
@@ -70,9 +72,13 @@ describe('GoCardlessInstalmentRetryService', () => {
   });
 
   it('bloque le retry manuel lorsqu’un retry automatique est planifié', async () => {
-    prisma.invoicePaymentInstalment.findFirst.mockResolvedValue(instalment(true));
+    prisma.invoicePaymentInstalment.findFirst.mockResolvedValue(
+      instalment(true),
+    );
 
-    await expect(service.getCapability('invoice-1', 2, user)).resolves.toMatchObject({
+    await expect(
+      service.getCapability('invoice-1', 2, user),
+    ).resolves.toMatchObject({
       canRetryManually: false,
       automaticRetryScheduled: true,
     });
@@ -86,7 +92,9 @@ describe('GoCardlessInstalmentRetryService', () => {
       links: { mandate: 'MD1' },
     });
 
-    await expect(service.getCapability('invoice-1', 2, user)).resolves.toMatchObject({
+    await expect(
+      service.getCapability('invoice-1', 2, user),
+    ).resolves.toMatchObject({
       canRetryManually: false,
       mandateActionRequired: false,
     });
@@ -95,7 +103,9 @@ describe('GoCardlessInstalmentRetryService', () => {
   it('demande une nouvelle autorisation quand le mandat est invalide', async () => {
     client.mandates.find.mockResolvedValue({ id: 'MD1', status: 'cancelled' });
 
-    await expect(service.getCapability('invoice-1', 2, user)).resolves.toMatchObject({
+    await expect(
+      service.getCapability('invoice-1', 2, user),
+    ).resolves.toMatchObject({
       canRetryManually: false,
       mandateActionRequired: true,
     });

@@ -9,9 +9,16 @@ import { UserService } from './user.service';
 
 describe('UserService', () => {
   const prisma = {
-    user: { findUniqueOrThrow: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    user: {
+      findUniqueOrThrow: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
   };
-  const mailService = { sendMail: jest.fn(), createEmailVerificationMail: jest.fn() };
+  const mailService = {
+    sendMail: jest.fn(),
+    createEmailVerificationMail: jest.fn(),
+  };
   const service = new UserService(prisma as never, mailService as never);
 
   beforeEach(() => jest.clearAllMocks());
@@ -49,10 +56,14 @@ describe('UserService', () => {
   });
 
   it('confirme un jeton d’e-mail valide et le rend inutilisable', async () => {
-    prisma.user.findFirst.mockResolvedValue({ id: 'user-1', emailVerifiedAt: null });
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'user-1',
+      emailVerifiedAt: null,
+    });
 
     await expect(service.confirmEmail('token-valide')).resolves.toEqual({
-      message: 'Votre adresse e-mail a été confirmée. Vous pouvez maintenant vous connecter.',
+      message:
+        'Votre adresse e-mail a été confirmée. Vous pouvez maintenant vous connecter.',
     });
 
     expect(prisma.user.findFirst).toHaveBeenCalledWith({

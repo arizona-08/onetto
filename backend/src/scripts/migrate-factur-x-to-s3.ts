@@ -14,11 +14,16 @@ async function run() {
   const environment = parse(await readFile('.env'));
   const config = new ConfigService(environment);
   const prisma = new PrismaService(config);
-  const migration = new FacturXArchiveMigrationService(prisma, new S3StorageService(config));
+  const migration = new FacturXArchiveMigrationService(
+    prisma,
+    new S3StorageService(config),
+  );
   try {
     await prisma.$connect();
     const result = await migration.migrateLegacyFacturX();
-    console.log(`Migration Factur-X terminée : ${result.migrated} document(s) migré(s).`);
+    console.log(
+      `Migration Factur-X terminée : ${result.migrated} document(s) migré(s).`,
+    );
   } finally {
     await prisma.$disconnect();
   }

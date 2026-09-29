@@ -1,12 +1,12 @@
 type Ok<T> = {
   ok: true;
   data: T;
-}
+};
 
 type Err<E> = {
   ok: false;
   error: E;
-}
+};
 
 export type Result<T, E> = Ok<T> | Err<E>;
 

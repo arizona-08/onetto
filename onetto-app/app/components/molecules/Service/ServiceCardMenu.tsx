@@ -1,6 +1,6 @@
-'use client';
-import { EllipsisVertical } from 'lucide-react'
-import React from 'react'
+"use client";
+import { EllipsisVertical } from "lucide-react";
+import React from "react";
 
 interface ServiceCardMenuProps {
   isOpen: boolean;
@@ -10,7 +10,13 @@ interface ServiceCardMenuProps {
   triggerDelete?: (serviceId: string) => void;
 }
 
-function ServiceCardMenu({ isOpen, setIsOpen, serviceId, triggerEdit, triggerDelete }: ServiceCardMenuProps) {
+function ServiceCardMenu({
+  isOpen,
+  setIsOpen,
+  serviceId,
+  triggerEdit,
+  triggerDelete,
+}: ServiceCardMenuProps) {
   const menuRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -21,17 +27,17 @@ function ServiceCardMenu({ isOpen, setIsOpen, serviceId, triggerEdit, triggerDel
     }
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         setIsOpen(false);
       }
     }
 
-    document.addEventListener('mousedown', closeOnOutsideClick);
-    document.addEventListener('keydown', closeOnEscape);
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
 
     return () => {
-      document.removeEventListener('mousedown', closeOnOutsideClick);
-      document.removeEventListener('keydown', closeOnEscape);
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
     };
   }, [setIsOpen]);
 
@@ -46,22 +52,30 @@ function ServiceCardMenu({ isOpen, setIsOpen, serviceId, triggerEdit, triggerDel
         <EllipsisVertical className="h-5 w-5" />
       </button>
 
-      <div className={`${isOpen ? 'block' : 'hidden'} absolute right-0 top-full z-10 mt-1 w-40 rounded-xl border border-zinc-200 bg-white p-1`}>
-        <button className="block w-full text-left px-4 py-2 text-sm text-zinc-700 rounded-md hover:bg-zinc-100" onClick={() => {
-          setIsOpen(false);
-          triggerEdit?.(serviceId);
-        }}>
+      <div
+        className={`${isOpen ? "block" : "hidden"} absolute right-0 top-full z-10 mt-1 w-40 rounded-xl border border-zinc-200 bg-white p-1`}
+      >
+        <button
+          className="block w-full text-left px-4 py-2 text-sm text-zinc-700 rounded-md hover:bg-zinc-100"
+          onClick={() => {
+            setIsOpen(false);
+            triggerEdit?.(serviceId);
+          }}
+        >
           Modifier
         </button>
-        <button className="block w-full text-left px-4 py-2 text-sm text-red-500 rounded-md hover:bg-zinc-100" onClick={() => {
-          setIsOpen(false);
-          triggerDelete?.(serviceId);
-        }}>
+        <button
+          className="block w-full text-left px-4 py-2 text-sm text-red-500 rounded-md hover:bg-zinc-100"
+          onClick={() => {
+            setIsOpen(false);
+            triggerDelete?.(serviceId);
+          }}
+        >
           Supprimer
         </button>
       </div>
     </div>
-  )
+  );
 }
 
-export default ServiceCardMenu
+export default ServiceCardMenu;

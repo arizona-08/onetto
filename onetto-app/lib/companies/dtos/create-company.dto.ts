@@ -14,32 +14,55 @@ export type CreateCompanyDto = {
   isVatExempt: boolean;
   vatExigibility: CompanyVatExigibility;
   electronicAddress: string;
-  electronicAddressScheme: 'SIREN' | 'SIRET' | 'VAT' | 'GLN' | 'PEPPOL';
+  electronicAddressScheme: "SIREN" | "SIRET" | "VAT" | "GLN" | "PEPPOL";
   vatNumber?: string;
   IBAN: string;
   BIC: string;
-}
+};
 
 export type CompanyLegalStatus =
-  | 'MICRO_ENTERPRISE' | 'INDIVIDUAL_ENTREPRENEUR' | 'EIRL' | 'EURL'
-  | 'SARL' | 'SELARL' | 'SASU' | 'SAS' | 'SELAS' | 'SA' | 'SELAFA'
-  | 'SCA' | 'SELCA' | 'SNC' | 'SCS' | 'SLP' | 'SOCIETE_CIVILE' | 'SCI'
-  | 'SCM' | 'SCP' | 'EARL' | 'GAEC' | 'SCEA' | 'GIE' | 'ASSOCIATION'
-  | 'FONDATION' | 'MUTUELLE' | 'COOPERATIVE' | 'ETABLISSEMENT_PUBLIC'
-  | 'COLLECTIVITE_TERRITORIALE' | 'SOCIETE_ETRANGERE' | 'OTHER';
+  | "MICRO_ENTERPRISE"
+  | "INDIVIDUAL_ENTREPRENEUR"
+  | "EIRL"
+  | "EURL"
+  | "SARL"
+  | "SELARL"
+  | "SASU"
+  | "SAS"
+  | "SELAS"
+  | "SA"
+  | "SELAFA"
+  | "SCA"
+  | "SELCA"
+  | "SNC"
+  | "SCS"
+  | "SLP"
+  | "SOCIETE_CIVILE"
+  | "SCI"
+  | "SCM"
+  | "SCP"
+  | "EARL"
+  | "GAEC"
+  | "SCEA"
+  | "GIE"
+  | "ASSOCIATION"
+  | "FONDATION"
+  | "MUTUELLE"
+  | "COOPERATIVE"
+  | "ETABLISSEMENT_PUBLIC"
+  | "COLLECTIVITE_TERRITORIALE"
+  | "SOCIETE_ETRANGERE"
+  | "OTHER";
 
 export type CompanyVatRegime =
-  | 'MONTHLY'
-  | 'QUARTERLY'
-  | 'SIMPLIFIED'
-  | 'VAT_EXEMPTION';
+  "MONTHLY" | "QUARTERLY" | "SIMPLIFIED" | "VAT_EXEMPTION";
 
-export type CompanyVatExigibility = 'UNKNOWN' | 'ON_COLLECTION' | 'ON_DEBITS';
+export type CompanyVatExigibility = "UNKNOWN" | "ON_COLLECTION" | "ON_DEBITS";
 
 export type Company = CreateCompanyDto & {
   id: string;
   ownerId: string;
-  status: 'ACTIVE' | 'CLOSED';
+  status: "ACTIVE" | "CLOSED";
   isHidden: boolean;
   closingReason?: string | null;
   closedAt?: string | null;
@@ -48,10 +71,10 @@ export type Company = CreateCompanyDto & {
   hasRequiredAction?: boolean;
   companyPaymentAccount?: {
     id: string;
-    provider: 'GO_CARDLESS' | 'STRIPE' | 'PAYPAL';
+    provider: "GO_CARDLESS" | "STRIPE" | "PAYPAL";
     providerAccountId: string;
     // accessToken: string;
     creditorId: string;
-    verificationStatus: 'NOT_VERIFIED' | 'VERIFIED' | 'IN_REVIEW';
+    verificationStatus: "NOT_VERIFIED" | "VERIFIED" | "IN_REVIEW";
   } | null;
-}
+};

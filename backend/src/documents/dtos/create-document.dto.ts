@@ -125,5 +125,4 @@ export class CreateDocumentDto {
   @ValidateNested()
   @Type(() => InstalmentsDetailsDto)
   instalmentsDetails?: InstalmentsDetailsDto;
-
 }

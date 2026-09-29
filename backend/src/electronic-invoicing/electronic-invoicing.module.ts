@@ -22,8 +22,21 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
 import { StorageModule } from 'src/storage/storage.module';
 
 @Module({
-  imports: [PrismaModule, UserModule, PdfModule, NotificationsModule, StorageModule],
-  controllers: [SuperPdpOAuthController, SuperPdpEreportingController, FacturXController, SuperPdpDirectoryController, SuperPdpB2bController, SuperPdpIncomingInvoicesController],
+  imports: [
+    PrismaModule,
+    UserModule,
+    PdfModule,
+    NotificationsModule,
+    StorageModule,
+  ],
+  controllers: [
+    SuperPdpOAuthController,
+    SuperPdpEreportingController,
+    FacturXController,
+    SuperPdpDirectoryController,
+    SuperPdpB2bController,
+    SuperPdpIncomingInvoicesController,
+  ],
   providers: [
     ElectronicInvoicingClassifierService,
     SuperPdpOAuthService,
@@ -36,6 +49,12 @@ import { StorageModule } from 'src/storage/storage.module';
     SuperPdpIncomingInvoicesService,
     ElectronicInvoiceValidationService,
   ],
-  exports: [ElectronicInvoicingClassifierService, SuperPdpOAuthService, SuperPdpEreportingService, FacturXService, SuperPdpB2bService],
+  exports: [
+    ElectronicInvoicingClassifierService,
+    SuperPdpOAuthService,
+    SuperPdpEreportingService,
+    FacturXService,
+    SuperPdpB2bService,
+  ],
 })
 export class ElectronicInvoicingModule {}

@@ -65,12 +65,16 @@ export class SuperPdpOAuthController {
     @Query('error') error: string | undefined,
     @Res() res: Response,
   ) {
-    const { companyId } = await this.superPdpOAuthService.completeAuthorization({
-      code,
-      state,
-      error,
-    });
+    const { companyId } = await this.superPdpOAuthService.completeAuthorization(
+      {
+        code,
+        state,
+        error,
+      },
+    );
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-    return res.redirect(`${frontendUrl}/my-companies?superpdp=connected&companyId=${companyId}`);
+    return res.redirect(
+      `${frontendUrl}/my-companies?superpdp=connected&companyId=${companyId}`,
+    );
   }
 }

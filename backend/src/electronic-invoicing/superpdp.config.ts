@@ -11,12 +11,12 @@ const featureFlags = [
 export function validateSuperPdpConfiguration(env: Environment): Environment {
   const environment = env.SUPERPDP_ENVIRONMENT ?? 'sandbox';
   if (!['sandbox', 'production'].includes(environment)) {
-    throw new Error('SUPERPDP_ENVIRONMENT doit être « sandbox » ou « production ».');
+    throw new Error(
+      'SUPERPDP_ENVIRONMENT doit être « sandbox » ou « production ».',
+    );
   }
 
-  const enabledFeatures = featureFlags.filter(
-    (name) => env[name] === 'true',
-  );
+  const enabledFeatures = featureFlags.filter((name) => env[name] === 'true');
   if (enabledFeatures.length === 0) {
     return env;
   }

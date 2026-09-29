@@ -1,5 +1,5 @@
-import { ApiError, apiClient } from '@/lib/api';
-import { Result } from '@/shared/result';
+import { ApiError, apiClient } from "@/lib/api";
+import { Result } from "@/shared/result";
 
 export type UpdateProfileInput = {
   firstname: string;
@@ -13,10 +13,30 @@ export type ChangePasswordInput = {
   confirmationPassword: string;
 };
 
-export function updateMyProfile(input: UpdateProfileInput): Promise<Result<{ message: string; user: UpdateProfileInput & { id: string; accountType: string; emailVerifiedAt: string | null } }, ApiError>> {
-  return apiClient('api/users/me', { method: 'PATCH', body: JSON.stringify(input) });
+export function updateMyProfile(input: UpdateProfileInput): Promise<
+  Result<
+    {
+      message: string;
+      user: UpdateProfileInput & {
+        id: string;
+        accountType: string;
+        emailVerifiedAt: string | null;
+      };
+    },
+    ApiError
+  >
+> {
+  return apiClient("api/users/me", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }
 
-export function changeMyPassword(input: ChangePasswordInput): Promise<Result<{ message: string }, ApiError>> {
-  return apiClient('api/users/me/password', { method: 'PATCH', body: JSON.stringify(input) });
+export function changeMyPassword(
+  input: ChangePasswordInput,
+): Promise<Result<{ message: string }, ApiError>> {
+  return apiClient("api/users/me/password", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
 }

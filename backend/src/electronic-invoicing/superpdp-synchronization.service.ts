@@ -13,7 +13,10 @@ export class SuperPdpSynchronizationService {
   private readonly logger = new Logger(SuperPdpSynchronizationService.name);
   private isRunning = false;
 
-  constructor(private readonly b2b: SuperPdpB2bService, private readonly incoming: SuperPdpIncomingInvoicesService) {}
+  constructor(
+    private readonly b2b: SuperPdpB2bService,
+    private readonly incoming: SuperPdpIncomingInvoicesService,
+  ) {}
 
   @Cron('0 */15 * * * *', { timeZone: 'Europe/Paris' })
   async synchronizeOutgoingInvoices() {
@@ -23,14 +26,24 @@ export class SuperPdpSynchronizationService {
       const result = await this.b2b.syncPendingTransmissions();
       const incoming = await this.incoming.synchronizeAll();
       if (result.checked > 0) {
-        this.logger.log(`Synchronisation SuperPDP : ${result.synchronized}/${result.checked} facture(s) mise(s) à jour.`);
+        this.logger.log(
+          `Synchronisation SuperPDP : ${result.synchronized}/${result.checked} facture(s) mise(s) à jour.`,
+        );
       }
       if (result.failed > 0) {
-        this.logger.warn(`Synchronisation SuperPDP incomplète : ${result.failed} facture(s) à réessayer.`);
+        this.logger.warn(
+          `Synchronisation SuperPDP incomplète : ${result.failed} facture(s) à réessayer.`,
+        );
       }
-      if (incoming.failed > 0) this.logger.warn(`Synchronisation des factures fournisseurs incomplète : ${incoming.failed} entreprise(s) à réessayer.`);
+      if (incoming.failed > 0)
+        this.logger.warn(
+          `Synchronisation des factures fournisseurs incomplète : ${incoming.failed} entreprise(s) à réessayer.`,
+        );
     } catch (error) {
-      this.logger.error('La synchronisation SuperPDP a échoué.', error instanceof Error ? error.stack : undefined);
+      this.logger.error(
+        'La synchronisation SuperPDP a échoué.',
+        error instanceof Error ? error.stack : undefined,
+      );
     } finally {
       this.isRunning = false;
     }

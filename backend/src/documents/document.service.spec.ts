@@ -100,27 +100,21 @@ describe('DocumentService', () => {
   } as unknown as PrismaService;
   const mail = {
     sendMail: jest.fn(),
-    createInvoiceMail: jest
-      .fn()
-      .mockReturnValue({
-        subject: 'Facture',
-        text: 'facture',
-        html: '<p>Facture</p>',
-      }),
-    createInvoicePaymentRetryMail: jest
-      .fn()
-      .mockReturnValue({
-        subject: 'Relance',
-        text: 'relance',
-        html: '<p>Relance</p>',
-      }),
-    createEstimateMail: jest
-      .fn()
-      .mockReturnValue({
-        subject: 'Devis',
-        text: 'devis',
-        html: '<p>Devis</p>',
-      }),
+    createInvoiceMail: jest.fn().mockReturnValue({
+      subject: 'Facture',
+      text: 'facture',
+      html: '<p>Facture</p>',
+    }),
+    createInvoicePaymentRetryMail: jest.fn().mockReturnValue({
+      subject: 'Relance',
+      text: 'relance',
+      html: '<p>Relance</p>',
+    }),
+    createEstimateMail: jest.fn().mockReturnValue({
+      subject: 'Devis',
+      text: 'devis',
+      html: '<p>Devis</p>',
+    }),
   } as unknown as MailService;
   const pdf = { generate: jest.fn() } as unknown as PdfService;
   const bridge = {

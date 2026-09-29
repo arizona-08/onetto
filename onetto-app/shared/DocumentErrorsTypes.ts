@@ -1,6 +1,6 @@
 export type DocumentDateError = {
-  dueDate?: string[]
-}
+  dueDate?: string[];
+};
 
 export type DocumentClientError = {
   name?: string[];
@@ -10,8 +10,8 @@ export type DocumentClientError = {
   postalCode?: string[];
   country?: string[];
   general?: string[];
-}
+};
 
 export type DocumentLineItemsError = {
   general?: string[];
-}
+};

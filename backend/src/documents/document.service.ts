@@ -96,7 +96,8 @@ export class DocumentService {
             clientSiren: documentData.client.siren,
             clientVatNumber: documentData.client.vatNumber,
             clientElectronicAddress: documentData.client.electronicAddress,
-            clientElectronicAddressScheme: documentData.client.electronicAddressScheme,
+            clientElectronicAddressScheme:
+              documentData.client.electronicAddressScheme,
             operationNature: this.getOperationNatureFromLineItems(lineItems),
             totalPriceExcludingTax: totalPriceExludingTax,
             totalPrice: totalDocumentPrice,
@@ -497,8 +498,7 @@ export class DocumentService {
           clientSiren: document.clientSiren,
           clientVatNumber: document.clientVatNumber,
           clientElectronicAddress: document.clientElectronicAddress,
-          clientElectronicAddressScheme:
-            document.clientElectronicAddressScheme,
+          clientElectronicAddressScheme: document.clientElectronicAddressScheme,
           operationNature: document.operationNature,
           clientIsVatTaxable: document.clientIsVatTaxable,
           clientForeignIdentifier: document.clientForeignIdentifier,
@@ -1304,19 +1304,31 @@ export class DocumentService {
   async generateDocumentPdf(documentId: string, user: User): Promise<Buffer> {
     const document = await this.getDocumentById(documentId, user, true);
     if (document.sentAt && document.urlDocumentPdf?.startsWith('companies/')) {
-      return this.storage.getOperationalDocumentPdf(document.urlDocumentPdf, document.documentPdfSha256);
+      return this.storage.getOperationalDocumentPdf(
+        document.urlDocumentPdf,
+        document.documentPdfSha256,
+      );
     }
     const company = await this.getInvoiceCompany(document.companyId);
     const pdf = await this.pdfService.generate({
       ...document,
       company,
     });
-    if (document.sentAt) await this.storeDocumentPdf(document.id, document.companyId, pdf);
+    if (document.sentAt)
+      await this.storeDocumentPdf(document.id, document.companyId, pdf);
     return pdf;
   }
 
-  private async storeDocumentPdf(documentId: string, companyId: string, pdf: Buffer) {
-    const stored = await this.storage.storeOperationalDocumentPdf({ companyId, documentId, content: pdf });
+  private async storeDocumentPdf(
+    documentId: string,
+    companyId: string,
+    pdf: Buffer,
+  ) {
+    const stored = await this.storage.storeOperationalDocumentPdf({
+      companyId,
+      documentId,
+      content: pdf,
+    });
     await this.prismaService.document.update({
       where: { id: documentId },
       data: {
@@ -1440,7 +1452,15 @@ export class DocumentService {
 
       return { success: true, documentId: negociation.documentId };
     });
-    if (result) await this.notifications.notifyCompany({ companyId: pendingNegociation.document.companyId, type: 'ESTIMATE_RENEGOTIATED', title: 'Devis renégocié', message: 'Un client a demandé une renégociation de devis.', href: `/documents/${result.documentId}`, deduplicationKey: `estimate:${result.documentId}:renegotiated` });
+    if (result)
+      await this.notifications.notifyCompany({
+        companyId: pendingNegociation.document.companyId,
+        type: 'ESTIMATE_RENEGOTIATED',
+        title: 'Devis renégocié',
+        message: 'Un client a demandé une renégociation de devis.',
+        href: `/documents/${result.documentId}`,
+        deduplicationKey: `estimate:${result.documentId}:renegotiated`,
+      });
     return result;
   }
 
@@ -1477,8 +1497,23 @@ export class DocumentService {
       return { success: true, documentId: negociation.documentId };
     });
     if (result) {
-      const negotiation = await this.prismaService.estimateNegociation.findUnique({ where: { negociationToken }, select: { document: { select: { companyId: true, documentNumber: true } } } });
-      if (negotiation) await this.notifications.notifyCompany({ companyId: negotiation.document.companyId, type: status === 'ACCEPTED' ? 'ESTIMATE_ACCEPTED' : 'ESTIMATE_REJECTED', title: status === 'ACCEPTED' ? 'Devis accepté' : 'Devis refusé', message: `Le devis ${negotiation.document.documentNumber} a été ${status === 'ACCEPTED' ? 'accepté' : 'refusé'} par le client.`, href: `/documents/${result.documentId}`, deduplicationKey: `estimate:${result.documentId}:${status.toLowerCase()}` });
+      const negotiation =
+        await this.prismaService.estimateNegociation.findUnique({
+          where: { negociationToken },
+          select: {
+            document: { select: { companyId: true, documentNumber: true } },
+          },
+        });
+      if (negotiation)
+        await this.notifications.notifyCompany({
+          companyId: negotiation.document.companyId,
+          type:
+            status === 'ACCEPTED' ? 'ESTIMATE_ACCEPTED' : 'ESTIMATE_REJECTED',
+          title: status === 'ACCEPTED' ? 'Devis accepté' : 'Devis refusé',
+          message: `Le devis ${negotiation.document.documentNumber} a été ${status === 'ACCEPTED' ? 'accepté' : 'refusé'} par le client.`,
+          href: `/documents/${result.documentId}`,
+          deduplicationKey: `estimate:${result.documentId}:${status.toLowerCase()}`,
+        });
     }
     return result;
   }
@@ -1629,7 +1664,9 @@ export class DocumentService {
   private getOperationNatureFromLineItems(
     lineItems: Array<{ itemType?: 'GOODS' | 'SERVICES' }>,
   ): 'GOODS' | 'SERVICES' | 'MIXED' {
-    const itemTypes = new Set(lineItems.map((lineItem) => lineItem.itemType ?? 'SERVICES'));
+    const itemTypes = new Set(
+      lineItems.map((lineItem) => lineItem.itemType ?? 'SERVICES'),
+    );
     if (itemTypes.has('GOODS') && itemTypes.has('SERVICES')) return 'MIXED';
     return itemTypes.has('GOODS') ? 'GOODS' : 'SERVICES';
   }
@@ -1804,7 +1841,11 @@ export class DocumentService {
 
       if (isInvoice) {
         await this.facturXService.archive(document.id, user);
-        await this.storeDocumentPdf(document.id, document.companyId, invoicePdf!);
+        await this.storeDocumentPdf(
+          document.id,
+          document.companyId,
+          invoicePdf!,
+        );
       }
 
       const mailContent = isInvoice
@@ -1845,8 +1886,12 @@ export class DocumentService {
       if (
         isInvoice &&
         document.clientType === 'INDIVIDUAL' &&
-        ['FR', 'FRA', 'FRANCE'].includes(document.clientCountry.trim().toUpperCase()) &&
-        this.configService.get<string>('SUPERPDP_TRANSACTION_EREPORTING_ENABLED') === 'true'
+        ['FR', 'FRA', 'FRANCE'].includes(
+          document.clientCountry.trim().toUpperCase(),
+        ) &&
+        this.configService.get<string>(
+          'SUPERPDP_TRANSACTION_EREPORTING_ENABLED',
+        ) === 'true'
       ) {
         try {
           await this.superPdpEreportingService.submitB2CTransaction({
@@ -1870,7 +1915,10 @@ export class DocumentService {
           // The invoice email has already been sent. The B2B transmission
           // service persists a retryable FAILED status when it could start;
           // never turn a temporary platform issue into a failed client send.
-          console.error('Transmission B2B SuperPDP automatique impossible:', error);
+          console.error(
+            'Transmission B2B SuperPDP automatique impossible:',
+            error,
+          );
         }
       }
 
@@ -2017,7 +2065,8 @@ export class DocumentService {
 
     return {
       success: true,
-      message: 'Une nouvelle autorisation de prélèvement a été envoyée au client.',
+      message:
+        'Une nouvelle autorisation de prélèvement a été envoyée au client.',
     };
   }
 
@@ -2315,7 +2364,9 @@ export class DocumentService {
       }
 
       await this.manuallyMarkInvoiceAs('PAID_MANUALLY', documentId);
-      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(documentId);
+      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(
+        documentId,
+      );
 
       return {
         success: true,

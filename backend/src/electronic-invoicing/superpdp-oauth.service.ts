@@ -84,8 +84,14 @@ export class SuperPdpOAuthService {
 
     const url = new URL(this.authorizationEndpoint);
     url.searchParams.set('response_type', 'code');
-    url.searchParams.set('client_id', this.getRequiredConfig('SUPERPDP_CLIENT_ID'));
-    url.searchParams.set('redirect_uri', this.getRequiredConfig('SUPERPDP_OAUTH_REDIRECT_URL'));
+    url.searchParams.set(
+      'client_id',
+      this.getRequiredConfig('SUPERPDP_CLIENT_ID'),
+    );
+    url.searchParams.set(
+      'redirect_uri',
+      this.getRequiredConfig('SUPERPDP_OAUTH_REDIRECT_URL'),
+    );
     url.searchParams.set('state', state);
     url.searchParams.set('login_hint', company.email);
     const companyHint = this.getCompanyHint(
@@ -100,7 +106,11 @@ export class SuperPdpOAuthService {
     return { url: url.toString() };
   }
 
-  async completeAuthorization(input: { code?: string; state?: string; error?: string }) {
+  async completeAuthorization(input: {
+    code?: string;
+    state?: string;
+    error?: string;
+  }) {
     this.assertOnboardingIsEnabled();
     if (input.error) {
       throw new BadRequestException(
@@ -111,9 +121,10 @@ export class SuperPdpOAuthService {
       throw new BadRequestException('Réponse OAuth SuperPDP invalide.');
     }
 
-    const oauthState = await this.prismaService.electronicInvoicingOAuthState.findUnique({
-      where: { state: input.state },
-    });
+    const oauthState =
+      await this.prismaService.electronicInvoicingOAuthState.findUnique({
+        where: { state: input.state },
+      });
     if (!oauthState || oauthState.expiresAt < new Date()) {
       throw new BadRequestException('État OAuth SuperPDP invalide ou expiré.');
     }
@@ -140,16 +151,24 @@ export class SuperPdpOAuthService {
             provider: 'SUPER_PDP',
             environment: this.getEnvironment(),
             status: 'VERIFYING',
-            accessTokenEncrypted: this.tokenCryptoService.encrypt(token.access_token!),
-            refreshTokenEncrypted: this.tokenCryptoService.encrypt(token.refresh_token!),
+            accessTokenEncrypted: this.tokenCryptoService.encrypt(
+              token.access_token!,
+            ),
+            refreshTokenEncrypted: this.tokenCryptoService.encrypt(
+              token.refresh_token!,
+            ),
             accessTokenExpiresAt: expiresAt,
             connectedAt: new Date(),
           },
           update: {
             environment: this.getEnvironment(),
             status: 'VERIFYING',
-            accessTokenEncrypted: this.tokenCryptoService.encrypt(token.access_token!),
-            refreshTokenEncrypted: this.tokenCryptoService.encrypt(token.refresh_token!),
+            accessTokenEncrypted: this.tokenCryptoService.encrypt(
+              token.access_token!,
+            ),
+            refreshTokenEncrypted: this.tokenCryptoService.encrypt(
+              token.refresh_token!,
+            ),
             accessTokenExpiresAt: expiresAt,
             connectedAt: new Date(),
             lastError: null,
@@ -166,7 +185,9 @@ export class SuperPdpOAuthService {
 
     // OAuth is sufficient to confirm the connection synchronously. Webhooks
     // are only needed later for invoice and reporting lifecycle events.
-    await this.syncProviderConnection(oauthState.companyId).catch(() => undefined);
+    await this.syncProviderConnection(oauthState.companyId).catch(
+      () => undefined,
+    );
     return { companyId: oauthState.companyId };
   }
 
@@ -175,16 +196,22 @@ export class SuperPdpOAuthService {
    * both tokens are persisted together whenever a refresh succeeds.
    */
   async getAccessToken(companyId: string): Promise<string> {
-    const connection = await this.prismaService.electronicInvoicingConnection.findUnique({
-      where: { companyId },
-      select: {
-        accessTokenEncrypted: true,
-        refreshTokenEncrypted: true,
-        accessTokenExpiresAt: true,
-      },
-    });
-    if (!connection?.accessTokenEncrypted || !connection.refreshTokenEncrypted) {
-      throw new BadRequestException('Cette entreprise n’est pas connectée à SuperPDP.');
+    const connection =
+      await this.prismaService.electronicInvoicingConnection.findUnique({
+        where: { companyId },
+        select: {
+          accessTokenEncrypted: true,
+          refreshTokenEncrypted: true,
+          accessTokenExpiresAt: true,
+        },
+      });
+    if (
+      !connection?.accessTokenEncrypted ||
+      !connection.refreshTokenEncrypted
+    ) {
+      throw new BadRequestException(
+        'Cette entreprise n’est pas connectée à SuperPDP.',
+      );
     }
 
     const expiresSoon =
@@ -213,8 +240,12 @@ export class SuperPdpOAuthService {
       await this.prismaService.electronicInvoicingConnection.update({
         where: { companyId },
         data: {
-          accessTokenEncrypted: this.tokenCryptoService.encrypt(token.access_token),
-          refreshTokenEncrypted: this.tokenCryptoService.encrypt(token.refresh_token),
+          accessTokenEncrypted: this.tokenCryptoService.encrypt(
+            token.access_token,
+          ),
+          refreshTokenEncrypted: this.tokenCryptoService.encrypt(
+            token.refresh_token,
+          ),
           accessTokenExpiresAt: expiresAt,
           status: 'ACTIVE',
           lastSyncedAt: new Date(),
@@ -245,9 +276,12 @@ export class SuperPdpOAuthService {
     const token = await this.getAccessToken(companyId);
     let profile: SuperPdpCompanyProfile;
     try {
-      const response = await fetch('https://api.superpdp.tech/v1.beta/companies/me', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetch(
+        'https://api.superpdp.tech/v1.beta/companies/me',
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -260,7 +294,9 @@ export class SuperPdpOAuthService {
           lastError: 'Impossible de vérifier le compte SuperPDP connecté.',
         },
       });
-      throw new BadGatewayException('Impossible de vérifier le compte SuperPDP.');
+      throw new BadGatewayException(
+        'Impossible de vérifier le compte SuperPDP.',
+      );
     }
 
     await this.prismaService.electronicInvoicingConnection.update({
@@ -273,7 +309,9 @@ export class SuperPdpOAuthService {
         lastError: null,
       },
     });
-    return { providerCompanyId: profile.id === undefined ? null : String(profile.id) };
+    return {
+      providerCompanyId: profile.id === undefined ? null : String(profile.id),
+    };
   }
 
   async getConnectionStatus(input: { companyId: string; userId: string }) {
@@ -321,7 +359,10 @@ export class SuperPdpOAuthService {
     });
   }
 
-  private async findAccessibleCompany(input: { companyId: string; userId: string }) {
+  private async findAccessibleCompany(input: {
+    companyId: string;
+    userId: string;
+  }) {
     const company = await this.prismaService.company.findFirst({
       where: {
         id: input.companyId,
@@ -337,13 +378,16 @@ export class SuperPdpOAuthService {
       select: { id: true },
     });
     if (!company) {
-      throw new NotFoundException('Entreprise introuvable ou accès non autorisé.');
+      throw new NotFoundException(
+        'Entreprise introuvable ou accès non autorisé.',
+      );
     }
     return company;
   }
 
   private getEnvironment(): 'SANDBOX' | 'PRODUCTION' {
-    return this.configService.get<string>('SUPERPDP_ENVIRONMENT') === 'production'
+    return this.configService.get<string>('SUPERPDP_ENVIRONMENT') ===
+      'production'
       ? 'PRODUCTION'
       : 'SANDBOX';
   }
@@ -370,7 +414,9 @@ export class SuperPdpOAuthService {
   }
 
   private assertOnboardingIsEnabled(): void {
-    if (this.configService.get<string>('SUPERPDP_ONBOARDING_ENABLED') !== 'true') {
+    if (
+      this.configService.get<string>('SUPERPDP_ONBOARDING_ENABLED') !== 'true'
+    ) {
       throw new BadRequestException(
         'La connexion SuperPDP n’est pas activée dans cet environnement.',
       );

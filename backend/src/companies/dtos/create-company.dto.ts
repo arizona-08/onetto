@@ -1,11 +1,46 @@
-import { IsBIC, IsBoolean, IsDefined, IsEmail, IsIBAN, IsIn, IsPhoneNumber, IsString } from "class-validator";
+import {
+  IsBIC,
+  IsBoolean,
+  IsDefined,
+  IsEmail,
+  IsIBAN,
+  IsIn,
+  IsPhoneNumber,
+  IsString,
+} from 'class-validator';
 
 const legalStatuses = [
-  'MICRO_ENTERPRISE', 'INDIVIDUAL_ENTREPRENEUR', 'EIRL', 'EURL', 'SARL',
-  'SELARL', 'SASU', 'SAS', 'SELAS', 'SA', 'SELAFA', 'SCA', 'SELCA', 'SNC',
-  'SCS', 'SLP', 'SOCIETE_CIVILE', 'SCI', 'SCM', 'SCP', 'EARL', 'GAEC',
-  'SCEA', 'GIE', 'ASSOCIATION', 'FONDATION', 'MUTUELLE', 'COOPERATIVE',
-  'ETABLISSEMENT_PUBLIC', 'COLLECTIVITE_TERRITORIALE', 'SOCIETE_ETRANGERE',
+  'MICRO_ENTERPRISE',
+  'INDIVIDUAL_ENTREPRENEUR',
+  'EIRL',
+  'EURL',
+  'SARL',
+  'SELARL',
+  'SASU',
+  'SAS',
+  'SELAS',
+  'SA',
+  'SELAFA',
+  'SCA',
+  'SELCA',
+  'SNC',
+  'SCS',
+  'SLP',
+  'SOCIETE_CIVILE',
+  'SCI',
+  'SCM',
+  'SCP',
+  'EARL',
+  'GAEC',
+  'SCEA',
+  'GIE',
+  'ASSOCIATION',
+  'FONDATION',
+  'MUTUELLE',
+  'COOPERATIVE',
+  'ETABLISSEMENT_PUBLIC',
+  'COLLECTIVITE_TERRITORIALE',
+  'SOCIETE_ETRANGERE',
   'OTHER',
 ] as const;
 
@@ -17,9 +52,9 @@ export class CreateCompanyDto {
   @IsDefined()
   @IsEmail()
   email: string;
-  
+
   @IsDefined()
-  @IsPhoneNumber("FR")
+  @IsPhoneNumber('FR')
   phoneNumber: string;
 
   @IsDefined()

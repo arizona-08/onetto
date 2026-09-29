@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from "react";
 
 interface DocumentsTypeSwitchProps {
   estimates: ReactNode;
@@ -8,11 +8,11 @@ interface DocumentsTypeSwitchProps {
   notice?: ReactNode;
 }
 
-type DocumentType = 'estimates' | 'invoices';
+type DocumentType = "estimates" | "invoices";
 
 const options: Array<{ value: DocumentType; label: string }> = [
-  { value: 'invoices', label: 'Factures' },
-  { value: 'estimates', label: 'Devis' },
+  { value: "invoices", label: "Factures" },
+  { value: "estimates", label: "Devis" },
 ];
 
 export default function DocumentsTypeSwitch({
@@ -20,7 +20,7 @@ export default function DocumentsTypeSwitch({
   estimates,
   notice,
 }: DocumentsTypeSwitchProps) {
-  const [activeType, setActiveType] = useState<DocumentType>('invoices');
+  const [activeType, setActiveType] = useState<DocumentType>("invoices");
 
   return (
     <div className="mt-6">
@@ -40,8 +40,8 @@ export default function DocumentsTypeSwitch({
               aria-pressed={isActive}
               className={`rounded-lg px-5 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
                 isActive
-                  ? 'bg-white text-zinc-900'
-                  : 'text-zinc-500 hover:text-zinc-900'
+                  ? "bg-white text-zinc-900"
+                  : "text-zinc-500 hover:text-zinc-900"
               }`}
             >
               {option.label}
@@ -53,7 +53,7 @@ export default function DocumentsTypeSwitch({
       {notice}
 
       <div key={activeType} className="mt-6">
-        {activeType === 'estimates' ? estimates : invoices}
+        {activeType === "estimates" ? estimates : invoices}
       </div>
     </div>
   );

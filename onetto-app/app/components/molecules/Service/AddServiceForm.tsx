@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { Service } from '@/app/types';
-import { X } from 'lucide-react'
-import React from 'react'
-import ServiceCard from './ServiceCard';
+import { Service } from "@/app/types";
+import { X } from "lucide-react";
+import React from "react";
+import ServiceCard from "./ServiceCard";
 
 interface AddServiceFormProps {
   isActive: boolean;
@@ -14,25 +14,32 @@ interface AddServiceFormProps {
   handleEditService: (serviceToEdit: Service) => Promise<boolean>;
 }
 
-function AddServiceForm({ isActive, setIsActive, onClose, handleAddService, serviceToEdit, handleEditService }: AddServiceFormProps) {
+function AddServiceForm({
+  isActive,
+  setIsActive,
+  onClose,
+  handleAddService,
+  serviceToEdit,
+  handleEditService,
+}: AddServiceFormProps) {
   function closeForm() {
     setIsActive(false);
     onClose();
   }
 
   const [previewService, setPreviewService] = React.useState<Service>({
-    id: 'PREVIEW',
-    name: '',
-    description: '',
-    category: '',
+    id: "PREVIEW",
+    name: "",
+    description: "",
+    category: "",
     unitPrice: 0,
-    unit: '',
+    unit: "",
     taxRate: 0,
-    itemType: 'SERVICES',
+    itemType: "SERVICES",
   });
 
   React.useEffect(() => {
-    if(serviceToEdit) {
+    if (serviceToEdit) {
       setPreviewService(serviceToEdit);
     }
   }, [serviceToEdit]);
@@ -46,18 +53,18 @@ function AddServiceForm({ isActive, setIsActive, onClose, handleAddService, serv
 
   function resetForm() {
     setPreviewService({
-      id: 'PREVIEW',
-      name: '',
-      description: '',
-      category: '',
+      id: "PREVIEW",
+      name: "",
+      description: "",
+      category: "",
       unitPrice: 0,
-      unit: '',
+      unit: "",
       taxRate: 0,
-      itemType: 'SERVICES',
+      itemType: "SERVICES",
     });
   }
 
-  if(!isActive) {
+  if (!isActive) {
     return null;
   }
 
@@ -68,65 +75,104 @@ function AddServiceForm({ isActive, setIsActive, onClose, handleAddService, serv
         <div className="form-container max-h-[calc(100dvh-2rem)] w-full max-w-220 overflow-y-auto rounded-md bg-white md:flex md:flex-row-reverse">
           <form className="w-full p-4 sm:p-6 md:h-full md:w-4/6">
             <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-xl font-title font-semibold text-zinc-700">Créer un service</h2>
-              <X onClick={() => {
-                closeForm();
-                resetForm();
-                }} />
+              <h2 className="text-xl font-title font-semibold text-zinc-700">
+                Créer un service
+              </h2>
+              <X
+                onClick={() => {
+                  closeForm();
+                  resetForm();
+                }}
+              />
             </div>
-            <p className="text-sm text-gray-400 mb-6">Remplissez les détails pour votre catalogue</p>
-            
+            <p className="text-sm text-gray-400 mb-6">
+              Remplissez les détails pour votre catalogue
+            </p>
+
             {/* Champs principaux */}
-            <div className='space-y-4'>
+            <div className="space-y-4">
               <div className="flex flex-col gap-2">
-                <label htmlFor="service-name" className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Nom du service</label>
+                <label
+                  htmlFor="service-name"
+                  className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide"
+                >
+                  Nom du service
+                </label>
                 <input
                   type="text"
                   id="service-name"
                   name="name"
                   className="border-b border-gray-300 py-2 px-3 focus:outline-none"
-                  placeholder='ex: Pose de carrelage'
-                  onChange={(e) => handleServiceChange('name', e.target.value)}
+                  placeholder="ex: Pose de carrelage"
+                  onChange={(e) => handleServiceChange("name", e.target.value)}
                   value={previewService.name}
                 />
               </div>
 
               <div className="flex flex-col gap-2">
-                <label htmlFor="service-description" className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Description</label>
+                <label
+                  htmlFor="service-description"
+                  className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide"
+                >
+                  Description
+                </label>
                 <textarea
                   id="service-description"
                   name="description"
                   className="border-b border-gray-300 py-2 px-3 focus:outline-none"
-                  placeholder='ex: Pose de carrelage sur-mesure.'
-                  onChange={(e) => handleServiceChange('description', e.target.value)}
+                  placeholder="ex: Pose de carrelage sur-mesure."
+                  onChange={(e) =>
+                    handleServiceChange("description", e.target.value)
+                  }
                   value={previewService.description}
-                >
-                </textarea>
+                ></textarea>
               </div>
 
-
               <div className="flex flex-col gap-2">
-                <label htmlFor="service-category" className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Catégorie</label>
+                <label
+                  htmlFor="service-category"
+                  className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide"
+                >
+                  Catégorie
+                </label>
                 <input
                   type="text"
                   id="service-category"
-                  name='category'
+                  name="category"
                   className="border-b border-gray-300 py-2 px-3 focus:outline-none"
-                  placeholder='ex: Artisanat'
-                  onChange={(e) => handleServiceChange('category', e.target.value)}
+                  placeholder="ex: Artisanat"
+                  onChange={(e) =>
+                    handleServiceChange("category", e.target.value)
+                  }
                   value={previewService.category}
                 />
               </div>
 
               <fieldset className="flex flex-col gap-2">
-                <legend className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Type</legend>
+                <legend className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">
+                  Type
+                </legend>
                 <div className="flex gap-3">
                   <label className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm">
-                    <input type="radio" name="itemType" value="GOODS" checked={previewService.itemType === 'GOODS'} onChange={() => handleServiceChange('itemType', 'GOODS')} />
+                    <input
+                      type="radio"
+                      name="itemType"
+                      value="GOODS"
+                      checked={previewService.itemType === "GOODS"}
+                      onChange={() => handleServiceChange("itemType", "GOODS")}
+                    />
                     Bien
                   </label>
                   <label className="flex items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm">
-                    <input type="radio" name="itemType" value="SERVICES" checked={previewService.itemType === 'SERVICES'} onChange={() => handleServiceChange('itemType', 'SERVICES')} />
+                    <input
+                      type="radio"
+                      name="itemType"
+                      value="SERVICES"
+                      checked={previewService.itemType === "SERVICES"}
+                      onChange={() =>
+                        handleServiceChange("itemType", "SERVICES")
+                      }
+                    />
                     Service / prestation
                   </label>
                 </div>
@@ -134,31 +180,44 @@ function AddServiceForm({ isActive, setIsActive, onClose, handleAddService, serv
             </div>
 
             <div className="flex flex-col gap-2">
-
               <div className="flex flex-col gap-2 mt-4 md:flex-row md:gap-6">
                 <div className="flex flex-col gap-2 md:w-1/2">
-                  <label htmlFor="service-unit-price" className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Prix unitaire</label>
+                  <label
+                    htmlFor="service-unit-price"
+                    className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide"
+                  >
+                    Prix unitaire
+                  </label>
                   <input
                     type="number"
                     id="service-unit-price"
-                    name='unitPrice'
+                    name="unitPrice"
                     className="bg-custom-gray-dark border-b border-gray-300 rounded-tr-md rounded-tl-md py-2 px-3 focus:outline-none"
-                    placeholder='ex: 50'
+                    placeholder="ex: 50"
                     min={0}
-                    onChange={(e) => handleServiceChange('unitPrice', e.target.value)}
+                    onChange={(e) =>
+                      handleServiceChange("unitPrice", e.target.value)
+                    }
                     value={previewService.unitPrice}
                   />
                 </div>
 
                 <div className="flex flex-col gap-2 md:w-1/2">
-                  <label htmlFor="service-unit" className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">Unité</label>
+                  <label
+                    htmlFor="service-unit"
+                    className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide"
+                  >
+                    Unité
+                  </label>
                   <input
                     type="text"
                     id="service-unit"
-                    name='unit'
+                    name="unit"
                     className="bg-custom-gray-dark border-b border-gray-300 rounded-tr-md rounded-tl-md py-2 px-3 focus:outline-none"
-                    placeholder='ex: m²'
-                    onChange={(e) => handleServiceChange('unit', e.target.value)}
+                    placeholder="ex: m²"
+                    onChange={(e) =>
+                      handleServiceChange("unit", e.target.value)
+                    }
                     value={previewService.unit}
                   />
                 </div>
@@ -166,16 +225,23 @@ function AddServiceForm({ isActive, setIsActive, onClose, handleAddService, serv
 
               {/* TVA */}
               <div className="flex flex-col gap-2">
-                <label htmlFor="service-tax-rate" className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide">TVA</label>
+                <label
+                  htmlFor="service-tax-rate"
+                  className="uppercase text-gray-600 text-xs font-title font-semibold tracking-wide"
+                >
+                  TVA
+                </label>
                 <input
                   type="number"
                   id="service-tax-rate"
-                  name='taxRate'
+                  name="taxRate"
                   className="bg-custom-gray-dark border-b border-gray-300 rounded-tr-md rounded-tl-md py-2 px-3 focus:outline-none"
-                  placeholder='ex: 5.5'
+                  placeholder="ex: 5.5"
                   min={0}
                   step="0.01"
-                  onChange={(e) => handleServiceChange('taxRate', e.target.value)}
+                  onChange={(e) =>
+                    handleServiceChange("taxRate", e.target.value)
+                  }
                   value={previewService.taxRate}
                 />
               </div>
@@ -198,13 +264,15 @@ function AddServiceForm({ isActive, setIsActive, onClose, handleAddService, serv
                   closeForm();
                 }}
               >
-                {serviceToEdit ? 'Modifier le service' : 'Créer le service'}
+                {serviceToEdit ? "Modifier le service" : "Créer le service"}
               </button>
             </div>
           </form>
 
           <div className="preview bg-custom-gray-light p-6 w-full md:w-2/6 md:h-150">
-            <span className="uppercase text-gray-300 text-xs font-title font-semibold tracking-wide">Aperçu direct</span>
+            <span className="uppercase text-gray-300 text-xs font-title font-semibold tracking-wide">
+              Aperçu direct
+            </span>
             <div className="mt-4">
               <ServiceCard service={previewService} />
             </div>
@@ -212,7 +280,7 @@ function AddServiceForm({ isActive, setIsActive, onClose, handleAddService, serv
         </div>
       </div>
     </>
-  )
+  );
 }
 
-export default AddServiceForm
+export default AddServiceForm;

@@ -51,7 +51,11 @@ type PaymentReceiptMailInput = {
   companyEmail: string;
 };
 
-type AppNotificationMailInput = { title: string; message: string; href?: string };
+type AppNotificationMailInput = {
+  title: string;
+  message: string;
+  href?: string;
+};
 
 type EmailVerificationMailInput = {
   verificationUrl: string;
@@ -87,8 +91,12 @@ export class MailService {
     });
   }
 
-  createAppNotificationMail(input: AppNotificationMailInput): Pick<MailOptions, 'subject' | 'text' | 'html'> {
-    const link = input.href ? `${process.env.FRONTEND_URL}${input.href}` : undefined;
+  createAppNotificationMail(
+    input: AppNotificationMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    const link = input.href
+      ? `${process.env.FRONTEND_URL}${input.href}`
+      : undefined;
     return {
       subject: `Onetto — ${input.title}`,
       text: `${input.title}\n\n${input.message}${link ? `\n\nVoir dans Onetto : ${link}` : ''}`,
@@ -112,11 +120,13 @@ export class MailService {
       html: this.createAuthenticationTemplate({
         eyebrow: 'ACTIVATION DU COMPTE',
         title: 'Bienvenue sur Onetto',
-        message: 'Confirmez votre adresse e-mail pour activer votre compte et accéder à votre espace de gestion.',
+        message:
+          'Confirmez votre adresse e-mail pour activer votre compte et accéder à votre espace de gestion.',
         actionLabel: 'Confirmer mon adresse e-mail',
         actionUrl: input.verificationUrl,
         expiry: 'Ce lien expire dans 24 heures.',
-        notice: 'Vous n’avez pas créé de compte ? Vous pouvez ignorer cet e-mail.',
+        notice:
+          'Vous n’avez pas créé de compte ? Vous pouvez ignorer cet e-mail.',
       }),
     };
   }
@@ -138,11 +148,13 @@ export class MailService {
       html: this.createAuthenticationTemplate({
         eyebrow: 'SÉCURITÉ DU COMPTE',
         title: 'Réinitialisez votre mot de passe',
-        message: 'Une demande de réinitialisation de votre mot de passe Onetto a été reçue.',
+        message:
+          'Une demande de réinitialisation de votre mot de passe Onetto a été reçue.',
         actionLabel: 'Choisir un nouveau mot de passe',
         actionUrl: input.resetUrl,
         expiry: 'Ce lien expire dans une heure.',
-        notice: 'Vous n’êtes pas à l’origine de cette demande ? Vous pouvez ignorer cet e-mail : votre mot de passe actuel reste inchangé.',
+        notice:
+          'Vous n’êtes pas à l’origine de cette demande ? Vous pouvez ignorer cet e-mail : votre mot de passe actuel reste inchangé.',
       }),
     };
   }
@@ -220,13 +232,17 @@ export class MailService {
   }
 
   private escapeHtml(value: string): string {
-    return value.replace(/[&<>'"]/g, (character) => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      "'": '&#39;',
-      '"': '&quot;',
-    })[character] ?? character);
+    return value.replace(
+      /[&<>'"]/g,
+      (character) =>
+        ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          "'": '&#39;',
+          '"': '&quot;',
+        })[character] ?? character,
+    );
   }
 
   createInvoiceMail(
@@ -625,7 +641,9 @@ export class MailService {
     });
   }
 
-  private createPaymentSubmittedTemplate(input: PaymentReceiptMailInput): string {
+  private createPaymentSubmittedTemplate(
+    input: PaymentReceiptMailInput,
+  ): string {
     const details = this.createDetailsTable([
       ['Montant du prélèvement', formatAmount(input.amount)],
       ['Statut', 'Transmis à votre banque'],

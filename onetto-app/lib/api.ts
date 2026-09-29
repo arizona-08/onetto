@@ -1,4 +1,4 @@
-import { err, ok, Result} from "../shared/result";
+import { err, ok, Result } from "../shared/result";
 
 export type ApiError = {
   statusCode: number;
@@ -63,10 +63,14 @@ function toApiError(payload: unknown, statusCode: number): ApiError {
     const errorPayload = payload as Partial<ApiError>;
 
     return {
-      statusCode: typeof errorPayload.statusCode === "number" ? errorPayload.statusCode : statusCode,
+      statusCode:
+        typeof errorPayload.statusCode === "number"
+          ? errorPayload.statusCode
+          : statusCode,
       message: errorPayload.message ?? `API error ${statusCode}`,
       error: errorPayload.error,
-      code: typeof errorPayload.code === "string" ? errorPayload.code : undefined,
+      code:
+        typeof errorPayload.code === "string" ? errorPayload.code : undefined,
       upstreamStatusCode:
         typeof errorPayload.upstreamStatusCode === "number"
           ? errorPayload.upstreamStatusCode
@@ -106,10 +110,14 @@ async function refreshClientAuthCookies(): Promise<boolean> {
   return true;
 }
 
-export async function apiClient<T, E = ApiError>(path: string, options?: RequestInit): Promise<Result<T, E>> {
+export async function apiClient<T, E = ApiError>(
+  path: string,
+  options?: RequestInit,
+): Promise<Result<T, E>> {
   try {
     let { res, payload } = await fetchClientApi(path, options);
-    const shouldRefresh = res.status === 401 && !isPublicAuthPath(path) && !isRefreshPath(path);
+    const shouldRefresh =
+      res.status === 401 && !isPublicAuthPath(path) && !isRefreshPath(path);
 
     if (shouldRefresh) {
       const didRefresh = await refreshClientAuthCookies();

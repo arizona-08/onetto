@@ -61,12 +61,20 @@ export class InvoicePaymentStatusService {
 
     if (attemptBecameSuccessful) {
       await this.sendPaymentReceipt(document.id);
-      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(document.id);
+      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(
+        document.id,
+      );
     }
 
     if (justPaid) {
       await this.sendInvoicePaidConfirmation(document.id);
-      await this.notifyPayment(document.id, 'PAYMENT_SUCCEEDED', 'Règlement reçu', 'Le règlement de la facture a été confirmé.', 'confirmed');
+      await this.notifyPayment(
+        document.id,
+        'PAYMENT_SUCCEEDED',
+        'Règlement reçu',
+        'Le règlement de la facture a été confirmé.',
+        'confirmed',
+      );
     }
   }
 
@@ -95,11 +103,19 @@ export class InvoicePaymentStatusService {
         document.id,
         paidInstalmentAmountInCents / 100,
       );
-      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(document.id);
+      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(
+        document.id,
+      );
     }
     if (justPaid) {
       await this.sendInvoicePaidConfirmation(document.id);
-      await this.notifyPayment(document.id, 'PAYMENT_SUCCEEDED', 'Règlement reçu', 'Le règlement de la facture a été confirmé.', 'confirmed');
+      await this.notifyPayment(
+        document.id,
+        'PAYMENT_SUCCEEDED',
+        'Règlement reçu',
+        'Le règlement de la facture a été confirmé.',
+        'confirmed',
+      );
     }
   }
 
@@ -111,8 +127,17 @@ export class InvoicePaymentStatusService {
       select: { invoiceId: true, amountInCents: true },
     });
     if (!payment) return;
-    await this.sendPaymentSubmitted(payment.invoiceId, payment.amountInCents / 100);
-    await this.notifyPayment(payment.invoiceId, 'PAYMENT_SUBMITTED', 'Paiement en cours', 'Le paiement de la facture a été soumis à la banque.', 'submitted');
+    await this.sendPaymentSubmitted(
+      payment.invoiceId,
+      payment.amountInCents / 100,
+    );
+    await this.notifyPayment(
+      payment.invoiceId,
+      'PAYMENT_SUBMITTED',
+      'Paiement en cours',
+      'Le paiement de la facture a été soumis à la banque.',
+      'submitted',
+    );
   }
 
   async notifyPaymentSubmittedForInstalment(
@@ -120,7 +145,13 @@ export class InvoicePaymentStatusService {
     amountInCents: number,
   ): Promise<void> {
     await this.sendPaymentSubmitted(invoiceId, amountInCents / 100);
-    await this.notifyPayment(invoiceId, 'PAYMENT_SUBMITTED', 'Paiement en cours', 'Le paiement de la facture a été soumis à la banque.', 'submitted');
+    await this.notifyPayment(
+      invoiceId,
+      'PAYMENT_SUBMITTED',
+      'Paiement en cours',
+      'Le paiement de la facture a été soumis à la banque.',
+      'submitted',
+    );
   }
 
   private async getInvoiceStatus(
@@ -287,7 +318,11 @@ export class InvoicePaymentStatusService {
       companyName: document.company.name,
       companyEmail: document.company.email,
     });
-    await this.sendMailSafely(document.clientEmail, mailContent, 'payment submitted');
+    await this.sendMailSafely(
+      document.clientEmail,
+      mailContent,
+      'payment submitted',
+    );
   }
 
   private async sendInvoicePaidConfirmation(documentId: string): Promise<void> {
@@ -328,9 +363,25 @@ export class InvoicePaymentStatusService {
     }
   }
 
-  private async notifyPayment(documentId: string, type: 'PAYMENT_SUBMITTED' | 'PAYMENT_SUCCEEDED', title: string, message: string, key: string): Promise<void> {
-    const document = await this.prismaService.document.findUnique({ where: { id: documentId }, select: { companyId: true, documentNumber: true } });
+  private async notifyPayment(
+    documentId: string,
+    type: 'PAYMENT_SUBMITTED' | 'PAYMENT_SUCCEEDED',
+    title: string,
+    message: string,
+    key: string,
+  ): Promise<void> {
+    const document = await this.prismaService.document.findUnique({
+      where: { id: documentId },
+      select: { companyId: true, documentNumber: true },
+    });
     if (!document) return;
-    await this.notifications.notifyCompany({ companyId: document.companyId, type, title, message: `${message} (${document.documentNumber})`, href: `/documents/${documentId}`, deduplicationKey: `payment:${documentId}:${key}` });
+    await this.notifications.notifyCompany({
+      companyId: document.companyId,
+      type,
+      title,
+      message: `${message} (${document.documentNumber})`,
+      href: `/documents/${documentId}`,
+      deduplicationKey: `payment:${documentId}:${key}`,
+    });
   }
 }

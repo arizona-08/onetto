@@ -1,34 +1,35 @@
-'use client'
+"use client";
 
-import { Document, DocumentService } from '@/app/types'
-import { formatDate } from '@/shared/utils'
-import { Landmark } from 'lucide-react'
-import React from 'react'
-import { useActiveCompany } from '../../context/ActiveCompanyContext'
-import { useAuthUser } from '../../context/AuthUserContext'
-import DocumentVersionSelector from '../DocumentVersionSelector'
-import InstalmentSchedule from '../InstalmentSchedule'
+import { Document, DocumentService } from "@/app/types";
+import { formatDate } from "@/shared/utils";
+import { Landmark } from "lucide-react";
+import React from "react";
+import { useActiveCompany } from "../../context/ActiveCompanyContext";
+import { useAuthUser } from "../../context/AuthUserContext";
+import DocumentVersionSelector from "../DocumentVersionSelector";
+import InstalmentSchedule from "../InstalmentSchedule";
 
 interface DocumentDisplayComponentProps {
-  document: Document
+  document: Document;
 }
 
 const fallbackCompany = {
-  name: 'Atelier Onetto Studio',
-  address: '14 avenue de la République',
-  postalCode: '75011',
-  city: 'Paris',
-  siren: '918 245 637',
-  vatNumber: 'FR 32 918245637',
-  phoneNumber: '',
-  iban: 'FR76 3000 1007 9412 3456 7890 123',
-  bic: 'SOGEFRPP',
-}
+  name: "Atelier Onetto Studio",
+  address: "14 avenue de la République",
+  postalCode: "75011",
+  city: "Paris",
+  siren: "918 245 637",
+  vatNumber: "FR 32 918245637",
+  phoneNumber: "",
+  iban: "FR76 3000 1007 9412 3456 7890 123",
+  bic: "SOGEFRPP",
+};
 
-const currency = (amount: number) => amount.toLocaleString('fr-FR', {
-  style: 'currency',
-  currency: 'EUR',
-})
+const currency = (amount: number) =>
+  amount.toLocaleString("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+  });
 
 function getServiceValues(serviceLine: DocumentService) {
   return {
@@ -37,45 +38,55 @@ function getServiceValues(serviceLine: DocumentService) {
     unitPrice: serviceLine.unitPrice,
     unit: serviceLine.unit,
     taxRate: serviceLine.taxRate,
-  }
+  };
 }
 
 function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
-  const { user } = useAuthUser()
-  const { activeCompany } = useActiveCompany()
-  const isInvoice = document.type === 'INVOICE'
-  const services = document.services ?? []
-  const companyName = activeCompany?.name ?? fallbackCompany.name
-  const companyAddress = activeCompany?.address ?? fallbackCompany.address
-  const companyPostalCode = activeCompany?.postalCode ?? fallbackCompany.postalCode
-  const companyCity = activeCompany?.city ?? fallbackCompany.city
-  const companySiren = activeCompany?.siren ?? fallbackCompany.siren
-  const companyVatNumber = activeCompany?.vatNumber ?? fallbackCompany.vatNumber
-  const companyPhoneNumber = activeCompany?.phoneNumber ?? fallbackCompany.phoneNumber
-  const companyIban = activeCompany?.IBAN ?? fallbackCompany.iban
-  const companyBic = activeCompany?.BIC ?? fallbackCompany.bic
-  const contactEmail = document.author?.email ?? user?.email ?? ''
-  const instalments = document.invoiceInstalmentPlan?.invoicePaymentInstalments ?? []
+  const { user } = useAuthUser();
+  const { activeCompany } = useActiveCompany();
+  const isInvoice = document.type === "INVOICE";
+  const services = document.services ?? [];
+  const companyName = activeCompany?.name ?? fallbackCompany.name;
+  const companyAddress = activeCompany?.address ?? fallbackCompany.address;
+  const companyPostalCode =
+    activeCompany?.postalCode ?? fallbackCompany.postalCode;
+  const companyCity = activeCompany?.city ?? fallbackCompany.city;
+  const companySiren = activeCompany?.siren ?? fallbackCompany.siren;
+  const companyVatNumber =
+    activeCompany?.vatNumber ?? fallbackCompany.vatNumber;
+  const companyPhoneNumber =
+    activeCompany?.phoneNumber ?? fallbackCompany.phoneNumber;
+  const companyIban = activeCompany?.IBAN ?? fallbackCompany.iban;
+  const companyBic = activeCompany?.BIC ?? fallbackCompany.bic;
+  const contactEmail = document.author?.email ?? user?.email ?? "";
+  const instalments =
+    document.invoiceInstalmentPlan?.invoicePaymentInstalments ?? [];
 
   const totalHT = services.reduce((sum, serviceLine) => {
-    const { quantity, unitPrice } = getServiceValues(serviceLine)
-    return sum + unitPrice * quantity
-  }, 0)
+    const { quantity, unitPrice } = getServiceValues(serviceLine);
+    return sum + unitPrice * quantity;
+  }, 0);
   const totalTVA = services.reduce((sum, serviceLine) => {
-    const { quantity, unitPrice, taxRate } = getServiceValues(serviceLine)
-    return sum + unitPrice * quantity * taxRate / 100
-  }, 0)
-  const totalTTC = totalHT + totalTVA
+    const { quantity, unitPrice, taxRate } = getServiceValues(serviceLine);
+    return sum + (unitPrice * quantity * taxRate) / 100;
+  }, 0);
+  const totalTTC = totalHT + totalTVA;
 
   return (
     <>
       <article className="mx-auto mt-5 w-full max-w-2xl overflow-hidden rounded-xl bg-white text-xs leading-relaxed text-zinc-950 sm:mt-6 sm:rounded-md print:mt-0 print:max-w-none print:rounded-none">
-        <div className="flex justify-end px-4 pt-4 sm:px-7 sm:pt-5 print:hidden"><DocumentVersionSelector documentId={document.id} versionNumber={document.versionNumber} mode="display" /></div>
+        <div className="flex justify-end px-4 pt-4 sm:px-7 sm:pt-5 print:hidden">
+          <DocumentVersionSelector
+            documentId={document.id}
+            versionNumber={document.versionNumber}
+            mode="display"
+          />
+        </div>
         <header className="px-4 py-5 sm:px-7 sm:py-6">
           <div className="flex items-start justify-between gap-3 sm:gap-6">
             <div className="min-w-0">
               <p className="font-title text-5xl font-medium uppercase leading-none tracking-tighter text-primary sm:text-7xl">
-                {isInvoice ? 'Facture' : 'Devis'}
+                {isInvoice ? "Facture" : "Devis"}
               </p>
               <span className="mt-2 inline-block max-w-full break-all rounded-full border border-black bg-white px-2 py-1 text-xs">
                 n° {document.documentNumber}
@@ -84,9 +95,15 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
               <div className="mt-5 flex flex-col gap-2">
                 <div>
                   <p className="font-semibold text-zinc-500">
-                    {isInvoice ? 'Date d’émission' : 'Date du devis'}
+                    {isInvoice ? "Date d’émission" : "Date du devis"}
                   </p>
-                  <p>{formatDate(isInvoice ? (document.sentAt ?? new Date().toISOString()) : document.createdAt)}</p>
+                  <p>
+                    {formatDate(
+                      isInvoice
+                        ? (document.sentAt ?? new Date().toISOString())
+                        : document.createdAt,
+                    )}
+                  </p>
                 </div>
 
                 <div>
@@ -104,7 +121,9 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
           <div className="mt-7 grid gap-6 sm:grid-cols-2">
             <section>
               <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-semibold">{companyName}</p>
+                <p className="min-h-5 font-title text-lg font-semibold">
+                  {companyName}
+                </p>
                 <p>Statut : Micro-entreprise</p>
                 <p>SIREN : {companySiren}</p>
                 <p>TVA intracommunautaire : {companyVatNumber}</p>
@@ -118,15 +137,25 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
             </section>
 
             <section className="min-w-0 text-left sm:text-right">
-              <p className="mb-2 font-semibold uppercase text-zinc-500">À l’attention de</p>
+              <p className="mb-2 font-semibold uppercase text-zinc-500">
+                À l’attention de
+              </p>
               <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-semibold">{document.clientName}</p>
+                <p className="min-h-5 font-title text-lg font-semibold">
+                  {document.clientName}
+                </p>
                 <p className="break-words">{document.clientEmail}</p>
-                {document.clientType === 'BUSINESS' && document.clientSiren && <p>SIREN : {document.clientSiren}</p>}
-                {document.clientType === 'BUSINESS' && document.clientVatNumber && <p>TVA intracommunautaire : {document.clientVatNumber}</p>}
+                {document.clientType === "BUSINESS" && document.clientSiren && (
+                  <p>SIREN : {document.clientSiren}</p>
+                )}
+                {document.clientType === "BUSINESS" &&
+                  document.clientVatNumber && (
+                    <p>TVA intracommunautaire : {document.clientVatNumber}</p>
+                  )}
                 <p className="break-words">{document.clientAddress}</p>
                 <p>
-                  {document.clientPostalCode}, {document.clientCity}, {document.clientCountry}
+                  {document.clientPostalCode}, {document.clientCity},{" "}
+                  {document.clientCountry}
                 </p>
               </div>
             </section>
@@ -135,32 +164,48 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
 
         <div className="px-4 py-5 sm:px-7 sm:py-6">
           <div className="space-y-3 sm:hidden">
-            {services.length > 0 ? services.map((serviceLine) => {
-              const { description, quantity, unitPrice, unit, taxRate } = getServiceValues(serviceLine)
-              const lineTotalHT = quantity * unitPrice
-              const lineTotalTTC = lineTotalHT * (1 + taxRate / 100)
+            {services.length > 0 ? (
+              services.map((serviceLine) => {
+                const { description, quantity, unitPrice, unit, taxRate } =
+                  getServiceValues(serviceLine);
+                const lineTotalHT = quantity * unitPrice;
+                const lineTotalTTC = lineTotalHT * (1 + taxRate / 100);
 
-              return (
-                <article
-                  key={serviceLine.id}
-                  className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <p className="font-semibold text-zinc-900">{description}</p>
-                    <p className="shrink-0 font-title text-sm font-semibold text-primary">
-                      {currency(lineTotalTTC)}
-                    </p>
-                  </div>
+                return (
+                  <article
+                    key={serviceLine.id}
+                    className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <p className="font-semibold text-zinc-900">
+                        {description}
+                      </p>
+                      <p className="shrink-0 font-title text-sm font-semibold text-primary">
+                        {currency(lineTotalTTC)}
+                      </p>
+                    </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-3 border-t border-zinc-200 pt-3 text-[11px]">
-                    <ServiceDetail label="Quantité" value={`${quantity} ${unit}`} />
-                    <ServiceDetail label="Prix HT" value={currency(unitPrice)} align="right" />
-                    <ServiceDetail label="TVA" value={`${taxRate} %`} />
-                    <ServiceDetail label="Total HT" value={currency(lineTotalHT)} align="right" />
-                  </div>
-                </article>
-              )
-            }) : (
+                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-zinc-200 pt-3 text-[11px]">
+                      <ServiceDetail
+                        label="Quantité"
+                        value={`${quantity} ${unit}`}
+                      />
+                      <ServiceDetail
+                        label="Prix HT"
+                        value={currency(unitPrice)}
+                        align="right"
+                      />
+                      <ServiceDetail label="TVA" value={`${taxRate} %`} />
+                      <ServiceDetail
+                        label="Total HT"
+                        value={currency(lineTotalHT)}
+                        align="right"
+                      />
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
               <div className="rounded-xl border border-dashed border-zinc-200 px-4 py-6 text-center text-xs text-zinc-500">
                 Aucune prestation.
               </div>
@@ -190,33 +235,41 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
                 </tr>
               </thead>
               <tbody>
-                {services.length > 0
-                  ? services.map((serviceLine) => {
-                      const { description, quantity, unitPrice, unit, taxRate } = getServiceValues(serviceLine)
-                      const lineTotalHT = quantity * unitPrice
-                      const lineTotalTTC = lineTotalHT * (1 + taxRate / 100)
+                {services.length > 0 ? (
+                  services.map((serviceLine) => {
+                    const { description, quantity, unitPrice, unit, taxRate } =
+                      getServiceValues(serviceLine);
+                    const lineTotalHT = quantity * unitPrice;
+                    const lineTotalTTC = lineTotalHT * (1 + taxRate / 100);
 
-                      return (
-                        <tr key={serviceLine.id} className="border-b border-zinc-100 last:border-b-zinc-200">
-                          <td className="py-3 pl-1 pr-1.5 font-medium">{description}</td>
-                          <td className="px-1.5 py-3">{quantity}</td>
-                          <td className="whitespace-nowrap px-1.5 py-3">{currency(unitPrice)}</td>
-                          <td className="px-1.5 py-3">{unit}</td>
-                          <td className="px-1.5 py-3">{taxRate} %</td>
-                          <td className="whitespace-nowrap px-1.5 py-3 text-right font-semibold">
-                            {currency(lineTotalHT)}
-                          </td>
-                          <td className="whitespace-nowrap py-3 pl-1.5 pr-1 text-right font-semibold">
-                            {currency(lineTotalTTC)}
-                          </td>
-                        </tr>
-                      )
-                    })
-                  : (
-                      <tr className="h-11 border-b border-zinc-200">
-                        <td colSpan={7} />
+                    return (
+                      <tr
+                        key={serviceLine.id}
+                        className="border-b border-zinc-100 last:border-b-zinc-200"
+                      >
+                        <td className="py-3 pl-1 pr-1.5 font-medium">
+                          {description}
+                        </td>
+                        <td className="px-1.5 py-3">{quantity}</td>
+                        <td className="whitespace-nowrap px-1.5 py-3">
+                          {currency(unitPrice)}
+                        </td>
+                        <td className="px-1.5 py-3">{unit}</td>
+                        <td className="px-1.5 py-3">{taxRate} %</td>
+                        <td className="whitespace-nowrap px-1.5 py-3 text-right font-semibold">
+                          {currency(lineTotalHT)}
+                        </td>
+                        <td className="whitespace-nowrap py-3 pl-1.5 pr-1 text-right font-semibold">
+                          {currency(lineTotalTTC)}
+                        </td>
                       </tr>
-                    )}
+                    );
+                  })
+                ) : (
+                  <tr className="h-11 border-b border-zinc-200">
+                    <td colSpan={7} />
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -274,30 +327,34 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
             <section className="flex flex-col justify-between gap-6">
               <hr className="inline-block w-full text-primary" />
               <div className="text-right">
-                <p className="text-[10px] text-zinc-500">Merci pour votre confiance.</p>
-                <p>{isInvoice ? 'Facture' : 'Devis'} fait avec Onetto</p>
+                <p className="text-[10px] text-zinc-500">
+                  Merci pour votre confiance.
+                </p>
+                <p>{isInvoice ? "Facture" : "Devis"} fait avec Onetto</p>
               </div>
             </section>
           </footer>
         </div>
       </article>
-      
-     
     </>
-  )
+  );
 }
 
-function ServiceDetail({ label, value, align = 'left' }: {
-  label: string
-  value: string
-  align?: 'left' | 'right'
+function ServiceDetail({
+  label,
+  value,
+  align = "left",
+}: {
+  label: string;
+  value: string;
+  align?: "left" | "right";
 }) {
   return (
-    <div className={align === 'right' ? 'text-right' : undefined}>
+    <div className={align === "right" ? "text-right" : undefined}>
       <p className="text-zinc-500">{label}</p>
       <p className="mt-0.5 font-semibold text-zinc-800">{value}</p>
     </div>
-  )
+  );
 }
 
-export default DocumentDisplayComponent
+export default DocumentDisplayComponent;

@@ -34,7 +34,9 @@ describe('SuperPdpOAuthService', () => {
       ),
     };
     const service = new SuperPdpOAuthService(
-      { get: jest.fn((name: string) => config[name as keyof typeof config]) } as never,
+      {
+        get: jest.fn((name: string) => config[name as keyof typeof config]),
+      } as never,
       prisma as never,
       {} as never,
     );
@@ -53,9 +55,9 @@ describe('SuperPdpOAuthService', () => {
     expect(authorizationUrl.searchParams.get('superpdp_company_number')).toBe(
       '000000001',
     );
-    expect(authorizationUrl.searchParams.get('superpdp_company_number_scheme')).toBe(
-      'sandbox',
-    );
+    expect(
+      authorizationUrl.searchParams.get('superpdp_company_number_scheme'),
+    ).toBe('sandbox');
     expect(oauthState.create).toHaveBeenCalledTimes(1);
     expect(connection.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -78,7 +80,9 @@ describe('SuperPdpOAuthService', () => {
       encrypt: jest.fn((value: string) => `encrypted-${value}`),
     };
     const service = new SuperPdpOAuthService(
-      { get: jest.fn((name: string) => config[name as keyof typeof config]) } as never,
+      {
+        get: jest.fn((name: string) => config[name as keyof typeof config]),
+      } as never,
       { electronicInvoicingConnection: connection } as never,
       tokenCrypto as never,
     );
@@ -94,7 +98,9 @@ describe('SuperPdpOAuthService', () => {
       }),
     });
 
-    await expect(service.getAccessToken('company-1')).resolves.toBe('new-access-token');
+    await expect(service.getAccessToken('company-1')).resolves.toBe(
+      'new-access-token',
+    );
     expect(connection.update).toHaveBeenCalledWith({
       where: { companyId: 'company-1' },
       data: expect.objectContaining({

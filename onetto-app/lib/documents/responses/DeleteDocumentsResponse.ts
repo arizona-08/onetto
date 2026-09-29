@@ -1,4 +1,4 @@
-export interface DeleteDocumentsResponse{
-  success: boolean,
-  message: string
+export interface DeleteDocumentsResponse {
+  success: boolean;
+  message: string;
 }

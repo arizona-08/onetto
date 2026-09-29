@@ -19,7 +19,12 @@ import { GoCardlessInstalmentRetryService } from './gocardless-instalment-retry.
 import { GoCardlessConnectionHealthService } from './gocardless-connection-health.service';
 
 @Module({
-  imports: [PrismaModule, MailModule, InvoicePaymentStatusModule, PlanAccessModule],
+  imports: [
+    PrismaModule,
+    MailModule,
+    InvoicePaymentStatusModule,
+    PlanAccessModule,
+  ],
   controllers: [GoCardlessWebhookController, GoCardlessOAuthController],
   providers: [
     GoCardlessProviderService,

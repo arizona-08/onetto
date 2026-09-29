@@ -1,16 +1,8 @@
 export type ElectronicInvoiceFlow =
-  | 'B2B_FR'
-  | 'B2C_FR'
-  | 'B2B_INTERNATIONAL'
-  | 'B2G'
-  | 'EXEMPT'
-  | 'OUT_OF_SCOPE';
+  'B2B_FR' | 'B2C_FR' | 'B2B_INTERNATIONAL' | 'B2G' | 'EXEMPT' | 'OUT_OF_SCOPE';
 
 export type ElectronicInvoiceClientType =
-  | 'INDIVIDUAL'
-  | 'BUSINESS'
-  | 'PUBLIC_BODY'
-  | 'FOREIGN';
+  'INDIVIDUAL' | 'BUSINESS' | 'PUBLIC_BODY' | 'FOREIGN';
 
 export type ElectronicInvoiceOperationNature = 'GOODS' | 'SERVICES' | 'MIXED';
 

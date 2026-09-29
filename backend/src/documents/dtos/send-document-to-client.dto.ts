@@ -13,7 +13,9 @@ export class SendDocumentToClientDto {
   @IsIn(['ONE_TIME', 'INSTALMENTS'])
   paymentMode?: 'ONE_TIME' | 'INSTALMENTS';
 
-  @ValidateIf((dto: SendDocumentToClientDto) => dto.paymentMode === 'INSTALMENTS')
+  @ValidateIf(
+    (dto: SendDocumentToClientDto) => dto.paymentMode === 'INSTALMENTS',
+  )
   @IsDefined()
   @ValidateNested()
   @Type(() => InstalmentsDetailsDto)

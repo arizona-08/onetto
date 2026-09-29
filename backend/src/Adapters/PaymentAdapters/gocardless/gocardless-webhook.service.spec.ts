@@ -16,7 +16,11 @@ describe('GoCardlessWebhookService', () => {
   const schedulesHandler = { handleWebhook: jest.fn() };
   const mandateHandler = { handleWebhook: jest.fn() };
   const paymentHandler = { handleWebhook: jest.fn() };
-  const oauth = { markProviderAccountDisconnectedIfTokenInactive: jest.fn().mockResolvedValue(false) };
+  const oauth = {
+    markProviderAccountDisconnectedIfTokenInactive: jest
+      .fn()
+      .mockResolvedValue(false),
+  };
   let service: GoCardlessWebhookService;
 
   const webhook = {
@@ -33,7 +37,9 @@ describe('GoCardlessWebhookService', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     prisma.processedWebhookEvents.create.mockResolvedValue({ id: 'event-1' });
-    oauth.markProviderAccountDisconnectedIfTokenInactive.mockResolvedValue(false);
+    oauth.markProviderAccountDisconnectedIfTokenInactive.mockResolvedValue(
+      false,
+    );
     service = new GoCardlessWebhookService(
       prisma as never,
       billingRequestHandler as never,
@@ -54,7 +60,9 @@ describe('GoCardlessWebhookService', () => {
   });
 
   it('libère le verrou d’idempotence si le handler échoue', async () => {
-    paymentHandler.handleWebhook.mockRejectedValue(new Error('temporary failure'));
+    paymentHandler.handleWebhook.mockRejectedValue(
+      new Error('temporary failure'),
+    );
 
     await service.redirectWebhookToHandler(webhook);
 
@@ -70,7 +78,9 @@ describe('GoCardlessWebhookService', () => {
 
   it('route les schedules, sans les confondre avec les paiements', async () => {
     await service.redirectWebhookToHandler({
-      events: [{ id: 'EV2', resource_type: 'instalment_schedules', action: 'errored' }],
+      events: [
+        { id: 'EV2', resource_type: 'instalment_schedules', action: 'errored' },
+      ],
     } as never);
 
     expect(schedulesHandler.handleWebhook).toHaveBeenCalled();
