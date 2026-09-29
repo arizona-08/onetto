@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { subscriptionPlanLabel } from "@/lib/subscription/plan-labels";
 import { apiServer } from "@/lib/api-server";
 type Users = {
   items: Array<{
@@ -51,7 +52,7 @@ export default async function AdminUsersPage() {
                 <td className="p-4">{user.email}</td>
                 <td className="p-4">{user.accountType}</td>
                 <td className="p-4">
-                  {user.subscription?.subscriptionPlan ?? "FREE"}
+                  {subscriptionPlanLabel(user.subscription?.subscriptionPlan)}
                 </td>
                 <td className="p-4">{user._count.ownedCompanies}</td>
               </tr>

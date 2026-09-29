@@ -1,3 +1,4 @@
+import { subscriptionPlanLabel } from "@/lib/subscription/plan-labels";
 import { apiServer } from "@/lib/api-server";
 
 type Dashboard = {
@@ -52,7 +53,7 @@ export default async function AdminPage() {
               key={item.subscriptionPlan}
               className="rounded-lg bg-primary/10 px-3 py-2 text-sm font-semibold text-primary"
             >
-              {item.subscriptionPlan} · {item._count}
+              {subscriptionPlanLabel(item.subscriptionPlan)} · {item._count}
             </span>
           ))}
         </div>

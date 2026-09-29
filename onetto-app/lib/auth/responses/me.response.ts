@@ -5,4 +5,5 @@ interface MeResponse {
   email: string;
   role: string;
   emailVerifiedAt: string | null;
+  isAdmin: boolean;
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { subscriptionPlanLabel } from "@/lib/subscription/plan-labels";
 import { apiServer } from "@/lib/api-server";
 
 type User = {
@@ -43,7 +44,7 @@ export default async function AdminUserPage({
       <section className="rounded-2xl border border-zinc-200 bg-white p-5">
         <h3 className="font-semibold">Abonnement</h3>
         <p className="mt-2 text-sm">
-          {user.subscription?.subscriptionPlan ?? "FREE"} ·{" "}
+          {subscriptionPlanLabel(user.subscription?.subscriptionPlan)} ·{" "}
           {user.subscription?.isActive ? "actif" : "inactif"}
         </p>
       </section>

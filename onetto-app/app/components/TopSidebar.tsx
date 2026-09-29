@@ -24,6 +24,7 @@ import {
   notifyCompanyUpdated,
 } from "@/lib/companies/company-events";
 import { useToast } from "./context/ToastContext";
+import AdminTopSidebar from "./AdminTopSidebar";
 
 const links = [
   { name: "Dashboard", href: "/dashboard", icon: <LayoutDashboardIcon /> },
@@ -75,11 +76,15 @@ function TopSidebar() {
   }, []);
 
   React.useEffect(() => {
+    if (user?.isAdmin) {
+      return;
+    }
+
     void loadCompanies();
     window.addEventListener(COMPANY_UPDATED_EVENT, loadCompanies);
     return () =>
       window.removeEventListener(COMPANY_UPDATED_EVENT, loadCompanies);
-  }, [loadCompanies, pathname]);
+  }, [loadCompanies, pathname, user?.isAdmin]);
 
   const activeCompany = companies.find(
     (company) => company.id === activeCompanyId,
@@ -115,6 +120,10 @@ function TopSidebar() {
     setShowMobileCompaniesMenu(false);
     notifyCompanyUpdated();
     router.refresh();
+  }
+
+  if (user?.isAdmin) {
+    return <AdminTopSidebar />;
   }
 
   return (

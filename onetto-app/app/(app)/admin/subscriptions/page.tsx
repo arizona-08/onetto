@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { subscriptionPlanLabel } from "@/lib/subscription/plan-labels";
 import { apiServer } from "@/lib/api-server";
 
 type Subscriptions = {
@@ -56,12 +57,18 @@ export default async function AdminSubscriptionsPage() {
                     {subscription.user.email}
                   </p>
                 </td>
-                <td className="p-4">{subscription.subscriptionPlan}</td>
+                <td className="p-4">
+                  {subscriptionPlanLabel(subscription.subscriptionPlan)}
+                </td>
                 <td className="p-4">
                   {subscription.isActive ? "Actif" : "Inactif"}
                 </td>
                 <td className="p-4">
-                  {subscription.pendingSubscriptionPlan ?? "—"}
+                  {subscription.pendingSubscriptionPlan
+                    ? subscriptionPlanLabel(
+                        subscription.pendingSubscriptionPlan,
+                      )
+                    : "—"}
                 </td>
                 <td className="p-4 font-mono text-xs text-zinc-500">
                   {subscription.subscriptionId ?? "—"}
