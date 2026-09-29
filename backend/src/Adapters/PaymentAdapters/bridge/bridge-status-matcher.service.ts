@@ -1,12 +1,17 @@
-import { Injectable } from "@nestjs/common";
-import { BridgeWebhookLinkStatus, BridgeWebhookTransactionStatus } from "./webhook-handlers/dtos/transaction.dto";
-import { $Enums } from "@prisma/client";
+import { Injectable } from '@nestjs/common';
+import {
+  BridgeWebhookLinkStatus,
+  BridgeWebhookTransactionStatus,
+} from './webhook-handlers/dtos/transaction.dto';
+import { $Enums } from '@prisma/client';
 
 @Injectable()
 export class BridgeStatusMatcherService {
   constructor() {}
 
-  transactionAttemptStatusMatcher(status: BridgeWebhookTransactionStatus): $Enums.InvoicePaymentAttemptStatus {
+  transactionAttemptStatusMatcher(
+    status: BridgeWebhookTransactionStatus,
+  ): $Enums.InvoicePaymentAttemptStatus {
     switch (status) {
       case 'CREA':
       case 'ACTC':
@@ -22,7 +27,9 @@ export class BridgeStatusMatcherService {
     }
   }
 
-  linkStatusMatcher(status: BridgeWebhookLinkStatus): $Enums.InvoicePaymentLinkStatus {
+  linkStatusMatcher(
+    status: BridgeWebhookLinkStatus,
+  ): $Enums.InvoicePaymentLinkStatus {
     switch (status) {
       case 'valid':
         return 'VALID';
@@ -36,6 +43,4 @@ export class BridgeStatusMatcherService {
         return 'VALID';
     }
   }
-
-
 }

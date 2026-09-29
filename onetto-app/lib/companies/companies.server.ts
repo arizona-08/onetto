@@ -7,7 +7,7 @@ export type CompaniesResponse = {
 };
 
 export type CompanyPlanAccess = {
-  currentPlan: 'FREE' | 'STARTER' | 'PRO';
+  currentPlan: "FREE" | "STARTER" | "PRO";
   features: Record<string, boolean>;
   maxOwnedCompanies: number;
 };
@@ -23,7 +23,7 @@ export type CompanyService = {
   category: string;
   wtPrice: number;
   totalPrice: number;
-  itemType: 'GOODS' | 'SERVICES';
+  itemType: "GOODS" | "SERVICES";
 };
 
 export type CompanyClient = {
@@ -35,7 +35,7 @@ export type CompanyClient = {
   city: string;
   postalCode: string;
   country: string;
-  clientType: 'BUSINESS' | 'CLIENT';
+  clientType: "BUSINESS" | "CLIENT";
   siren?: string | null;
   vatNumber?: string | null;
   electronicAddress?: string | null;
@@ -47,7 +47,7 @@ export function getMyCompaniesServer() {
 }
 
 export function getActiveCompanyPlanAccessServer() {
-  return apiServer<CompanyPlanAccess>('api/companies/active/plan-access');
+  return apiServer<CompanyPlanAccess>("api/companies/active/plan-access");
 }
 
 export function getActiveCompanyServicesServer() {

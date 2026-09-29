@@ -39,7 +39,7 @@ export class GoCardlessWebhookService {
           );
           continue;
         }
-  
+
         try {
           switch (event.resource_type) {
             case 'billing_request':

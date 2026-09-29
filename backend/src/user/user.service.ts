@@ -54,7 +54,8 @@ export class UserService {
               email,
               password: hashedPassword,
               subscriptionPlan: 'FREE',
-              emailVerificationTokenHash: this.hashVerificationToken(verificationToken),
+              emailVerificationTokenHash:
+                this.hashVerificationToken(verificationToken),
               emailVerificationExpiresAt: this.verificationExpiry(),
             },
           });
@@ -101,7 +102,9 @@ export class UserService {
     });
 
     if (!user) {
-      throw new BadRequestException('Ce lien de confirmation est invalide ou a expiré.');
+      throw new BadRequestException(
+        'Ce lien de confirmation est invalide ou a expiré.',
+      );
     }
 
     if (!user.emailVerifiedAt) {
@@ -115,7 +118,10 @@ export class UserService {
       });
     }
 
-    return { message: 'Votre adresse e-mail a été confirmée. Vous pouvez maintenant vous connecter.' };
+    return {
+      message:
+        'Votre adresse e-mail a été confirmée. Vous pouvez maintenant vous connecter.',
+    };
   }
 
   async resendEmailVerification(emailInput: string) {
@@ -127,7 +133,10 @@ export class UserService {
 
     // Same response whether or not an account exists, to avoid revealing registered emails.
     if (!user || user.emailVerifiedAt) {
-      return { message: 'Si un compte non confirmé correspond à cette adresse, un e-mail de confirmation a été envoyé.' };
+      return {
+        message:
+          'Si un compte non confirmé correspond à cette adresse, un e-mail de confirmation a été envoyé.',
+      };
     }
 
     const token = this.createVerificationToken();
@@ -140,7 +149,10 @@ export class UserService {
     });
     await this.sendVerificationEmail(user.email, token);
 
-    return { message: 'Si un compte non confirmé correspond à cette adresse, un e-mail de confirmation a été envoyé.' };
+    return {
+      message:
+        'Si un compte non confirmé correspond à cette adresse, un e-mail de confirmation a été envoyé.',
+    };
   }
 
   private createVerificationToken(): string {
@@ -156,7 +168,9 @@ export class UserService {
   }
 
   private async sendVerificationEmail(email: string, token: string) {
-    const frontendUrl = (process.env.FRONTEND_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+    const frontendUrl = (
+      process.env.FRONTEND_URL ?? 'http://localhost:3000'
+    ).replace(/\/$/, '');
     const verificationUrl = `${frontendUrl}/auth/confirm-email?token=${encodeURIComponent(token)}`;
 
     try {
@@ -203,7 +217,9 @@ export class UserService {
         select: { email: true },
       });
       const emailChanged = existingUser.email !== email;
-      const verificationToken = emailChanged ? this.createVerificationToken() : undefined;
+      const verificationToken = emailChanged
+        ? this.createVerificationToken()
+        : undefined;
       const user = await this.prismaService.user.update({
         where: { id: userId },
         data: {
@@ -213,7 +229,8 @@ export class UserService {
           ...(verificationToken
             ? {
                 emailVerifiedAt: null,
-                emailVerificationTokenHash: this.hashVerificationToken(verificationToken),
+                emailVerificationTokenHash:
+                  this.hashVerificationToken(verificationToken),
                 emailVerificationExpiresAt: this.verificationExpiry(),
               }
             : {}),

@@ -7,7 +7,7 @@ export type CompaniesResponse = {
 };
 
 export type CompanyPlanAccess = {
-  currentPlan: 'FREE' | 'STARTER' | 'PRO';
+  currentPlan: "FREE" | "STARTER" | "PRO";
   features: {
     negotiation: boolean;
     instalments: boolean;
@@ -55,7 +55,7 @@ export function getMyActiveCompany() {
 }
 
 export function getActiveCompanyPlanAccess() {
-  return apiClient<CompanyPlanAccess>('api/companies/active/plan-access');
+  return apiClient<CompanyPlanAccess>("api/companies/active/plan-access");
 }
 
 export function createCompany(data: CreateCompanyDto) {
@@ -68,12 +68,18 @@ export function createCompany(data: CreateCompanyDto) {
 export function startSuperPdpAuthorization(companyId: string) {
   return apiClient<{ url: string }>(
     `api/electronic-invoicing/superpdp/oauth/companies/${companyId}/authorize`,
-    { method: 'GET' },
+    { method: "GET" },
   );
 }
 
 export type SuperPdpConnectionStatus = {
-  status: 'NOT_CONFIGURED' | 'PENDING_AUTHORIZATION' | 'VERIFYING' | 'ACTIVE' | 'ACTION_REQUIRED' | 'SUSPENDED';
+  status:
+    | "NOT_CONFIGURED"
+    | "PENDING_AUTHORIZATION"
+    | "VERIFYING"
+    | "ACTIVE"
+    | "ACTION_REQUIRED"
+    | "SUSPENDED";
   connectedAt: string | null;
   lastError: string | null;
 } | null;
@@ -85,10 +91,40 @@ export function getSuperPdpConnectionStatus(companyId: string) {
 }
 
 export type SuperPdpEreportingOverview = {
-  transactions: { data?: Array<{ id?: number | string; date?: string; category_code?: string; tax_exclusive_amount?: string; tax_total?: string; ppf_ereporting_id?: number | string }> };
-  payments: { data?: Array<{ id?: number | string; date?: string; ppf_ereporting_id?: number | string }> };
-  ereportings: { data?: Array<{ id?: number | string; status?: string; period_start?: string; period_end?: string }> };
-  submissions: Array<{ id: string; kind: 'TRANSACTION' | 'PAYMENT'; status: string; providerReportId: string | null; lastError: string | null; createdAt: string; document?: { documentNumber: string | null; clientName: string } | null }>;
+  transactions: {
+    data?: Array<{
+      id?: number | string;
+      date?: string;
+      category_code?: string;
+      tax_exclusive_amount?: string;
+      tax_total?: string;
+      ppf_ereporting_id?: number | string;
+    }>;
+  };
+  payments: {
+    data?: Array<{
+      id?: number | string;
+      date?: string;
+      ppf_ereporting_id?: number | string;
+    }>;
+  };
+  ereportings: {
+    data?: Array<{
+      id?: number | string;
+      status?: string;
+      period_start?: string;
+      period_end?: string;
+    }>;
+  };
+  submissions: Array<{
+    id: string;
+    kind: "TRANSACTION" | "PAYMENT";
+    status: string;
+    providerReportId: string | null;
+    lastError: string | null;
+    createdAt: string;
+    document?: { documentNumber: string | null; clientName: string } | null;
+  }>;
 };
 
 export function getSuperPdpEreportingOverview(companyId: string) {

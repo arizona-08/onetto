@@ -24,6 +24,7 @@ model User {
   passwordResetExpiresAt  DateTime?
   passwordChangedAt       DateTime?
   accountType            AccountType       @default(BUSINESS_OWNER)
+  isAdmin                Boolean           @default(false)
   subscriptionPlan       SubscriptionPlan?
   lastConnectedCompanyId String?
 
@@ -33,6 +34,22 @@ model User {
   subscription         UserSubscription?
   subscriptionHistory  UserSubscriptionHistory[]
   notifications        AppNotification[]
+  adminAuditLogs       AdminAuditLog[]     @relation("AdminAuditActor")
+}
+
+model AdminAuditLog {
+  id          String   @id @default(uuid())
+  adminUserId String
+  action      String
+  targetType  String
+  targetId    String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  adminUser User @relation("AdminAuditActor", fields: [adminUserId], references: [id])
+
+  @@index([createdAt])
+  @@index([targetType, targetId])
 }
 
 enum AccountType {

@@ -31,60 +31,98 @@ export class SuperPdpB2bService {
   async send(input: { companyId: string; documentId: string; user: User }) {
     const document = await this.findDocument(input);
     if (!document.sentAt) {
-      throw new BadRequestException('La facture doit d’abord être finalisée et envoyée au client.');
+      throw new BadRequestException(
+        'La facture doit d’abord être finalisée et envoyée au client.',
+      );
     }
     if (document.clientType !== 'BUSINESS') {
-      throw new BadRequestException('Seules les factures destinées à une entreprise peuvent être transmises en B2B.');
+      throw new BadRequestException(
+        'Seules les factures destinées à une entreprise peuvent être transmises en B2B.',
+      );
     }
-    const existing = await this.prisma.electronicInvoiceTransmission.findUnique({
-      where: { documentId_provider_flow: { documentId: document.id, provider: 'SUPER_PDP', flow: 'B2B_FR' } },
-    });
+    const existing = await this.prisma.electronicInvoiceTransmission.findUnique(
+      {
+        where: {
+          documentId_provider_flow: {
+            documentId: document.id,
+            provider: 'SUPER_PDP',
+            flow: 'B2B_FR',
+          },
+        },
+      },
+    );
 
-    if (!document.clientElectronicAddress || !document.clientElectronicAddressScheme) {
-      const transmission = existing ?? await this.prisma.electronicInvoiceTransmission.create({
+    if (
+      !document.clientElectronicAddress ||
+      !document.clientElectronicAddressScheme
+    ) {
+      const transmission =
+        existing ??
+        (await this.prisma.electronicInvoiceTransmission.create({
+          data: {
+            documentId: document.id,
+            provider: 'SUPER_PDP',
+            flow: 'B2B_FR',
+            idempotencyKey: randomUUID(),
+          },
+        }));
+      await this.prisma.electronicInvoiceTransmission.update({
+        where: { id: transmission.id },
+        data: {
+          status: 'FAILED',
+          lastError:
+            'Sélectionnez un point de réception pour ce client avant de transmettre la facture.',
+        },
+      });
+      throw new BadRequestException(
+        'Sélectionnez une adresse électronique de réception dans l’annuaire avant la transmission.',
+      );
+    }
+
+    if (existing?.providerInvoiceId) return this.sync(input);
+
+    const transmission =
+      existing ??
+      (await this.prisma.electronicInvoiceTransmission.create({
         data: {
           documentId: document.id,
           provider: 'SUPER_PDP',
           flow: 'B2B_FR',
           idempotencyKey: randomUUID(),
         },
-      });
-      await this.prisma.electronicInvoiceTransmission.update({
-        where: { id: transmission.id },
-        data: {
-          status: 'FAILED',
-          lastError: 'Sélectionnez un point de réception pour ce client avant de transmettre la facture.',
-        },
-      });
-      throw new BadRequestException('Sélectionnez une adresse électronique de réception dans l’annuaire avant la transmission.');
-    }
-
-    if (existing?.providerInvoiceId) return this.sync(input);
-
-    const transmission = existing ?? await this.prisma.electronicInvoiceTransmission.create({
-      data: {
-        documentId: document.id,
-        provider: 'SUPER_PDP',
-        flow: 'B2B_FR',
-        idempotencyKey: randomUUID(),
-      },
-    });
+      }));
 
     await this.prisma.electronicInvoiceTransmission.update({
       where: { id: transmission.id },
-      data: { status: 'SUBMITTING', attemptCount: { increment: 1 }, lastError: null },
+      data: {
+        status: 'SUBMITTING',
+        attemptCount: { increment: 1 },
+        lastError: null,
+      },
     });
 
     try {
-      const facturX = existing?.status === 'FAILED' && !existing.providerInvoiceId
-        ? await this.facturX.regenerateForFailedB2BTransmission(document.id, input.user)
-        : await this.facturX.archive(document.id, input.user);
-      await this.validateElectronicInvoice(facturX, document.documentNumber ?? document.id, 'pdf');
+      const facturX =
+        existing?.status === 'FAILED' && !existing.providerInvoiceId
+          ? await this.facturX.regenerateForFailedB2BTransmission(
+              document.id,
+              input.user,
+            )
+          : await this.facturX.archive(document.id, input.user);
+      await this.validateElectronicInvoice(
+        facturX,
+        document.documentNumber ?? document.id,
+        'pdf',
+      );
       // The directory endpoint selected for Tricatel accepts Peppol BIS
       // Billing 3.0. We retain the French Factur-X as the immutable archive
       // and build the equivalent UBL transport document with Peppol's profile.
       const ubl = await this.facturX.generatePeppolUbl(document.id, input.user);
-      await this.validateElectronicInvoice(ubl, document.documentNumber ?? document.id, 'xml');
+      await this.validateElectronicInvoice(
+        ubl,
+        document.documentNumber ?? document.id,
+        'xml',
+      );
       const token = await this.oauth.getAccessToken(input.companyId);
       const url = new URL('https://api.superpdp.tech/v1.beta/invoices');
       // The document UUID is a stable external id accepted by SuperPDP (max. 36 chars).
@@ -109,15 +147,21 @@ export class SuperPdpB2bService {
       });
       const response = await fetch(url, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/xml' },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/xml',
+        },
         body: Uint8Array.from(ubl),
       });
       if (!response.ok) {
         const details = (await response.text()).slice(0, 1000);
         throw new Error(details || `HTTP ${response.status}`);
       }
-      const providerInvoice = await response.json() as { id?: number | string };
-      if (providerInvoice.id === undefined) throw new Error('Réponse SuperPDP sans identifiant de facture.');
+      const providerInvoice = (await response.json()) as {
+        id?: number | string;
+      };
+      if (providerInvoice.id === undefined)
+        throw new Error('Réponse SuperPDP sans identifiant de facture.');
 
       await this.prisma.electronicInvoiceTransmission.update({
         where: { id: transmission.id },
@@ -133,7 +177,10 @@ export class SuperPdpB2bService {
       });
       return this.sync(input);
     } catch (error) {
-      const message = error instanceof Error ? error.message.slice(0, 1000) : 'Erreur inconnue.';
+      const message =
+        error instanceof Error
+          ? error.message.slice(0, 1000)
+          : 'Erreur inconnue.';
       console.error('[SuperPDP B2B] Transmission failure', {
         documentId: document.id,
         companyId: input.companyId,
@@ -141,19 +188,35 @@ export class SuperPdpB2bService {
       });
       await this.prisma.electronicInvoiceTransmission.update({
         where: { id: transmission.id },
-        data: { status: 'FAILED', lastError: 'La transmission n’a pas pu aboutir. Vérifiez les données de facturation avant de réessayer.' },
+        data: {
+          status: 'FAILED',
+          lastError:
+            'La transmission n’a pas pu aboutir. Vérifiez les données de facturation avant de réessayer.',
+        },
       });
       if (error instanceof BadRequestException) throw error;
-      throw new BadGatewayException('Impossible de transmettre la facture électronique. Vérifiez les données de facturation et le point de réception du client.');
+      throw new BadGatewayException(
+        'Impossible de transmettre la facture électronique. Vérifiez les données de facturation et le point de réception du client.',
+      );
     }
   }
 
   async sync(input: { companyId: string; documentId: string; user: User }) {
     await this.findDocument(input);
-    const transmission = await this.prisma.electronicInvoiceTransmission.findUnique({
-      where: { documentId_provider_flow: { documentId: input.documentId, provider: 'SUPER_PDP', flow: 'B2B_FR' } },
-    });
-    if (!transmission) throw new NotFoundException('Aucune transmission B2B SuperPDP pour cette facture.');
+    const transmission =
+      await this.prisma.electronicInvoiceTransmission.findUnique({
+        where: {
+          documentId_provider_flow: {
+            documentId: input.documentId,
+            provider: 'SUPER_PDP',
+            flow: 'B2B_FR',
+          },
+        },
+      });
+    if (!transmission)
+      throw new NotFoundException(
+        'Aucune transmission B2B SuperPDP pour cette facture.',
+      );
     return this.syncTransmission(transmission, input.companyId);
   }
 
@@ -163,30 +226,54 @@ export class SuperPdpB2bService {
    * repeatedly or after a short outage.
    */
   async syncPendingTransmissions() {
-    const transmissions = await this.prisma.electronicInvoiceTransmission.findMany({
-      where: {
-        provider: 'SUPER_PDP',
-        providerInvoiceId: { not: null },
-        status: { in: ['PENDING', 'SUBMITTING', 'SUBMITTED', 'SENT', 'DELIVERED', 'ON_HOLD', 'PARTIALLY_ACCEPTED', 'DISPUTED'] },
-        document: { company: { electronicInvoicingConnection: { is: { status: 'ACTIVE' } } } },
-      },
-      include: { document: { select: { companyId: true } } },
-      orderBy: { lastSyncedAt: 'asc' },
-      take: 100,
-    });
+    const transmissions =
+      await this.prisma.electronicInvoiceTransmission.findMany({
+        where: {
+          provider: 'SUPER_PDP',
+          providerInvoiceId: { not: null },
+          status: {
+            in: [
+              'PENDING',
+              'SUBMITTING',
+              'SUBMITTED',
+              'SENT',
+              'DELIVERED',
+              'ON_HOLD',
+              'PARTIALLY_ACCEPTED',
+              'DISPUTED',
+            ],
+          },
+          document: {
+            company: {
+              electronicInvoicingConnection: { is: { status: 'ACTIVE' } },
+            },
+          },
+        },
+        include: { document: { select: { companyId: true } } },
+        orderBy: { lastSyncedAt: 'asc' },
+        take: 100,
+      });
 
     const results = await Promise.allSettled(
-      transmissions.map((transmission) => this.syncTransmission(transmission, transmission.document.companyId)),
+      transmissions.map((transmission) =>
+        this.syncTransmission(transmission, transmission.document.companyId),
+      ),
     );
     return {
       checked: transmissions.length,
-      synchronized: results.filter((result) => result.status === 'fulfilled').length,
+      synchronized: results.filter((result) => result.status === 'fulfilled')
+        .length,
       failed: results.filter((result) => result.status === 'rejected').length,
     };
   }
 
   private async syncTransmission(
-    transmission: { id: string; providerInvoiceId: string | null; status: ElectronicInvoiceTransmissionStatus; providerStatus: string | null },
+    transmission: {
+      id: string;
+      providerInvoiceId: string | null;
+      status: ElectronicInvoiceTransmissionStatus;
+      providerStatus: string | null;
+    },
     companyId: string,
   ) {
     if (!transmission.providerInvoiceId) return transmission;
@@ -198,15 +285,32 @@ export class SuperPdpB2bService {
         `https://api.superpdp.tech/v1.beta/invoices/${encodeURIComponent(transmission.providerInvoiceId)}`,
         { headers },
       );
-      if (!invoiceResponse.ok) throw new Error('SuperPDP ne permet pas encore de lire le statut de cette facture.');
-      const invoice = await invoiceResponse.json() as { events?: ProviderEvent[] };
-      const events = [...(invoice.events ?? []), ...await this.listAllProviderEvents(transmission.providerInvoiceId, headers)]
-        .filter((event) => event.id !== undefined && event.status_code);
+      if (!invoiceResponse.ok)
+        throw new Error(
+          'SuperPDP ne permet pas encore de lire le statut de cette facture.',
+        );
+      const invoice = (await invoiceResponse.json()) as {
+        events?: ProviderEvent[];
+      };
+      const events = [
+        ...(invoice.events ?? []),
+        ...(await this.listAllProviderEvents(
+          transmission.providerInvoiceId,
+          headers,
+        )),
+      ].filter((event) => event.id !== undefined && event.status_code);
       let latest: ProviderEvent | undefined;
       for (const event of events) {
-        const occurredAt = event.created_at ? new Date(event.created_at) : new Date();
+        const occurredAt = event.created_at
+          ? new Date(event.created_at)
+          : new Date();
         await this.prisma.electronicInvoiceEvent.upsert({
-          where: { transmissionId_providerEventId: { transmissionId: transmission.id, providerEventId: String(event.id) } },
+          where: {
+            transmissionId_providerEventId: {
+              transmissionId: transmission.id,
+              providerEventId: String(event.id),
+            },
+          },
           create: {
             transmissionId: transmission.id,
             providerEventId: String(event.id),
@@ -216,9 +320,14 @@ export class SuperPdpB2bService {
             occurredAt,
             payload: event as Prisma.InputJsonValue,
           },
-          update: { providerStatus: event.status_code!, occurredAt, payload: event as Prisma.InputJsonValue },
+          update: {
+            providerStatus: event.status_code!,
+            occurredAt,
+            payload: event as Prisma.InputJsonValue,
+          },
         });
-        if (!latest || occurredAt > new Date(latest.created_at ?? 0)) latest = event;
+        if (!latest || occurredAt > new Date(latest.created_at ?? 0))
+          latest = event;
       }
       return this.prisma.electronicInvoiceTransmission.update({
         where: { id: transmission.id },
@@ -231,30 +340,47 @@ export class SuperPdpB2bService {
         include: { events: { orderBy: { occurredAt: 'desc' } } },
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue.';
+      const message =
+        error instanceof Error ? error.message : 'Erreur inconnue.';
       console.error('[SuperPDP B2B] Status synchronization failure', {
         transmissionId: transmission.id,
         companyId,
         error: message,
       });
       await this.prisma.electronicInvoiceTransmission.update({
-        where: { id: transmission.id }, data: { lastError: 'Le statut ne peut pas être mis à jour pour le moment.', lastSyncedAt: new Date() },
+        where: { id: transmission.id },
+        data: {
+          lastError: 'Le statut ne peut pas être mis à jour pour le moment.',
+          lastSyncedAt: new Date(),
+        },
       });
-      throw new BadGatewayException('Le statut de la facture électronique ne peut pas être mis à jour pour le moment.');
+      throw new BadGatewayException(
+        'Le statut de la facture électronique ne peut pas être mis à jour pour le moment.',
+      );
     }
   }
 
-  private async listAllProviderEvents(providerInvoiceId: string, headers: HeadersInit): Promise<ProviderEvent[]> {
+  private async listAllProviderEvents(
+    providerInvoiceId: string,
+    headers: HeadersInit,
+  ): Promise<ProviderEvent[]> {
     const events: ProviderEvent[] = [];
     let startingAfterId: string | undefined;
     do {
       const url = new URL('https://api.superpdp.tech/v1.beta/invoice_events');
       url.searchParams.set('invoice_id', providerInvoiceId);
       url.searchParams.set('limit', '1000');
-      if (startingAfterId) url.searchParams.set('starting_after_id', startingAfterId);
+      if (startingAfterId)
+        url.searchParams.set('starting_after_id', startingAfterId);
       const response = await fetch(url, { headers });
-      if (!response.ok) throw new Error('SuperPDP ne permet pas encore de lire le statut de cette facture.');
-      const page = await response.json() as { data?: ProviderEvent[]; has_after?: boolean };
+      if (!response.ok)
+        throw new Error(
+          'SuperPDP ne permet pas encore de lire le statut de cette facture.',
+        );
+      const page = (await response.json()) as {
+        data?: ProviderEvent[];
+        has_after?: boolean;
+      };
       const batch = page.data ?? [];
       events.push(...batch);
       const lastId = batch.at(-1)?.id;
@@ -264,28 +390,56 @@ export class SuperPdpB2bService {
     return events;
   }
 
-  async getTransmission(input: { companyId: string; documentId: string; user: User }) {
+  async getTransmission(input: {
+    companyId: string;
+    documentId: string;
+    user: User;
+  }) {
     await this.findDocument(input);
     return this.prisma.electronicInvoiceTransmission.findUnique({
-      where: { documentId_provider_flow: { documentId: input.documentId, provider: 'SUPER_PDP', flow: 'B2B_FR' } },
+      where: {
+        documentId_provider_flow: {
+          documentId: input.documentId,
+          provider: 'SUPER_PDP',
+          flow: 'B2B_FR',
+        },
+      },
       include: { events: { orderBy: { occurredAt: 'desc' } } },
     });
   }
 
-  private async findDocument(input: { companyId: string; documentId: string; user: User }) {
+  private async findDocument(input: {
+    companyId: string;
+    documentId: string;
+    user: User;
+  }) {
     const document = await this.prisma.document.findFirst({
       where: {
         id: input.documentId,
         companyId: input.companyId,
         type: 'INVOICE',
-        company: { OR: [{ ownerId: input.user.id }, { companyUsers: { some: { userId: input.user.id, role: 'ADMIN', isHidden: false } } }] },
+        company: {
+          OR: [
+            { ownerId: input.user.id },
+            {
+              companyUsers: {
+                some: { userId: input.user.id, role: 'ADMIN', isHidden: false },
+              },
+            },
+          ],
+        },
       },
     });
-    if (!document) throw new NotFoundException('Facture introuvable ou accès non autorisé.');
+    if (!document)
+      throw new NotFoundException('Facture introuvable ou accès non autorisé.');
     return document;
   }
 
-  private async validateElectronicInvoice(file: Buffer, documentNumber: string, extension: 'pdf' | 'xml') {
+  private async validateElectronicInvoice(
+    file: Buffer,
+    documentNumber: string,
+    extension: 'pdf' | 'xml',
+  ) {
     const form = new FormData();
     form.append(
       'file',
@@ -294,22 +448,36 @@ export class SuperPdpB2bService {
     );
     let response: Response;
     try {
-      response = await fetch('https://api.superpdp.tech/v1.beta/validation_reports', {
-        method: 'POST',
-        body: form,
-      });
+      response = await fetch(
+        'https://api.superpdp.tech/v1.beta/validation_reports',
+        {
+          method: 'POST',
+          body: form,
+        },
+      );
     } catch {
-      throw new BadGatewayException('Le service de validation SuperPDP est indisponible.');
+      throw new BadGatewayException(
+        'Le service de validation SuperPDP est indisponible.',
+      );
     }
     if (!response.ok) {
-      throw new BadGatewayException(`SuperPDP ne peut pas valider la facture électronique (HTTP ${response.status}).`);
+      throw new BadGatewayException(
+        `SuperPDP ne peut pas valider la facture électronique (HTTP ${response.status}).`,
+      );
     }
-    const result = await response.json() as {
-      data?: Array<{ is_valid?: boolean; error?: string; subreports?: Array<{ error?: string }> }>;
+    const result = (await response.json()) as {
+      data?: Array<{
+        is_valid?: boolean;
+        error?: string;
+        subreports?: Array<{ error?: string }>;
+      }>;
     };
     const report = result.data?.[0];
     if (!report?.is_valid) {
-      const details = [report?.error, ...(report?.subreports?.map((item) => item.error) ?? [])]
+      const details = [
+        report?.error,
+        ...(report?.subreports?.map((item) => item.error) ?? []),
+      ]
         .filter((value): value is string => Boolean(value))
         .join(' ')
         .slice(0, 1500);
@@ -321,13 +489,31 @@ export class SuperPdpB2bService {
     }
   }
 
-  private mapStatus(status?: string): ElectronicInvoiceTransmissionStatus | undefined {
+  private mapStatus(
+    status?: string,
+  ): ElectronicInvoiceTransmissionStatus | undefined {
     const statuses: Record<string, ElectronicInvoiceTransmissionStatus> = {
-      'api:uploaded': 'SUBMITTED', 'api:validated': 'SUBMITTED', 'api:sent': 'SENT', 'api:received': 'DELIVERED',
-      'api:acknowledged': 'DELIVERED', 'api:accepted': 'ACCEPTED', 'api:invalid': 'INVALID', 'api:rejected': 'REJECTED',
-      'fr:200': 'SUBMITTED', 'fr:201': 'SENT', 'fr:202': 'DELIVERED', 'fr:203': 'DELIVERED', 'fr:204': 'DELIVERED',
-      'fr:205': 'ACCEPTED', 'fr:206': 'PARTIALLY_ACCEPTED', 'fr:207': 'DISPUTED', 'fr:208': 'ON_HOLD',
-      'fr:209': 'COMPLETED', 'fr:210': 'REFUSED', 'fr:213': 'REJECTED', 'fr:501': 'INVALID',
+      'api:uploaded': 'SUBMITTED',
+      'api:validated': 'SUBMITTED',
+      'api:sent': 'SENT',
+      'api:received': 'DELIVERED',
+      'api:acknowledged': 'DELIVERED',
+      'api:accepted': 'ACCEPTED',
+      'api:invalid': 'INVALID',
+      'api:rejected': 'REJECTED',
+      'fr:200': 'SUBMITTED',
+      'fr:201': 'SENT',
+      'fr:202': 'DELIVERED',
+      'fr:203': 'DELIVERED',
+      'fr:204': 'DELIVERED',
+      'fr:205': 'ACCEPTED',
+      'fr:206': 'PARTIALLY_ACCEPTED',
+      'fr:207': 'DISPUTED',
+      'fr:208': 'ON_HOLD',
+      'fr:209': 'COMPLETED',
+      'fr:210': 'REFUSED',
+      'fr:213': 'REJECTED',
+      'fr:501': 'INVALID',
     };
     return status ? statuses[status] : undefined;
   }

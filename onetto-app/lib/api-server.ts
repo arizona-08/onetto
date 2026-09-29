@@ -5,11 +5,9 @@ import { err, ok, Result } from "../shared/result";
 function isPublicAuthPath(path: string): boolean {
   const normalizedPath = path.replace(/^\/+/, "");
 
-  return [
-    "api/auth/login",
-    "api/auth/refresh",
-    "api/users/create",
-  ].includes(normalizedPath);
+  return ["api/auth/login", "api/auth/refresh", "api/users/create"].includes(
+    normalizedPath,
+  );
 }
 
 function isRefreshPath(path: string): boolean {
@@ -23,7 +21,10 @@ function getAccessTokenFromSetCookie(response: Response): string | undefined {
   return match?.[1];
 }
 
-async function getServerHeaders(options?: RequestInit, accessToken?: string): Promise<Headers> {
+async function getServerHeaders(
+  options?: RequestInit,
+  accessToken?: string,
+): Promise<Headers> {
   const fetchHeaders = new Headers(options?.headers || {});
 
   if (accessToken) {
@@ -44,7 +45,11 @@ async function getServerHeaders(options?: RequestInit, accessToken?: string): Pr
   return fetchHeaders;
 }
 
-async function fetchServerApi(path: string, options?: RequestInit, accessToken?: string) {
+async function fetchServerApi(
+  path: string,
+  options?: RequestInit,
+  accessToken?: string,
+) {
   const res = await fetch(buildApiUrl(process.env.INTERNAL_API_URL, path), {
     ...options,
     credentials: "include",
@@ -55,7 +60,9 @@ async function fetchServerApi(path: string, options?: RequestInit, accessToken?:
   return { res, payload };
 }
 
-async function refreshServerAccessToken(options?: RequestInit): Promise<string | undefined> {
+async function refreshServerAccessToken(
+  options?: RequestInit,
+): Promise<string | undefined> {
   const { res } = await fetchServerApi("/api/auth/refresh", {
     method: "POST",
     headers: options?.headers,
@@ -68,10 +75,14 @@ async function refreshServerAccessToken(options?: RequestInit): Promise<string |
   return getAccessTokenFromSetCookie(res);
 }
 
-export async function apiServer<T, E = ApiError>(path: string, options?: RequestInit): Promise<Result<T, E>> {
+export async function apiServer<T, E = ApiError>(
+  path: string,
+  options?: RequestInit,
+): Promise<Result<T, E>> {
   try {
     let { res, payload } = await fetchServerApi(path, options);
-    const shouldRefresh = res.status === 401 && !isPublicAuthPath(path) && !isRefreshPath(path);
+    const shouldRefresh =
+      res.status === 401 && !isPublicAuthPath(path) && !isRefreshPath(path);
 
     if (shouldRefresh) {
       const accessToken = await refreshServerAccessToken(options);

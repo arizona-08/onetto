@@ -1,4 +1,8 @@
-import { BadGatewayException, BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Injectable,
+} from '@nestjs/common';
 
 type DirectoryCompany = {
   number: string;
@@ -11,12 +15,15 @@ type DirectoryCompany = {
 
 @Injectable()
 export class SuperPdpDirectoryService {
-  private readonly baseUrl = 'https://api.superpdp.tech/v1.beta/french_directory';
+  private readonly baseUrl =
+    'https://api.superpdp.tech/v1.beta/french_directory';
 
   async searchCompanies(query: string) {
     const normalizedQuery = query.trim();
     if (normalizedQuery.length < 2) {
-      throw new BadRequestException('Saisissez au moins deux caractères pour rechercher une entreprise.');
+      throw new BadRequestException(
+        'Saisissez au moins deux caractères pour rechercher une entreprise.',
+      );
     }
 
     const url = new URL(`${this.baseUrl}/companies`);
@@ -37,7 +44,11 @@ export class SuperPdpDirectoryService {
     const url = new URL(`${this.baseUrl}/entries`);
     url.searchParams.set('number', siren);
     return this.fetchJson<{
-      data: Array<{ identifier: string; is_active: boolean; company: DirectoryCompany }>;
+      data: Array<{
+        identifier: string;
+        is_active: boolean;
+        company: DirectoryCompany;
+      }>;
     }>(url);
   }
 
@@ -45,9 +56,11 @@ export class SuperPdpDirectoryService {
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return await response.json() as T;
+      return (await response.json()) as T;
     } catch {
-      throw new BadGatewayException('L’annuaire SuperPDP est momentanément indisponible.');
+      throw new BadGatewayException(
+        'L’annuaire SuperPDP est momentanément indisponible.',
+      );
     }
   }
 }

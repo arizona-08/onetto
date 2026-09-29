@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 type AuthUserType = {
   user: AuthUser | null;
-  setUser: (user: AuthUser | null) => void
+  setUser: (user: AuthUser | null) => void;
 };
 
 const AuthUserContext = createContext<AuthUserType | undefined>(undefined);
@@ -19,7 +19,7 @@ export function AuthUserProvider({ children }: AuthUserProviderProps) {
 
   async function fetchUser() {
     const response = await me();
-    if(!response.ok) {
+    if (!response.ok) {
       setUser(null);
       return;
     }
@@ -36,7 +36,6 @@ export function AuthUserProvider({ children }: AuthUserProviderProps) {
       {children}
     </AuthUserContext.Provider>
   );
-
 }
 
 export function useAuthUser() {

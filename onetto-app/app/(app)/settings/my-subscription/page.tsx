@@ -37,14 +37,25 @@ async function SubscriptionPage() {
                   : "Vous utilisez actuellement la formule gratuite."}
             </p>
           </div>
-          <div className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ${isActive ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100 text-zinc-700"}`}>
-            <span className={`h-2 w-2 rounded-full ${isActive ? "bg-emerald-500" : "bg-zinc-400"}`} aria-hidden="true" />
+          <div
+            className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-sm font-semibold ${isActive ? "bg-emerald-50 text-emerald-700" : "bg-zinc-100 text-zinc-700"}`}
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${isActive ? "bg-emerald-500" : "bg-zinc-400"}`}
+              aria-hidden="true"
+            />
             {isActive ? "Abonnement actif" : "Formule gratuite"}
           </div>
         </div>
         <div className="mt-5 flex items-start gap-3 rounded-xl border border-primary/10 bg-primary/[0.04] p-4 text-sm text-zinc-700">
-          <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
-          <p>Vos fonctionnalités sont appliquées à vos entreprises selon la formule choisie. Le paiement est sécurisé par Stripe.</p>
+          <ShieldCheck
+            className="mt-0.5 h-5 w-5 shrink-0 text-primary"
+            aria-hidden="true"
+          />
+          <p>
+            Vos fonctionnalités sont appliquées à vos entreprises selon la
+            formule choisie. Le paiement est sécurisé par Stripe.
+          </p>
         </div>
       </section>
 

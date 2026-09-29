@@ -1,25 +1,29 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import AuthShell from '../AuthShell';
-import { confirmEmail } from '@/lib/auth/auth';
-import { ApiError } from '@/lib/api';
+import Link from "next/link";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import AuthShell from "../AuthShell";
+import { confirmEmail } from "@/lib/auth/auth";
+import { ApiError } from "@/lib/api";
 
 function getErrorMessage(error: ApiError): string {
-  return Array.isArray(error.message) ? error.message.join(' ') : error.message;
+  return Array.isArray(error.message) ? error.message.join(" ") : error.message;
 }
 
 function ConfirmEmailContent() {
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
-  const [message, setMessage] = useState('Confirmation de votre adresse e-mail…');
+  const token = searchParams.get("token");
+  const [message, setMessage] = useState(
+    "Confirmation de votre adresse e-mail…",
+  );
   const [isConfirmed, setIsConfirmed] = useState(false);
 
   useEffect(() => {
     if (!token) {
-      setMessage('Ce lien de confirmation est incomplet. Demandez-en un nouveau.');
+      setMessage(
+        "Ce lien de confirmation est incomplet. Demandez-en un nouveau.",
+      );
       return;
     }
 
@@ -34,12 +38,15 @@ function ConfirmEmailContent() {
   }, [token]);
 
   return (
-    <AuthShell title={isConfirmed ? 'Adresse confirmée' : 'Confirmation de l’e-mail'} subtitle={message}>
+    <AuthShell
+      title={isConfirmed ? "Adresse confirmée" : "Confirmation de l’e-mail"}
+      subtitle={message}
+    >
       <Link
-        href={isConfirmed ? '/auth/login' : '/auth/check-email'}
+        href={isConfirmed ? "/auth/login" : "/auth/check-email"}
         className="block w-full rounded-md bg-primary px-4 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
       >
-        {isConfirmed ? 'Se connecter' : 'Demander un nouveau lien'}
+        {isConfirmed ? "Se connecter" : "Demander un nouveau lien"}
       </Link>
     </AuthShell>
   );

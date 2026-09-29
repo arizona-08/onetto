@@ -1,4 +1,3 @@
-
 import {
   CanActivate,
   ExecutionContext,
@@ -13,7 +12,7 @@ import { UserService } from 'src/user/user.service';
 export class AuthGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
-    private readonly userService: UserService
+    private readonly userService: UserService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -26,7 +25,7 @@ export class AuthGuard implements CanActivate {
       const payload = await this.jwtService.verifyAsync(token, {
         secret: process.env.JWT_SECRET,
       });
-      const authUser = await this.userService.findBy("email", payload.email);
+      const authUser = await this.userService.findBy('email', payload.email);
       if (
         authUser.passwordChangedAt &&
         payload.iat &&
@@ -36,7 +35,7 @@ export class AuthGuard implements CanActivate {
       }
       request['user'] = {
         ...payload,
-        ...authUser
+        ...authUser,
       };
     } catch {
       throw new UnauthorizedException();
@@ -45,7 +44,7 @@ export class AuthGuard implements CanActivate {
   }
 
   private extractTokenFromHeader(request: Request): string | undefined {
-    const accessToken = request.cookies?.["access_token"];
+    const accessToken = request.cookies?.['access_token'];
 
     if (accessToken) {
       return accessToken;

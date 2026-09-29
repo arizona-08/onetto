@@ -63,8 +63,7 @@ export function buildInstalmentSchedule(
   return Array.from({ length: numberOfInstalments }, (_, index) => ({
     sequence: index + 1,
     // The first instalments receive the remaining cents.
-    amountInCents:
-      amountPerInstalmentInCents + (index < remainder ? 1 : 0),
+    amountInCents: amountPerInstalmentInCents + (index < remainder ? 1 : 0),
     dueDate: addInstalmentInterval(firstDueDate, index, frequency),
   }));
 }

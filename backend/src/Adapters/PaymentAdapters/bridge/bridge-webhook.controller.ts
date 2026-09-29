@@ -1,18 +1,20 @@
-import { Body, Controller, Get, Post, Res } from "@nestjs/common";
-import type { Response } from "express";
-import { WebhookTransactionDto } from "./webhook-handlers/dtos/transaction.dto";
-import { BridgeWebhookHandler } from "./webhook-handlers/webhook.handler";
+import { Body, Controller, Get, Post, Res } from '@nestjs/common';
+import type { Response } from 'express';
+import { WebhookTransactionDto } from './webhook-handlers/dtos/transaction.dto';
+import { BridgeWebhookHandler } from './webhook-handlers/webhook.handler';
 
-@Controller("api/bridge/webhooks")
+@Controller('api/bridge/webhooks')
 export class BridgeWebhookController {
   constructor(private readonly bridgeWebhookHandler: BridgeWebhookHandler) {}
 
-  @Post("payment")
-  async handlePaymentTransactionAttempt(@Body() webhook: WebhookTransactionDto | any) {
+  @Post('payment')
+  async handlePaymentTransactionAttempt(
+    @Body() webhook: WebhookTransactionDto | any,
+  ) {
     // console.log(webhook);
-    await this.bridgeWebhookHandler.handleWebhook(webhook)
+    await this.bridgeWebhookHandler.handleWebhook(webhook);
 
-    return { message: "Webhook received successfully" };
+    return { message: 'Webhook received successfully' };
   }
 
   // temporary endpoint to redirect to the frontend callback URL

@@ -3,10 +3,7 @@ import { $Enums } from '@prisma/client';
 export type PlanTier = 'FREE' | 'STARTER' | 'PRO';
 export type BillingInterval = 'NONE' | 'MONTHLY' | 'YEARLY';
 export type PlanChangeType =
-  | 'UPGRADE'
-  | 'DOWNGRADE'
-  | 'SAME_TIER_INTERVAL_CHANGE'
-  | 'SAME_PLAN';
+  'UPGRADE' | 'DOWNGRADE' | 'SAME_TIER_INTERVAL_CHANGE' | 'SAME_PLAN';
 
 export function getPlanTier(
   plan: $Enums.SubscriptionPlan | null | undefined,

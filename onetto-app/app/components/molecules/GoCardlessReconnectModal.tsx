@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
 
 type GoCardlessReconnectModalProps = {
   companyId: string;
@@ -21,7 +21,10 @@ export default function GoCardlessReconnectModal({
       aria-labelledby="gocardless-reconnect-title"
     >
       <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-        <h2 id="gocardless-reconnect-title" className="font-title text-xl font-semibold text-zinc-900">
+        <h2
+          id="gocardless-reconnect-title"
+          className="font-title text-xl font-semibold text-zinc-900"
+        >
           Reconnectez votre compte GoCardless
         </h2>
         <p className="mt-3 text-sm leading-6 text-zinc-600">

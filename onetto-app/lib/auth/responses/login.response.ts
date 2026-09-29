@@ -5,6 +5,7 @@ export interface AuthUser {
   email: string;
   role: string;
   emailVerifiedAt: string | null;
+  isAdmin: boolean;
 }
 
 export interface LoginResponse {

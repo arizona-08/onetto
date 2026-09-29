@@ -101,7 +101,8 @@ export class PlanAccessService {
     );
     return {
       ...access,
-      pendingSubscriptionPlan: user.subscription?.pendingSubscriptionPlan ?? null,
+      pendingSubscriptionPlan:
+        user.subscription?.pendingSubscriptionPlan ?? null,
     };
   }
 

@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import type { Document } from '@/app/types';
+import type { Document } from "@/app/types";
 import {
   getInstalmentRetryCapability,
   retryInstalmentPayment,
   type InstalmentRetryCapability,
-} from '@/lib/documents/document';
-import { formatCurrency, formatDate } from '@/shared/utils';
-import { AlertTriangle, CalendarClock, RotateCcw } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+} from "@/lib/documents/document";
+import { formatCurrency, formatDate } from "@/shared/utils";
+import { AlertTriangle, CalendarClock, RotateCcw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface InvoiceInstalmentProgressProps {
   document: Document;
@@ -18,7 +18,7 @@ interface InvoiceInstalmentProgressProps {
 
 export default function InvoiceInstalmentProgress({
   document,
-  className = '',
+  className = "",
 }: InvoiceInstalmentProgressProps) {
   const router = useRouter();
   const [capabilities, setCapabilities] = useState<
@@ -26,8 +26,8 @@ export default function InvoiceInstalmentProgress({
   >({});
   const [retryingNumber, setRetryingNumber] = useState<number | null>(null);
   if (
-    document.invoicePaymentMode?.paymentMode !== 'INSTALMENTS'
-    || !document.invoiceInstalmentPlan
+    document.invoicePaymentMode?.paymentMode !== "INSTALMENTS" ||
+    !document.invoiceInstalmentPlan
   ) {
     return null;
   }
@@ -39,14 +39,17 @@ export default function InvoiceInstalmentProgress({
   }
 
   const paidInstalments = instalments.filter(
-    (instalment) => instalment.instalmentStatus === 'SUCCESS',
+    (instalment) => instalment.instalmentStatus === "SUCCESS",
   ).length;
   const retryableInstalments = instalments.filter((instalment) =>
-    ['FAILED', 'OVERDUE'].includes(instalment.instalmentStatus),
+    ["FAILED", "OVERDUE"].includes(instalment.instalmentStatus),
   );
   const retryableInstalmentKey = retryableInstalments
-    .map((instalment) => `${instalment.instalmentNumber}:${instalment.instalmentStatus}`)
-    .join(',');
+    .map(
+      (instalment) =>
+        `${instalment.instalmentNumber}:${instalment.instalmentStatus}`,
+    )
+    .join(",");
 
   useEffect(() => {
     let isActive = true;
@@ -57,7 +60,7 @@ export default function InvoiceInstalmentProgress({
           instalment.instalmentNumber,
         );
         return response.ok
-          ? [instalment.instalmentNumber, response.data] as const
+          ? ([instalment.instalmentNumber, response.data] as const)
           : null;
       }),
     ).then((entries) => {
@@ -99,19 +102,33 @@ export default function InvoiceInstalmentProgress({
     <div className={className}>
       <div className="mx-auto w-fit text-center md:hidden">
         <p className="mb-2 text-xs font-semibold text-zinc-600">
-          {paidInstalments}/{instalments.length} échéance{instalments.length > 1 ? 's' : ''} réglée{paidInstalments > 1 ? 's' : ''}
+          {paidInstalments}/{instalments.length} échéance
+          {instalments.length > 1 ? "s" : ""} réglée
+          {paidInstalments > 1 ? "s" : ""}
         </p>
-        <div className="flex h-2 w-40 gap-1 rounded-full" role="img" aria-label={paidInstalments + ' échéance(s) réglée(s) sur ' + instalments.length}>
+        <div
+          className="flex h-2 w-40 gap-1 rounded-full"
+          role="img"
+          aria-label={
+            paidInstalments + " échéance(s) réglée(s) sur " + instalments.length
+          }
+        >
           {instalments.map((instalment) => (
             <span
               key={instalment.instalmentNumber}
               title={`Échéance ${instalment.instalmentNumber} : ${formatDate(instalment.dueDate)} — ${formatCurrency(instalment.amountInCents / 100)}`}
-              className={`min-w-0 flex-1 rounded-full ${instalment.instalmentStatus === 'SUCCESS' ? 'bg-emerald-500' : 'bg-zinc-200'}`}
+              className={`min-w-0 flex-1 rounded-full ${instalment.instalmentStatus === "SUCCESS" ? "bg-emerald-500" : "bg-zinc-200"}`}
             />
           ))}
         </div>
       </div>
-      <div className="hidden h-2 w-full gap-px overflow-visible rounded-full bg-zinc-100 md:flex" role="img" aria-label={paidInstalments + ' échéance(s) réglée(s) sur ' + instalments.length}>
+      <div
+        className="hidden h-2 w-full gap-px overflow-visible rounded-full bg-zinc-100 md:flex"
+        role="img"
+        aria-label={
+          paidInstalments + " échéance(s) réglée(s) sur " + instalments.length
+        }
+      >
         {instalments.map((instalment) => (
           <span
             key={instalment.instalmentNumber}
@@ -119,14 +136,22 @@ export default function InvoiceInstalmentProgress({
             className="group relative min-w-0 flex-1 outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             aria-label={`Échéance ${instalment.instalmentNumber}, prélèvement prévu le ${formatDate(instalment.dueDate)}, montant ${formatCurrency(instalment.amountInCents / 100)}`}
           >
-            <span className={`block h-2 w-full rounded-full ${instalment.instalmentStatus === 'SUCCESS' ? 'bg-emerald-500' : 'bg-zinc-200'}`} />
+            <span
+              className={`block h-2 w-full rounded-full ${instalment.instalmentStatus === "SUCCESS" ? "bg-emerald-500" : "bg-zinc-200"}`}
+            />
             <span
               role="tooltip"
               className="pointer-events-none absolute bottom-4 left-1/2 z-20 w-max -translate-x-1/2 rounded-md bg-zinc-900 px-3 py-2 text-center text-xs leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
             >
-              <span className="block font-semibold">Échéance {instalment.instalmentNumber}</span>
-              <span className="block">Prélèvement prévu le {formatDate(instalment.dueDate)}</span>
-              <span className="block">{formatCurrency(instalment.amountInCents / 100)}</span>
+              <span className="block font-semibold">
+                Échéance {instalment.instalmentNumber}
+              </span>
+              <span className="block">
+                Prélèvement prévu le {formatDate(instalment.dueDate)}
+              </span>
+              <span className="block">
+                {formatCurrency(instalment.amountInCents / 100)}
+              </span>
             </span>
           </span>
         ))}
@@ -141,7 +166,7 @@ export default function InvoiceInstalmentProgress({
             className="mt-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-700"
           >
             <p className="font-semibold">
-              Échéance {instalment.instalmentNumber} —{' '}
+              Échéance {instalment.instalmentNumber} —{" "}
               {formatCurrency(instalment.amountInCents / 100)}
             </p>
             {capability.automaticRetryScheduled ? (
@@ -150,7 +175,7 @@ export default function InvoiceInstalmentProgress({
                 {capability.message}
                 {capability.nextChargeDate
                   ? ` Nouvelle date : ${formatDate(capability.nextChargeDate)}.`
-                  : ''}
+                  : ""}
               </p>
             ) : capability.mandateActionRequired ? (
               <div className="mt-1.5">
@@ -178,8 +203,8 @@ export default function InvoiceInstalmentProgress({
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   {retryingNumber === instalment.instalmentNumber
-                    ? 'Réessai…'
-                    : 'Réessayer le prélèvement'}
+                    ? "Réessai…"
+                    : "Réessayer le prélèvement"}
                 </button>
               </div>
             ) : (

@@ -59,6 +59,8 @@ describe('InvoicePaymentStatusService', () => {
     expect(mail.sendMail).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'client@example.test' }),
     );
-    expect(ereporting.syncCollectedPaymentsForInvoice).toHaveBeenCalledWith('invoice-1');
+    expect(ereporting.syncCollectedPaymentsForInvoice).toHaveBeenCalledWith(
+      'invoice-1',
+    );
   });
 });

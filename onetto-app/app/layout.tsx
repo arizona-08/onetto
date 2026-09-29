@@ -5,7 +5,6 @@ import { AuthUserProvider } from "./components/context/AuthUserContext";
 import { ToastProvider } from "./components/context/ToastContext";
 import ActiveCompanyProvider from "./components/context/ActiveCompanyContext";
 
-
 const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
@@ -23,16 +22,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="fr"
-      className={`${poppins.variable} antialiased`}
-    >
+    <html lang="fr" className={`${poppins.variable} antialiased`}>
       <body className="font-body relative">
         <ToastProvider>
           <AuthUserProvider>
-            <ActiveCompanyProvider>
-              {children}
-            </ActiveCompanyProvider>
+            <ActiveCompanyProvider>{children}</ActiveCompanyProvider>
           </AuthUserProvider>
         </ToastProvider>
       </body>

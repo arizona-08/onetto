@@ -1,28 +1,30 @@
-'use client';
-import { Client } from '@/app/types'
-import { Plus } from 'lucide-react'
-import React from 'react'
-import ClientCard from '../molecules/Client/ClientCard';
-import AddClientForm from '../molecules/Client/AddClientForm';
-import DeleteClientModal from '../molecules/Client/DeleteClientModal';
+"use client";
+import { Client } from "@/app/types";
+import { Plus } from "lucide-react";
+import React from "react";
+import ClientCard from "../molecules/Client/ClientCard";
+import AddClientForm from "../molecules/Client/AddClientForm";
+import DeleteClientModal from "../molecules/Client/DeleteClientModal";
 import {
   createActiveCompanyClient,
   deleteActiveCompanyClient,
   updateActiveCompanyClient,
-} from '@/lib/companies/catalog';
-import { useToast } from '../context/ToastContext';
+} from "@/lib/companies/catalog";
+import { useToast } from "../context/ToastContext";
 
 interface ClientSectionProps {
-  clients: Client[]
-  canCreate: boolean
+  clients: Client[];
+  canCreate: boolean;
 }
 
 function ClientSection({ clients, canCreate }: ClientSectionProps) {
-
   const [isAddFormActive, setIsAddFormActive] = React.useState(false);
-  const [masterClientList, setMasterClientList] = React.useState<Client[]>(clients);
+  const [masterClientList, setMasterClientList] =
+    React.useState<Client[]>(clients);
   const [clientToEdit, setClientToEdit] = React.useState<Client | null>(null);
-  const [clientToDelete, setClientToDelete] = React.useState<Client | null>(null);
+  const [clientToDelete, setClientToDelete] = React.useState<Client | null>(
+    null,
+  );
   const [isDeleting, setIsDeleting] = React.useState(false);
   const { showToast } = useToast();
 
@@ -30,17 +32,17 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
     const response = await createActiveCompanyClient(newClient);
 
     if (!response.ok) {
-      showToast('Impossible de créer ce client.', 'error');
+      showToast("Impossible de créer ce client.", "error");
       return false;
     }
 
     setMasterClientList((clients) => [...clients, response.data]);
-    showToast('Client créé avec succès.', 'success');
+    showToast("Client créé avec succès.", "success");
     return true;
   }
 
   function handleTriggerEdit(clientId: string) {
-    const client = masterClientList.find(client => client.id === clientId);
+    const client = masterClientList.find((client) => client.id === clientId);
     if (client) {
       setClientToEdit(client);
       setIsAddFormActive(true);
@@ -51,19 +53,21 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
     const response = await updateActiveCompanyClient(clientToEdit);
 
     if (!response.ok) {
-      showToast('Impossible de modifier ce client.', 'error');
+      showToast("Impossible de modifier ce client.", "error");
       return false;
     }
 
-    setMasterClientList((clients) => clients.map((client) => (
-      client.id === clientToEdit.id ? response.data : client
-    )));
-    showToast('Client modifié avec succès.', 'success');
+    setMasterClientList((clients) =>
+      clients.map((client) =>
+        client.id === clientToEdit.id ? response.data : client,
+      ),
+    );
+    showToast("Client modifié avec succès.", "success");
     return true;
   }
 
   function handleTriggerDelete(clientId: string) {
-    const client = masterClientList.find(client => client.id === clientId);
+    const client = masterClientList.find((client) => client.id === clientId);
     if (client) {
       setClientToDelete(client);
     }
@@ -79,15 +83,15 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
     setIsDeleting(false);
 
     if (!response.ok) {
-      showToast('Impossible de supprimer ce client.', 'error');
+      showToast("Impossible de supprimer ce client.", "error");
       return;
     }
 
-    setMasterClientList((clients) => clients.filter((client) => (
-      client.id !== clientToDelete.id
-    )));
+    setMasterClientList((clients) =>
+      clients.filter((client) => client.id !== clientToDelete.id),
+    );
     setClientToDelete(null);
-    showToast('Client supprimé avec succès.', 'success');
+    showToast("Client supprimé avec succès.", "success");
   }
 
   return (
@@ -116,17 +120,17 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
         </div>
       )}
       <div>
-        <button 
+        <button
           onClick={() => {
             setClientToEdit(null);
             setIsAddFormActive(true);
           }}
           disabled={!canCreate}
-          title={canCreate ? undefined : 'L’entreprise active est fermée'}
+          title={canCreate ? undefined : "L’entreprise active est fermée"}
           aria-disabled={!canCreate}
-          className={`font-medium py-2 px-4 rounded flex items-center gap-2 mt-6 ${canCreate ? 'bg-primary hover:bg-primary-hover text-white' : 'cursor-not-allowed bg-zinc-200 text-zinc-500'}`}
+          className={`font-medium py-2 px-4 rounded flex items-center gap-2 mt-6 ${canCreate ? "bg-primary hover:bg-primary-hover text-white" : "cursor-not-allowed bg-zinc-200 text-zinc-500"}`}
         >
-          <Plus className='w-4 h-4'/>
+          <Plus className="w-4 h-4" />
           Ajouter un client
         </button>
 
@@ -134,13 +138,17 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
           {/* Render your list of clients here */}
           {masterClientList.map((client) => (
             <li key={client.id} className="h-full">
-              <ClientCard client={client} triggerEdit={handleTriggerEdit} triggerDelete={handleTriggerDelete} />
+              <ClientCard
+                client={client}
+                triggerEdit={handleTriggerEdit}
+                triggerDelete={handleTriggerDelete}
+              />
             </li>
           ))}
         </ul>
       </div>
     </>
-  )
+  );
 }
 
-export default ClientSection
+export default ClientSection;

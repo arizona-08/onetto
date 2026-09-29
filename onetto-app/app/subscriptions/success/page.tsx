@@ -1,9 +1,7 @@
-import React from 'react'
+import React from "react";
 
 function SubscriptionSuccessPage() {
-  return (
-    <div>Subscription Success</div>
-  )
+  return <div>Subscription Success</div>;
 }
 
-export default SubscriptionSuccessPage
+export default SubscriptionSuccessPage;

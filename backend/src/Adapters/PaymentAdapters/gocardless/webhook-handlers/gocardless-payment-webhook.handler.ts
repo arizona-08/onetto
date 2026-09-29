@@ -149,11 +149,7 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       id: string;
       amountInCents: number;
       instalmentStatus:
-        | 'PENDING'
-        | 'PAYMENT_IN_PROGRESS'
-        | 'SUCCESS'
-        | 'FAILED'
-        | 'OVERDUE';
+        'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'OVERDUE';
       automaticRetryScheduled: boolean;
       invoiceInstalmentPlan: { invoiceId: string };
     },
@@ -266,11 +262,7 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       id: string;
       payByBankPaymentId: string;
       paymentStatus:
-        | 'PENDING'
-        | 'PAYMENT_IN_PROGRESS'
-        | 'SUCCESS'
-        | 'FAILED'
-        | null;
+        'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | null;
     },
     paymentStatus: string,
   ): Promise<void> {

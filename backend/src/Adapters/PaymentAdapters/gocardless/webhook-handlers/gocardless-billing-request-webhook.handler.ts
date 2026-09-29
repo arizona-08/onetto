@@ -27,12 +27,18 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       );
     }
 
-    if (webhook.action === 'bank_authorisation_failed' || webhook.action === 'bank_authorisation_denied') {
+    if (
+      webhook.action === 'bank_authorisation_failed' ||
+      webhook.action === 'bank_authorisation_denied'
+    ) {
       await this.markPaymentAsFailed(billingRequestId, webhook);
       return;
     }
 
-    const client = await this.gocardlessOAuthService.getClientForProviderAccount(webhook.organisation_id);
+    const client =
+      await this.gocardlessOAuthService.getClientForProviderAccount(
+        webhook.organisation_id,
+      );
     const billingRequest = await client.billingRequests.find(billingRequestId);
     if (!billingRequest) {
       throw new Error(
@@ -40,36 +46,37 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       );
     }
 
-    const existingInstalmentPlan = await this.prismaService.invoiceInstalmentPlan.findUnique({
-      where: {
-        providerReference: billingRequestId,
-      },
-      include: {
-        invoice: {
-          select: {
-            id: true,
-            documentNumber: true,
-            invoicePaymentMode: {
-              select: {
-                paymentModeFrequency: true
-              }
-            }
-          }
+    const existingInstalmentPlan =
+      await this.prismaService.invoiceInstalmentPlan.findUnique({
+        where: {
+          providerReference: billingRequestId,
         },
-        invoicePaymentInstalments: {
-          orderBy: { instalmentNumber: 'asc' },
-          select: {
-            instalmentNumber: true,
-            amountInCents: true,
-            dueDate: true,
-            instalmentStatus: true,
+        include: {
+          invoice: {
+            select: {
+              id: true,
+              documentNumber: true,
+              invoicePaymentMode: {
+                select: {
+                  paymentModeFrequency: true,
+                },
+              },
+            },
+          },
+          invoicePaymentInstalments: {
+            orderBy: { instalmentNumber: 'asc' },
+            select: {
+              instalmentNumber: true,
+              amountInCents: true,
+              dueDate: true,
+              instalmentStatus: true,
+            },
           },
         },
-      }
-    });
+      });
 
-    if(existingInstalmentPlan){
-      if(billingRequest.status === 'fulfilled'){
+    if (existingInstalmentPlan) {
+      if (billingRequest.status === 'fulfilled') {
         const remainingInstalments =
           existingInstalmentPlan.invoicePaymentInstalments.filter(
             (instalment) => instalment.instalmentStatus !== 'SUCCESS',
@@ -77,25 +84,34 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
         if (remainingInstalments.length === 0) {
           return;
         }
-        await this.createInstalmentSchedule({
-          name: `Instalment plan for invoice ${existingInstalmentPlan.invoice.documentNumber}`,
-          totalAmountInCents: existingInstalmentPlan.totalAmountInCents,
-          startDate: remainingInstalments[0].dueDate.toISOString().slice(0, 10),
-          intervalUnit: existingInstalmentPlan.invoice.invoicePaymentMode?.paymentModeFrequency as $Enums.PaymentModeFrequency,
-          interval: 1,
-          amountsInCents: remainingInstalments.map(
-            (instalment) => instalment.amountInCents,
-          ),
-          instalmentNumbers: remainingInstalments.map(
-            (instalment) => instalment.instalmentNumber,
-          ),
-          mandateId: billingRequest.links?.mandate_request_mandate as string
-        }, billingRequestId, client);
+        await this.createInstalmentSchedule(
+          {
+            name: `Instalment plan for invoice ${existingInstalmentPlan.invoice.documentNumber}`,
+            totalAmountInCents: existingInstalmentPlan.totalAmountInCents,
+            startDate: remainingInstalments[0].dueDate
+              .toISOString()
+              .slice(0, 10),
+            intervalUnit: existingInstalmentPlan.invoice.invoicePaymentMode
+              ?.paymentModeFrequency as $Enums.PaymentModeFrequency,
+            interval: 1,
+            amountsInCents: remainingInstalments.map(
+              (instalment) => instalment.amountInCents,
+            ),
+            instalmentNumbers: remainingInstalments.map(
+              (instalment) => instalment.instalmentNumber,
+            ),
+            mandateId: billingRequest.links?.mandate_request_mandate as string,
+          },
+          billingRequestId,
+          client,
+        );
       }
       return;
     }
 
-    const mappedStatus = this.gocardlessStatusMatcherService.matchLinkStatus(billingRequest.status as string,);
+    const mappedStatus = this.gocardlessStatusMatcherService.matchLinkStatus(
+      billingRequest.status as string,
+    );
 
     await this.syncLinkStatus(billingRequestId, mappedStatus);
   }
@@ -109,23 +125,28 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
     return relevantActions.includes(action);
   }
 
-  async createInstalmentSchedule(input: {
-    name: string;
-    totalAmountInCents: number;
-    startDate: string;
-    intervalUnit: $Enums.PaymentModeFrequency;
-    interval: number;
-    amountsInCents: number[];
-    instalmentNumbers: number[];
-    mandateId: string;
-  } ,
+  async createInstalmentSchedule(
+    input: {
+      name: string;
+      totalAmountInCents: number;
+      startDate: string;
+      intervalUnit: $Enums.PaymentModeFrequency;
+      interval: number;
+      amountsInCents: number[];
+      instalmentNumbers: number[];
+      mandateId: string;
+    },
     billingRequestId: string,
-    client: GoCardlessClient){
-    try{
+    client: GoCardlessClient,
+  ) {
+    try {
       if (
         input.amountsInCents.length === 0 ||
-        input.amountsInCents.some((amount) => !Number.isSafeInteger(amount) || amount <= 0) ||
-        input.amountsInCents.reduce((total, amount) => total + amount, 0) !== input.totalAmountInCents
+        input.amountsInCents.some(
+          (amount) => !Number.isSafeInteger(amount) || amount <= 0,
+        ) ||
+        input.amountsInCents.reduce((total, amount) => total + amount, 0) !==
+          input.totalAmountInCents
       ) {
         throw new InternalServerErrorException(
           "L'échéancier Onetto contient des montants invalides pour GoCardless.",
@@ -133,22 +154,26 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       }
       const payload = {
         name: input.name,
-        currency: "EUR" as "EUR",
+        currency: 'EUR' as 'EUR',
         total_amount: input.totalAmountInCents.toString(),
         instalments: {
           start_date: input.startDate,
-          interval_unit: input.intervalUnit.toLocaleLowerCase() as "weekly" | "monthly" | "yearly",
+          interval_unit: input.intervalUnit.toLocaleLowerCase() as
+            'weekly' | 'monthly' | 'yearly',
           interval: input.interval,
           amounts: input.amountsInCents.map(String),
         },
         links: {
-          mandate: input.mandateId
-        }
-      }
+          mandate: input.mandateId,
+        },
+      };
 
-      const createdSchedule = await client.instalmentSchedules.createWithSchedule(payload);
-      if(!createdSchedule){
-        throw new InternalServerErrorException("Failed to create instalment schedule with GoCardless");
+      const createdSchedule =
+        await client.instalmentSchedules.createWithSchedule(payload);
+      if (!createdSchedule) {
+        throw new InternalServerErrorException(
+          'Failed to create instalment schedule with GoCardless',
+        );
       }
 
       // GoCardless can return a newly-created schedule before its Payments have
@@ -162,38 +187,48 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
         input.mandateId,
         instalmentSchedule?.links?.payments,
         input.instalmentNumbers,
-      )
+      );
     } catch (error) {
-      console.error("Erreur lors de la création du instalment schedule", error);
+      console.error('Erreur lors de la création du instalment schedule', error);
       throw error;
     }
   }
 
-  async updateCreatedInstalmentPlan(billingRequestId: string, providerScheduledId: string, providerMandateId: string, payments?: string[], instalmentNumbers?: number[]){
-    try{
-      const existingInstalmentPlan = await this.prismaService.invoiceInstalmentPlan.findUnique({
-        where: {
-          providerReference: billingRequestId,
-        },
-        select: {
-          id: true,
-          providerReference: true,
-        }
-      });
+  async updateCreatedInstalmentPlan(
+    billingRequestId: string,
+    providerScheduledId: string,
+    providerMandateId: string,
+    payments?: string[],
+    instalmentNumbers?: number[],
+  ) {
+    try {
+      const existingInstalmentPlan =
+        await this.prismaService.invoiceInstalmentPlan.findUnique({
+          where: {
+            providerReference: billingRequestId,
+          },
+          select: {
+            id: true,
+            providerReference: true,
+          },
+        });
 
-      if(!existingInstalmentPlan){
-        throw new Error(`No instalment plan found for billing request ID ${billingRequestId}`);
+      if (!existingInstalmentPlan) {
+        throw new Error(
+          `No instalment plan found for billing request ID ${billingRequestId}`,
+        );
       }
 
-      const updateInstalmentPlan =await this.prismaService.invoiceInstalmentPlan.update({
-        where: {
-          id: existingInstalmentPlan.id,
-        },
-        data: {
-          providerScheduledId,
-          providerMandateId
-        }
-      });
+      const updateInstalmentPlan =
+        await this.prismaService.invoiceInstalmentPlan.update({
+          where: {
+            id: existingInstalmentPlan.id,
+          },
+          data: {
+            providerScheduledId,
+            providerMandateId,
+          },
+        });
 
       if (!payments?.length) {
         console.log(
@@ -203,35 +238,32 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       }
 
       await this.prismaService.$transaction(async (prisma) => {
-        for(let i = 0; i < payments.length; i++){
+        for (let i = 0; i < payments.length; i++) {
           const paymentNumber = instalmentNumbers?.[i] ?? i + 1;
 
           await prisma.invoicePaymentInstalment.update({
             where: {
               invoiceInstalmentPlanId_instalmentNumber: {
                 invoiceInstalmentPlanId: updateInstalmentPlan.id,
-                instalmentNumber: paymentNumber
-              }
+                instalmentNumber: paymentNumber,
+              },
             },
             data: {
-              providerPaymentId: payments[i]
-            }
-          })
+              providerPaymentId: payments[i],
+            },
+          });
         }
-      })
-
+      });
     } catch (error) {
-      console.error("Erreur lors de la mise à jour du instalment plan", error);
+      console.error('Erreur lors de la mise à jour du instalment plan', error);
       throw error;
     }
   }
 
   async syncPayByBankPaymentStatus(
     providerReference: string,
-    providerStatus: $Enums.InvoicePaymentStatus
-  ){
-
-  }
+    providerStatus: $Enums.InvoicePaymentStatus,
+  ) {}
 
   async syncLinkStatus(
     billingRequestId: string,

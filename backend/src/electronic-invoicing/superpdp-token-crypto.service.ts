@@ -10,7 +10,10 @@ export class SuperPdpTokenCryptoService {
     const key = this.getKey();
     const initializationVector = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, initializationVector);
-    const encrypted = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+    const encrypted = Buffer.concat([
+      cipher.update(value, 'utf8'),
+      cipher.final(),
+    ]);
     const tag = cipher.getAuthTag();
 
     return [

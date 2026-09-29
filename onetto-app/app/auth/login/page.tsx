@@ -1,33 +1,33 @@
-'use client';
+"use client";
 
-import Link from 'next/link'
-import { useRouter } from 'next/navigation';
-import React from 'react'
-import AuthShell from '../AuthShell'
-import { login } from '@/lib/auth/auth';
-import { ApiError } from '@/lib/api';
-import { useAuthUser } from '@/app/components/context/AuthUserContext';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import React from "react";
+import AuthShell from "../AuthShell";
+import { login } from "@/lib/auth/auth";
+import { ApiError } from "@/lib/api";
+import { useAuthUser } from "@/app/components/context/AuthUserContext";
 
 function getErrorMessage(error: ApiError): string {
-  return Array.isArray(error.message) ? error.message.join(' ') : error.message;
+  return Array.isArray(error.message) ? error.message.join(" ") : error.message;
 }
 
 function LoginPage() {
   const router = useRouter();
-  const [error, setError] = React.useState('');
+  const [error, setError] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
 
-  const {setUser} = useAuthUser();
+  const { setUser } = useAuthUser();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError('');
+    setError("");
     setIsLoading(true);
 
     const formData = new FormData(event.currentTarget);
     const result = await login({
-      email: String(formData.get('email') || ''),
-      password: String(formData.get('password') || ''),
+      email: String(formData.get("email") || ""),
+      password: String(formData.get("password") || ""),
     });
 
     setIsLoading(false);
@@ -40,7 +40,7 @@ function LoginPage() {
     const user = result.data.user;
     setUser(user);
 
-    router.push('/dashboard');
+    router.push("/dashboard");
   }
 
   return (
@@ -66,7 +66,10 @@ function LoginPage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label htmlFor="email" className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600">
+          <label
+            htmlFor="email"
+            className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600"
+          >
             Email
           </label>
           <input
@@ -80,7 +83,10 @@ function LoginPage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label htmlFor="password" className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600">
+          <label
+            htmlFor="password"
+            className="font-title text-xs font-semibold uppercase tracking-wide text-zinc-600"
+          >
             Mot de passe
           </label>
           <input
@@ -95,10 +101,16 @@ function LoginPage() {
 
         <div className="flex flex-col gap-3 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
           <label className="flex items-center gap-2">
-            <input type="checkbox" className="h-4 w-4 rounded border-zinc-300 accent-primary" />
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-zinc-300 accent-primary"
+            />
             Se souvenir de moi
           </label>
-          <Link href="/auth/forgot-password" className="font-semibold text-primary hover:text-primary-hover">
+          <Link
+            href="/auth/forgot-password"
+            className="font-semibold text-primary hover:text-primary-hover"
+          >
             Mot de passe oublié ?
           </Link>
         </div>
@@ -108,7 +120,7 @@ function LoginPage() {
           disabled={isLoading}
           className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {isLoading ? 'Connexion...' : 'Se connecter'}
+          {isLoading ? "Connexion..." : "Se connecter"}
         </button>
 
         {error && (
@@ -119,13 +131,16 @@ function LoginPage() {
       </form>
 
       <p className="mt-6 text-sm text-zinc-500">
-        Pas encore de compte ?{' '}
-        <Link href="/auth/register" className="font-semibold text-primary hover:text-primary-hover">
+        Pas encore de compte ?{" "}
+        <Link
+          href="/auth/register"
+          className="font-semibold text-primary hover:text-primary-hover"
+        >
           Créer un compte
         </Link>
       </p>
     </AuthShell>
-  )
+  );
 }
 
-export default LoginPage
+export default LoginPage;

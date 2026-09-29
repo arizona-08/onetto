@@ -1,9 +1,9 @@
-import React from 'react'
-import TopSidebar from '../components/TopSidebar'
-import EmailVerificationBanner from '../components/EmailVerificationBanner'
+import React from "react";
+import TopSidebar from "../components/TopSidebar";
+import EmailVerificationBanner from "../components/EmailVerificationBanner";
 
 interface AppLayoutProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 function AppLayout({ children }: AppLayoutProps) {
   return (
@@ -11,11 +11,11 @@ function AppLayout({ children }: AppLayoutProps) {
       <TopSidebar />
 
       <main className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
-          <EmailVerificationBanner />
-          {children}
+        <EmailVerificationBanner />
+        {children}
       </main>
     </div>
-  )
+  );
 }
 
-export default AppLayout
+export default AppLayout;

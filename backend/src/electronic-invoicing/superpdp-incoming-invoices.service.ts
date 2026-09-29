@@ -1,4 +1,9 @@
-import { BadGatewayException, BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -18,9 +23,18 @@ export class SuperPdpIncomingInvoicesService {
   ) {}
 
   async synchronizeAll() {
-    const connections = await this.prisma.electronicInvoicingConnection.findMany({ where: { provider: 'SUPER_PDP', status: 'ACTIVE' }, select: { companyId: true } });
-    const results = await Promise.allSettled(connections.map(({ companyId }) => this.synchronizeCompany(companyId)));
-    return { checked: connections.length, failed: results.filter((result) => result.status === 'rejected').length };
+    const connections =
+      await this.prisma.electronicInvoicingConnection.findMany({
+        where: { provider: 'SUPER_PDP', status: 'ACTIVE' },
+        select: { companyId: true },
+      });
+    const results = await Promise.allSettled(
+      connections.map(({ companyId }) => this.synchronizeCompany(companyId)),
+    );
+    return {
+      checked: connections.length,
+      failed: results.filter((result) => result.status === 'rejected').length,
+    };
   }
 
   async synchronizeCompany(companyId: string) {
@@ -32,15 +46,21 @@ export class SuperPdpIncomingInvoicesService {
     url.searchParams.append('expand[]', 'en_invoice');
     url.searchParams.append('expand[]', 'en_invoice.seller');
     url.searchParams.append('expand[]', 'events');
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!response.ok) {
       const body = await response.text();
       throw new Error(
         `SuperPDP incoming invoices HTTP ${response.status}${body ? `: ${body}` : ''}`,
       );
     }
-    const payload = await response.json() as { data?: Array<Record<string, unknown>>; has_after?: boolean };
-    for (const invoice of payload.data ?? []) await this.upsertIncoming(companyId, invoice);
+    const payload = (await response.json()) as {
+      data?: Array<Record<string, unknown>>;
+      has_after?: boolean;
+    };
+    for (const invoice of payload.data ?? [])
+      await this.upsertIncoming(companyId, invoice);
   }
 
   async downloadInvoice(companyId: string, invoiceId: string) {
@@ -61,13 +81,27 @@ export class SuperPdpIncomingInvoicesService {
 
     const original = invoice.originalArchiveKey
       ? {
-          buffer: await this.storage.getArchivedFacturX(invoice.originalArchiveKey, invoice.originalSha256),
-          contentType: invoice.originalContentType ?? 'application/octet-stream',
-          fileName: invoice.originalFileName ?? `facture-fournisseur-${invoiceId}`,
+          buffer: await this.storage.getArchivedFacturX(
+            invoice.originalArchiveKey,
+            invoice.originalSha256,
+          ),
+          contentType:
+            invoice.originalContentType ?? 'application/octet-stream',
+          fileName:
+            invoice.originalFileName ?? `facture-fournisseur-${invoiceId}`,
         }
-      : await this.fetchOriginalInvoice(companyId, invoice.providerInvoiceId, invoice.invoiceNumber, invoiceId);
-    const isPdf = original.contentType.toLowerCase().includes('pdf') || original.buffer.subarray(0, 4).toString() === '%PDF';
-    const baseName = (invoice.invoiceNumber ?? `facture-fournisseur-${invoiceId}`)
+      : await this.fetchOriginalInvoice(
+          companyId,
+          invoice.providerInvoiceId,
+          invoice.invoiceNumber,
+          invoiceId,
+        );
+    const isPdf =
+      original.contentType.toLowerCase().includes('pdf') ||
+      original.buffer.subarray(0, 4).toString() === '%PDF';
+    const baseName = (
+      invoice.invoiceNumber ?? `facture-fournisseur-${invoiceId}`
+    )
       .replace(/[^a-zA-Z0-9._-]/g, '_')
       .slice(0, 120);
 
@@ -91,12 +125,18 @@ export class SuperPdpIncomingInvoicesService {
     );
     if (!converted.ok) {
       const body = await converted.text();
-      this.logger.error(`SuperPDP Factur-X conversion HTTP ${converted.status}${body ? `: ${body}` : ''}`);
-      throw new BadGatewayException('Impossible de convertir cette facture XML en PDF Factur-X.');
+      this.logger.error(
+        `SuperPDP Factur-X conversion HTTP ${converted.status}${body ? `: ${body}` : ''}`,
+      );
+      throw new BadGatewayException(
+        'Impossible de convertir cette facture XML en PDF Factur-X.',
+      );
     }
     const facturX = Buffer.from(await converted.arrayBuffer());
     if (facturX.subarray(0, 4).toString() !== '%PDF') {
-      throw new BadGatewayException('SuperPDP n’a pas retourné un PDF Factur-X valide.');
+      throw new BadGatewayException(
+        'SuperPDP n’a pas retourné un PDF Factur-X valide.',
+      );
     }
 
     return {
@@ -106,27 +146,102 @@ export class SuperPdpIncomingInvoicesService {
     };
   }
 
-  private async upsertIncoming(companyId: string, invoice: Record<string, unknown>) {
+  private async upsertIncoming(
+    companyId: string,
+    invoice: Record<string, unknown>,
+  ) {
     const providerInvoiceId = String(invoice.id ?? '');
     if (!providerInvoiceId) return;
-    const existing = await this.prisma.receivedElectronicInvoice.findUnique({ where: { companyId_provider_providerInvoiceId: { companyId, provider: 'SUPER_PDP', providerInvoiceId } } });
+    const existing = await this.prisma.receivedElectronicInvoice.findUnique({
+      where: {
+        companyId_provider_providerInvoiceId: {
+          companyId,
+          provider: 'SUPER_PDP',
+          providerInvoiceId,
+        },
+      },
+    });
     const en = (invoice.en_invoice ?? {}) as Record<string, any>;
     const seller = (en.seller ?? {}) as Record<string, any>;
     const totals = (en.totals ?? {}) as Record<string, any>;
     const invoiceData = (en.invoice ?? {}) as Record<string, any>;
-    const totalExcludingTax = Number(totals.total_without_vat ?? totals.tax_exclusive_amount ?? totals.line_total_amount ?? 0);
-    const totalIncludingTax = Number(totals.total_with_vat ?? totals.tax_inclusive_amount ?? totals.grand_total_amount ?? totalExcludingTax);
-    const totalVat = Number(totals.total_vat_amount?.value ?? totals.tax_total_amount ?? totalIncludingTax - totalExcludingTax);
+    const totalExcludingTax = Number(
+      totals.total_without_vat ??
+        totals.tax_exclusive_amount ??
+        totals.line_total_amount ??
+        0,
+    );
+    const totalIncludingTax = Number(
+      totals.total_with_vat ??
+        totals.tax_inclusive_amount ??
+        totals.grand_total_amount ??
+        totalExcludingTax,
+    );
+    const totalVat = Number(
+      totals.total_vat_amount?.value ??
+        totals.tax_total_amount ??
+        totalIncludingTax - totalExcludingTax,
+    );
     const invoiceNumber = en.number ?? invoiceData.id ?? en.id ?? null;
     const stored = await this.prisma.receivedElectronicInvoice.upsert({
-      where: { companyId_provider_providerInvoiceId: { companyId, provider: 'SUPER_PDP', providerInvoiceId } },
-      create: { companyId, provider: 'SUPER_PDP', providerInvoiceId, supplierSiren: seller.legal_registration_identifier?.value ?? seller.global_id?.value ?? null, supplierName: seller.name ?? null, invoiceNumber, issuedAt: this.parseDate(en.issue_date), dueAt: this.parseDate(en.payment_due_date), currencyCode: en.currency_code ?? 'EUR', totalExcludingTax, totalVat, totalIncludingTax, providerStatus: this.latestStatus(invoice.events), documentFormat: 'original', metadata: invoice as Prisma.InputJsonValue, lastSyncedAt: new Date() },
-      update: { supplierSiren: seller.legal_registration_identifier?.value ?? seller.global_id?.value ?? null, supplierName: seller.name ?? null, invoiceNumber, issuedAt: this.parseDate(en.issue_date), dueAt: this.parseDate(en.payment_due_date), currencyCode: en.currency_code ?? 'EUR', totalExcludingTax, totalVat, totalIncludingTax, providerStatus: this.latestStatus(invoice.events), metadata: invoice as Prisma.InputJsonValue, lastSyncedAt: new Date() },
+      where: {
+        companyId_provider_providerInvoiceId: {
+          companyId,
+          provider: 'SUPER_PDP',
+          providerInvoiceId,
+        },
+      },
+      create: {
+        companyId,
+        provider: 'SUPER_PDP',
+        providerInvoiceId,
+        supplierSiren:
+          seller.legal_registration_identifier?.value ??
+          seller.global_id?.value ??
+          null,
+        supplierName: seller.name ?? null,
+        invoiceNumber,
+        issuedAt: this.parseDate(en.issue_date),
+        dueAt: this.parseDate(en.payment_due_date),
+        currencyCode: en.currency_code ?? 'EUR',
+        totalExcludingTax,
+        totalVat,
+        totalIncludingTax,
+        providerStatus: this.latestStatus(invoice.events),
+        documentFormat: 'original',
+        metadata: invoice as Prisma.InputJsonValue,
+        lastSyncedAt: new Date(),
+      },
+      update: {
+        supplierSiren:
+          seller.legal_registration_identifier?.value ??
+          seller.global_id?.value ??
+          null,
+        supplierName: seller.name ?? null,
+        invoiceNumber,
+        issuedAt: this.parseDate(en.issue_date),
+        dueAt: this.parseDate(en.payment_due_date),
+        currencyCode: en.currency_code ?? 'EUR',
+        totalExcludingTax,
+        totalVat,
+        totalIncludingTax,
+        providerStatus: this.latestStatus(invoice.events),
+        metadata: invoice as Prisma.InputJsonValue,
+        lastSyncedAt: new Date(),
+      },
     });
     if (!stored.originalArchiveKey) {
       try {
-        const original = await this.fetchOriginalInvoice(companyId, providerInvoiceId, invoiceNumber, stored.id);
-        this.validator.validateIncomingOriginal(original.buffer, original.contentType);
+        const original = await this.fetchOriginalInvoice(
+          companyId,
+          providerInvoiceId,
+          invoiceNumber,
+          stored.id,
+        );
+        this.validator.validateIncomingOriginal(
+          original.buffer,
+          original.contentType,
+        );
         const archive = await this.storage.archiveSupplierInvoiceOriginal({
           companyId,
           invoiceId: stored.id,
@@ -148,18 +263,37 @@ export class SuperPdpIncomingInvoicesService {
           },
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message.slice(0, 1000) : 'Erreur inconnue.';
-        this.logger.error(`Archivage S3 de la facture fournisseur ${providerInvoiceId} impossible : ${message}`);
+        const message =
+          error instanceof Error
+            ? error.message.slice(0, 1000)
+            : 'Erreur inconnue.';
+        this.logger.error(
+          `Archivage S3 de la facture fournisseur ${providerInvoiceId} impossible : ${message}`,
+        );
         await this.prisma.receivedElectronicInvoice.update({
           where: { id: stored.id },
           data: { originalArchiveError: message },
         });
       }
     }
-    if (!existing) await this.notifications.notifyCompany({ companyId, type: 'SUPPLIER_INVOICE_RECEIVED', title: 'Nouvelle facture fournisseur', message: `${seller.name ?? 'Un fournisseur'} vous a envoyé une facture${invoiceNumber ? ` ${invoiceNumber}` : ''}.`, href: '/notifications?view=supplier-invoices', deduplicationKey: `superpdp-incoming:${providerInvoiceId}`, metadata: { providerInvoiceId } });
+    if (!existing)
+      await this.notifications.notifyCompany({
+        companyId,
+        type: 'SUPPLIER_INVOICE_RECEIVED',
+        title: 'Nouvelle facture fournisseur',
+        message: `${seller.name ?? 'Un fournisseur'} vous a envoyé une facture${invoiceNumber ? ` ${invoiceNumber}` : ''}.`,
+        href: '/notifications?view=supplier-invoices',
+        deduplicationKey: `superpdp-incoming:${providerInvoiceId}`,
+        metadata: { providerInvoiceId },
+      });
   }
 
-  private async fetchOriginalInvoice(companyId: string, providerInvoiceId: string, invoiceNumber: string | null, invoiceId: string) {
+  private async fetchOriginalInvoice(
+    companyId: string,
+    providerInvoiceId: string,
+    invoiceNumber: string | null,
+    invoiceId: string,
+  ) {
     const token = await this.oauth.getAccessToken(companyId);
     const response = await fetch(
       `https://api.superpdp.tech/v1.beta/invoices/${encodeURIComponent(providerInvoiceId)}/download`,
@@ -167,24 +301,44 @@ export class SuperPdpIncomingInvoicesService {
     );
     if (!response.ok) {
       const body = await response.text();
-      this.logger.error(`SuperPDP invoice download HTTP ${response.status}${body ? `: ${body}` : ''}`);
-      throw new BadGatewayException('Le document de la facture fournisseur est indisponible pour le moment.');
+      this.logger.error(
+        `SuperPDP invoice download HTTP ${response.status}${body ? `: ${body}` : ''}`,
+      );
+      throw new BadGatewayException(
+        'Le document de la facture fournisseur est indisponible pour le moment.',
+      );
     }
     const buffer = Buffer.from(await response.arrayBuffer());
-    const responseContentType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
-    const isPdf = responseContentType === 'application/pdf' || buffer.subarray(0, 4).toString() === '%PDF';
-    const isXml = responseContentType?.includes('xml') || buffer.subarray(0, 5).toString().startsWith('<?xml');
-    if (!isPdf && !isXml) throw new BadGatewayException('SuperPDP a retourné un format de facture fournisseur non pris en charge.');
+    const responseContentType = response.headers
+      .get('content-type')
+      ?.split(';')[0]
+      .trim()
+      .toLowerCase();
+    const isPdf =
+      responseContentType === 'application/pdf' ||
+      buffer.subarray(0, 4).toString() === '%PDF';
+    const isXml =
+      responseContentType?.includes('xml') ||
+      buffer.subarray(0, 5).toString().startsWith('<?xml');
+    if (!isPdf && !isXml)
+      throw new BadGatewayException(
+        'SuperPDP a retourné un format de facture fournisseur non pris en charge.',
+      );
     const baseName = (invoiceNumber ?? `facture-fournisseur-${invoiceId}`)
       .replace(/[^a-zA-Z0-9._-]/g, '_')
       .slice(0, 120);
     return {
       buffer,
       contentType: isPdf ? 'application/pdf' : 'application/xml',
-      fileExtension: isPdf ? 'pdf' as const : 'xml' as const,
+      fileExtension: isPdf ? ('pdf' as const) : ('xml' as const),
       fileName: `${baseName}.${isPdf ? 'pdf' : 'xml'}`,
     };
   }
-  private parseDate(value: unknown) { const date = value ? new Date(String(value)) : null; return date && !Number.isNaN(date.valueOf()) ? date : null; }
-  private latestStatus(events: unknown) { return Array.isArray(events) ? events.at(-1)?.status_code ?? null : null; }
+  private parseDate(value: unknown) {
+    const date = value ? new Date(String(value)) : null;
+    return date && !Number.isNaN(date.valueOf()) ? date : null;
+  }
+  private latestStatus(events: unknown) {
+    return Array.isArray(events) ? (events.at(-1)?.status_code ?? null) : null;
+  }
 }

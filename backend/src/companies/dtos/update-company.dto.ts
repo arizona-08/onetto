@@ -1,5 +1,19 @@
-import { IsBIC, IsBoolean, IsEmail, IsIBAN, IsIn, IsOptional, IsPhoneNumber, IsString } from "class-validator";
-import type { CompanyElectronicAddressScheme, CompanyLegalStatus, CompanyVatExigibility, CompanyVatRegime } from '@prisma/client';
+import {
+  IsBIC,
+  IsBoolean,
+  IsEmail,
+  IsIBAN,
+  IsIn,
+  IsOptional,
+  IsPhoneNumber,
+  IsString,
+} from 'class-validator';
+import type {
+  CompanyElectronicAddressScheme,
+  CompanyLegalStatus,
+  CompanyVatExigibility,
+  CompanyVatRegime,
+} from '@prisma/client';
 
 export class UpdateCompanyDto {
   // Ces champs sont renvoyés par l'API et peuvent être présents dans un formulaire prérempli.
@@ -21,7 +35,7 @@ export class UpdateCompanyDto {
   email?: string;
 
   @IsOptional()
-  @IsPhoneNumber("FR")
+  @IsPhoneNumber('FR')
   phoneNumber?: string;
 
   @IsOptional()
@@ -53,7 +67,40 @@ export class UpdateCompanyDto {
   subjectToVat?: boolean;
 
   @IsOptional()
-  @IsIn(['MICRO_ENTERPRISE', 'INDIVIDUAL_ENTREPRENEUR', 'EIRL', 'EURL', 'SARL', 'SELARL', 'SASU', 'SAS', 'SELAS', 'SA', 'SELAFA', 'SCA', 'SELCA', 'SNC', 'SCS', 'SLP', 'SOCIETE_CIVILE', 'SCI', 'SCM', 'SCP', 'EARL', 'GAEC', 'SCEA', 'GIE', 'ASSOCIATION', 'FONDATION', 'MUTUELLE', 'COOPERATIVE', 'ETABLISSEMENT_PUBLIC', 'COLLECTIVITE_TERRITORIALE', 'SOCIETE_ETRANGERE', 'OTHER'])
+  @IsIn([
+    'MICRO_ENTERPRISE',
+    'INDIVIDUAL_ENTREPRENEUR',
+    'EIRL',
+    'EURL',
+    'SARL',
+    'SELARL',
+    'SASU',
+    'SAS',
+    'SELAS',
+    'SA',
+    'SELAFA',
+    'SCA',
+    'SELCA',
+    'SNC',
+    'SCS',
+    'SLP',
+    'SOCIETE_CIVILE',
+    'SCI',
+    'SCM',
+    'SCP',
+    'EARL',
+    'GAEC',
+    'SCEA',
+    'GIE',
+    'ASSOCIATION',
+    'FONDATION',
+    'MUTUELLE',
+    'COOPERATIVE',
+    'ETABLISSEMENT_PUBLIC',
+    'COLLECTIVITE_TERRITORIALE',
+    'SOCIETE_ETRANGERE',
+    'OTHER',
+  ])
   legalStatus?: CompanyLegalStatus;
 
   @IsOptional()

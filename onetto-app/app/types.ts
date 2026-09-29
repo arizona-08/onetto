@@ -6,38 +6,36 @@ export type Client = {
   city: string;
   postalCode: string;
   country: string;
-  clientType: 'BUSINESS' | 'CLIENT';
+  clientType: "BUSINESS" | "CLIENT";
   siren?: string;
   vatNumber?: string;
   electronicAddress?: string;
   electronicAddressScheme?: string;
-}
+};
 
 export type Service = {
-  id: string
-  name: string
-  description?: string
-  unitPrice: number
-  unit: string
-  taxRate: number
-  category: string
-  itemType: 'GOODS' | 'SERVICES'
-}
+  id: string;
+  name: string;
+  description?: string;
+  unitPrice: number;
+  unit: string;
+  taxRate: number;
+  category: string;
+  itemType: "GOODS" | "SERVICES";
+};
 
 export type ServiceLineItem = {
-  description: string
-  quantity: number
-  taxRate: number
-  unitPrice: number
-  unit: string
-  itemType: 'GOODS' | 'SERVICES'
-}
+  description: string;
+  quantity: number;
+  taxRate: number;
+  unitPrice: number;
+  unit: string;
+  itemType: "GOODS" | "SERVICES";
+};
 
 export type DocumentDates = {
-  dueDate: string
-}
-
-
+  dueDate: string;
+};
 
 export type Document = {
   id: string;
@@ -55,12 +53,12 @@ export type Document = {
   clientCity: string;
   clientCountry: string;
   clientPostalCode: string;
-  clientType?: 'BUSINESS' | 'INDIVIDUAL' | 'PUBLIC_BODY' | 'FOREIGN' | null;
+  clientType?: "BUSINESS" | "INDIVIDUAL" | "PUBLIC_BODY" | "FOREIGN" | null;
   clientSiren?: string | null;
   clientVatNumber?: string | null;
   clientElectronicAddress?: string | null;
   clientElectronicAddressScheme?: string | null;
-  operationNature?: 'GOODS' | 'SERVICES' | 'MIXED' | null;
+  operationNature?: "GOODS" | "SERVICES" | "MIXED" | null;
   totalPriceExcludingTax: number;
   totalPrice: number;
   authorId: string;
@@ -69,18 +67,18 @@ export type Document = {
   paymentDueAt: string;
   invoiceStatus: InvoiceStatus;
   estimateStatus: EstimateStatus;
-  services?: DocumentService[]
+  services?: DocumentService[];
   urlDocumentPdf?: string;
   author: {
     id: string;
     firstname: string;
     lastname: string;
     email: string;
-  }
+  };
   isChecked?: boolean;
   isEditable?: boolean;
   invoicePaymentMode?: {
-    paymentMode: 'ONE_TIME' | 'INSTALMENTS';
+    paymentMode: "ONE_TIME" | "INSTALMENTS";
     numberOfInstalments: number | null;
   } | null;
   invoiceInstalmentPlan?: {
@@ -90,7 +88,8 @@ export type Document = {
       instalmentNumber: number;
       amountInCents: number;
       dueDate: string;
-      instalmentStatus: 'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'OVERDUE';
+      instalmentStatus:
+        "PENDING" | "PAYMENT_IN_PROGRESS" | "SUCCESS" | "FAILED" | "OVERDUE";
       paidAt?: string | null;
     }>;
   } | null;
@@ -102,7 +101,7 @@ export type Document = {
     lastSyncedAt?: string | null;
     lastError?: string | null;
   }>;
-}
+};
 
 export type InvoiceStatus =
   | "DRAFT"
@@ -112,8 +111,8 @@ export type InvoiceStatus =
   | "PAID_MANUALLY"
   | "OVERDUE"
   | "REJECTED"; // rejected payment by Bridge API, can ask to recreate another paymentLink
-export type EstimateStatus = "DRAFT" | "SENT" | "ACCEPTED" | "SUPERSEDED" | "REJECTED";
-
+export type EstimateStatus =
+  "DRAFT" | "SENT" | "ACCEPTED" | "SUPERSEDED" | "REJECTED";
 
 export type DocumentService = {
   id: string;
@@ -125,13 +124,23 @@ export type DocumentService = {
   unit: string;
   wtPrice: number;
   totalPrice: number;
-  itemType: 'GOODS' | 'SERVICES';
-}
+  itemType: "GOODS" | "SERVICES";
+};
 
 export type PublicPayment = {
   paymentLink: string;
   expiresAt: string;
-  document: Pick<Document, 'documentNumber' | 'clientName' | 'totalPrice' | 'totalPriceExcludingTax' | 'paymentDueAt' | 'services' | 'invoicePaymentMode' | 'invoiceInstalmentPlan'> & {
+  document: Pick<
+    Document,
+    | "documentNumber"
+    | "clientName"
+    | "totalPrice"
+    | "totalPriceExcludingTax"
+    | "paymentDueAt"
+    | "services"
+    | "invoicePaymentMode"
+    | "invoiceInstalmentPlan"
+  > & {
     company: {
       name: string;
       email: string;
@@ -149,7 +158,22 @@ export type PublicNegociation = {
   proposedTotalPrice: number;
   status: "PENDING" | "ACCEPTED" | "RENEGOCIATED" | "REJECTED";
   canNegotiate: boolean;
-  document: Pick<Document, "id" | "documentNumber" | "type" | "clientName" | "clientEmail" | "clientAddress" | "clientCity" | "clientPostalCode" | "clientCountry" | "totalPrice" | "createdAt" | "sentAt" | "paymentDueAt"> & {
+  document: Pick<
+    Document,
+    | "id"
+    | "documentNumber"
+    | "type"
+    | "clientName"
+    | "clientEmail"
+    | "clientAddress"
+    | "clientCity"
+    | "clientPostalCode"
+    | "clientCountry"
+    | "totalPrice"
+    | "createdAt"
+    | "sentAt"
+    | "paymentDueAt"
+  > & {
     totalPriceExcludingTax: number;
     services: DocumentService[];
     company: {

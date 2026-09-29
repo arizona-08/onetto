@@ -16,6 +16,7 @@ import { ElectronicInvoicingModule } from './electronic-invoicing/electronic-inv
 import { validateSuperPdpConfiguration } from './electronic-invoicing/superpdp.config';
 import { NotificationsModule } from './notifications/notifications.module';
 import { StorageModule } from './storage/storage.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { StorageModule } from './storage/storage.module';
     ElectronicInvoicingModule,
     NotificationsModule,
     StorageModule,
+    AdminModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [AppController],
