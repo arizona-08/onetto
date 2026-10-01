@@ -24,9 +24,8 @@ import {
   notifyCompanyUpdated,
 } from "@/lib/companies/company-events";
 import { useToast } from "./context/ToastContext";
-import AdminTopSidebar from "./AdminTopSidebar";
 
-const links = [
+const userLinks = [
   { name: "Dashboard", href: "/dashboard", icon: <LayoutDashboardIcon /> },
   {
     name: "Factures & Devis",
@@ -39,6 +38,20 @@ const links = [
   { name: "Notifications", href: "/notifications", icon: <Bell /> },
   { name: "Archives", href: "/archives", icon: <Archive /> },
   { name: "Paramètres", href: "/settings/account", icon: <SettingsIcon /> },
+];
+
+const adminLinks = [
+  { name: "Dashboard", href: "/admin", icon: <LayoutDashboardIcon /> },
+  { name: "Utilisateurs", href: "/admin/users", icon: <UserIcon /> },
+  { name: "Entreprises", href: "/admin/companies", icon: <Building /> },
+  { name: "Prestations", href: "/admin/services", icon: <Waypoints /> },
+  { name: "Abonnements", href: "/admin/subscriptions", icon: <SettingsIcon /> },
+  {
+    name: "Paiements",
+    href: "/admin/payments",
+    icon: <FileChartColumnIncreasing />,
+  },
+  { name: "Système", href: "/admin/system", icon: <Archive /> },
 ];
 
 function TopSidebar() {
@@ -76,7 +89,7 @@ function TopSidebar() {
   }, []);
 
   React.useEffect(() => {
-    if (user?.isAdmin) {
+    if (user?.isAdmin || pathname.startsWith("/admin")) {
       return;
     }
 
@@ -122,9 +135,9 @@ function TopSidebar() {
     router.refresh();
   }
 
-  if (user?.isAdmin) {
-    return <AdminTopSidebar />;
-  }
+  const isAdmin =
+    user?.isAdmin === true || (user === null && pathname.startsWith("/admin"));
+  const links = isAdmin ? adminLinks : userLinks;
 
   return (
     <header className="bg-white relative w-full border-b border-zinc-200 lg:w-64 lg:h-screen p-4 lg:flex lg:flex-col">
@@ -147,7 +160,13 @@ function TopSidebar() {
             className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary lg:hidden"
             onClick={() => setShowMobileCompaniesMenu(!showMobileCompaniesMenu)}
           >
-            {activeCompany ? getInitials(activeCompany.name) : "O"}
+            {isAdmin
+              ? user
+                ? getInitials(user.firstname + " " + user.lastname)
+                : "A"
+              : activeCompany
+                ? getInitials(activeCompany.name)
+                : "O"}
           </button>
 
           {/* mobile companies menu */}
@@ -155,21 +174,23 @@ function TopSidebar() {
             {showMobileCompaniesMenu && (
               <div>
                 <div className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                      {activeCompany ? getInitials(activeCompany.name) : "O"}
+                  {!isAdmin && (
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                        {activeCompany ? getInitials(activeCompany.name) : "O"}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-zinc-800">
+                          {activeCompany?.name ??
+                            "Aucune entreprise sélectionnée"}
+                        </p>
+                        <p className="truncate text-xs text-zinc-500">
+                          {activeCompany?.email ?? "Gérer mes entreprises"}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-zinc-800">
-                        {activeCompany?.name ??
-                          "Aucune entreprise sélectionnée"}
-                      </p>
-                      <p className="truncate text-xs text-zinc-500">
-                        {activeCompany?.email ?? "Gérer mes entreprises"}
-                      </p>
-                    </div>
-                  </div>
-                  <hr className="my-3 border-zinc-200" />
+                  )}
+                  {!isAdmin && <hr className="my-3 border-zinc-200" />}
                   <p className="truncate text-sm font-medium text-zinc-800">
                     {user
                       ? `${user.firstname} ${user.lastname}`
@@ -179,36 +200,42 @@ function TopSidebar() {
                     {user?.email ?? ""}
                   </p>
                 </div>
-                <hr className="border-zinc-200" />
-                <ul>
-                  {otherCompanies.map((company) => (
-                    <li
-                      key={company.id}
-                      className="cursor-pointer overflow-hidden px-4 py-2 hover:bg-zinc-50"
-                      onClick={() => void handleCompanySelection(company.id)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                          {getInitials(company.name)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate">{company.name}</p>
-                          <p className="truncate text-xs text-zinc-500">
-                            {company.email}
-                          </p>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                {!isAdmin && (
+                  <>
+                    <hr className="border-zinc-200" />
+                    <ul>
+                      {otherCompanies.map((company) => (
+                        <li
+                          key={company.id}
+                          className="cursor-pointer overflow-hidden px-4 py-2 hover:bg-zinc-50"
+                          onClick={() =>
+                            void handleCompanySelection(company.id)
+                          }
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                              {getInitials(company.name)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate">{company.name}</p>
+                              <p className="truncate text-xs text-zinc-500">
+                                {company.email}
+                              </p>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
 
-                <Link
-                  href="/my-companies"
-                  className="mx-4 mt-3 block rounded-md border border-zinc-200 px-3 py-2 text-center text-sm font-medium text-zinc-700"
-                  onClick={() => setShowMobileCompaniesMenu(false)}
-                >
-                  Gérer mes entreprises
-                </Link>
+                    <Link
+                      href="/my-companies"
+                      className="mx-4 mt-3 block rounded-md border border-zinc-200 px-3 py-2 text-center text-sm font-medium text-zinc-700"
+                      onClick={() => setShowMobileCompaniesMenu(false)}
+                    >
+                      Gérer mes entreprises
+                    </Link>
+                  </>
+                )}
 
                 <hr className="my-3 block text-zinc-200 w-full max-w-35 mx-auto" />
 
@@ -232,10 +259,11 @@ function TopSidebar() {
         <nav className="mt-4">
           <ul className="px-2 lg:px-0">
             {links.map((link) => {
-              const currentPathNameCategory = pathname.split("/")[1];
-              const linkPathNameCategory = link.href.split("/")[1];
-              const isCurrentPathName =
-                currentPathNameCategory === linkPathNameCategory;
+              const isCurrentPathName = isAdmin
+                ? pathname === link.href ||
+                  (link.href !== "/admin" &&
+                    pathname.startsWith(link.href + "/"))
+                : pathname.split("/")[1] === link.href.split("/")[1];
               return (
                 <li key={link.name} className="mb-2">
                   <a
@@ -259,47 +287,50 @@ function TopSidebar() {
         </nav>
 
         <div className="hidden lg:block relative w-full rounded-lg p-2 transition-colors hover:bg-zinc-100 group duration-300">
-          <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-full opacity-0 invisible group-hover:visible group-hover:opacity-100 transition-all duration-150 space-y-2">
-            <ul className="bg-white border border-zinc-200 rounded-lg">
-              {otherCompanies.map((company) => (
-                <li
-                  key={company.id}
-                  className="cursor-pointer overflow-hidden px-2 py-2 hover:bg-zinc-50"
-                  onClick={() => void handleCompanySelection(company.id)}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                      {getInitials(company.name)}
+          {!isAdmin && (
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-full opacity-0 invisible group-hover:visible group-hover:opacity-100 transition-all duration-150 space-y-2">
+              <ul className="bg-white border border-zinc-200 rounded-lg">
+                {otherCompanies.map((company) => (
+                  <li
+                    key={company.id}
+                    className="cursor-pointer overflow-hidden px-2 py-2 hover:bg-zinc-50"
+                    onClick={() => void handleCompanySelection(company.id)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                        {getInitials(company.name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">
+                          {company.name}
+                        </p>
+                        <p className="truncate text-xs text-zinc-500">
+                          {company.email}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">
-                        {company.name}
-                      </p>
-                      <p className="truncate text-xs text-zinc-500">
-                        {company.email}
-                      </p>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="space-y-3 cursor-pointer">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                {activeCompany ? getInitials(activeCompany.name) : "O"}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-zinc-800">
-                  {activeCompany?.name ?? "Aucune entreprise sélectionnée"}
-                </p>
-                <p className="truncate text-xs text-zinc-500">
-                  {activeCompany?.email ?? "Gérer mes entreprises"}
-                </p>
-              </div>
+                  </li>
+                ))}
+              </ul>
             </div>
-
-            <hr className="border-zinc-200" />
+          )}
+          <div className="space-y-3 cursor-pointer">
+            {!isAdmin && (
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                  {activeCompany ? getInitials(activeCompany.name) : "O"}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-zinc-800">
+                    {activeCompany?.name ?? "Aucune entreprise sélectionnée"}
+                  </p>
+                  <p className="truncate text-xs text-zinc-500">
+                    {activeCompany?.email ?? "Gérer mes entreprises"}
+                  </p>
+                </div>
+              </div>
+            )}
+            {!isAdmin && <hr className="border-zinc-200" />}
 
             <div className="flex items-center justify-between gap-3 px-1">
               <div className="min-w-0">
