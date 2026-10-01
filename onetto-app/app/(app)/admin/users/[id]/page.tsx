@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { subscriptionPlanLabel } from "@/lib/subscription/plan-labels";
 import { apiServer } from "@/lib/api-server";
+import UserManagement from "./UserManagement";
+import UserSubscriptionManagement from "./UserSubscriptionManagement";
 
 type User = {
   id: string;
   firstname: string;
   lastname: string;
+  bannedAt: string | null;
   email: string;
   accountType: string;
   isAdmin: boolean;
@@ -13,6 +15,8 @@ type User = {
   subscription: {
     subscriptionPlan: string;
     isActive: boolean;
+    subscriptionId: string | null;
+    pendingPlanEffectiveAt: string | null;
     pendingSubscriptionPlan: string | null;
   } | null;
   subscriptionHistory: Array<{ subscriptionPlan: string; createdAt: string }>;
@@ -40,14 +44,16 @@ export default async function AdminUserPage({
           {user.firstname} {user.lastname}
         </h2>
         <p className="text-zinc-600">{user.email}</p>
+        {user.bannedAt && (
+          <p className="mt-2 text-sm font-medium text-red-700">Compte banni</p>
+        )}
       </section>
-      <section className="rounded-2xl border border-zinc-200 bg-white p-5">
-        <h3 className="font-semibold">Abonnement</h3>
-        <p className="mt-2 text-sm">
-          {subscriptionPlanLabel(user.subscription?.subscriptionPlan)} ·{" "}
-          {user.subscription?.isActive ? "actif" : "inactif"}
-        </p>
-      </section>
+      <UserManagement user={user} />
+      <UserSubscriptionManagement
+        userId={user.id}
+        accountType={user.accountType}
+        subscription={user.subscription}
+      />
       <section className="rounded-2xl border border-zinc-200 bg-white p-5">
         <h3 className="font-semibold">Entreprises possédées</h3>
         <ul className="mt-2 space-y-2 text-sm">

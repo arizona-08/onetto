@@ -14,6 +14,49 @@ const reminderTypes = [
 describe('MailService templates', () => {
   const service = new MailService({ sendMail: jest.fn() } as never);
 
+  it('personnalise le lien Checkout sans injecter de HTML utilisateur', () => {
+    const mail = service.createAdminCheckoutMail({
+      firstname: '<Ada>',
+      targetPlan: 'PRO_MONTHLY',
+      checkoutUrl: 'https://checkout.stripe.test/session',
+    });
+
+    expect(mail.subject).toContain('Pro — Mensuel');
+    expect(mail.text).toContain('Bonjour <Ada>');
+    expect(mail.html).toContain('Bonjour &lt;Ada&gt;');
+    expect(mail.html).toContain('Finaliser mon abonnement');
+    expect(mail.html).toContain('https://checkout.stripe.test/session');
+  });
+
+  it('annonce la date du downgrade sans demander de paiement', () => {
+    const mail = service.createAdminPlanChangeMail({
+      firstname: 'Ada',
+      targetPlan: 'STARTER_YEARLY',
+      effectiveAt: new Date('2026-11-01T00:00:00Z'),
+    });
+
+    expect(mail.text).toContain('01/11/2026');
+    expect(mail.html).toContain('Starter — Annuel');
+    expect(mail.html).not.toContain('Finaliser mon abonnement');
+  });
+
+  it('confirme un upgrade avec le montant et le lien PDF Stripe', () => {
+    const mail = service.createAdminUpgradeSuccessMail({
+      firstname: 'Ada',
+      previousPlan: 'STARTER_MONTHLY',
+      targetPlan: 'PRO_MONTHLY',
+      invoiceNumber: 'INV-2026-10',
+      totalInCents: 1250,
+      currency: 'eur',
+      invoicePdfUrl: 'https://pay.stripe.com/invoice/test/pdf',
+    });
+
+    expect(mail.text).toContain('INV-2026-10');
+    expect(mail.text).toContain('12,50');
+    expect(mail.html).toContain('Télécharger ma facture');
+    expect(mail.html).toContain('https://pay.stripe.com/invoice/test/pdf');
+  });
+
   it('génère le bouton de paiement dans le template de facture', () => {
     const mail = service.createInvoiceMail({
       clientName: 'Client',

@@ -1,7 +1,9 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -13,14 +15,23 @@ import {
 } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SubscriptionWebhookService } from 'src/subscription/subscription-webhook.service';
+import { SubscriptionService } from 'src/subscription/subscription.service';
+import { PlanAccessService } from 'src/plan-access/plan-access.service';
+import { MailService } from 'src/mail/mail.service';
+import { getPlanChangeType } from 'src/subscription/subscription-plan.utils';
 
 const PAGE_SIZE = 25;
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptionWebhookService: SubscriptionWebhookService,
+    private readonly subscriptionService: SubscriptionService,
+    private readonly planAccessService: PlanAccessService,
+    private readonly mail: MailService,
   ) {}
 
   async dashboard() {
@@ -113,6 +124,7 @@ export class AdminService {
           email: true,
           accountType: true,
           isAdmin: true,
+          bannedAt: true,
           subscription: {
             select: { subscriptionPlan: true, isActive: true },
           },
@@ -134,6 +146,7 @@ export class AdminService {
         id: true,
         firstname: true,
         lastname: true,
+        bannedAt: true,
         email: true,
         emailVerifiedAt: true,
         accountType: true,
@@ -247,6 +260,42 @@ export class AdminService {
       }
       throw error;
     }
+  }
+
+  async setUserBanState(adminUserId: string, userId: string, ban: boolean) {
+    return this.prisma.$transaction(async (transaction) => {
+      const user = await transaction.user.findUnique({
+        where: { id: userId },
+        select: { id: true, isAdmin: true, bannedAt: true },
+      });
+
+      if (!user) {
+        throw new NotFoundException('Utilisateur introuvable.');
+      }
+      if (user.isAdmin) {
+        throw new ForbiddenException(
+          'Un administrateur ne peut pas être banni.',
+        );
+      }
+      if (Boolean(user.bannedAt) === ban) {
+        return user;
+      }
+
+      const updated = await transaction.user.update({
+        where: { id: userId, isAdmin: false },
+        data: ban ? { bannedAt: new Date() } : { bannedAt: null },
+        select: { id: true, isAdmin: true, bannedAt: true },
+      });
+      await transaction.adminAuditLog.create({
+        data: {
+          adminUserId,
+          action: ban ? 'ADMIN_BANNED_USER' : 'ADMIN_UNBANNED_USER',
+          targetType: 'User',
+          targetId: userId,
+        },
+      });
+      return updated;
+    });
   }
 
   async companies(params: {
@@ -557,6 +606,215 @@ export class AdminService {
       }),
     ]);
     return this.paginate(items, total, page);
+  }
+
+  async changeUserSubscription(
+    adminUserId: string,
+    userId: string,
+    targetPlan: SubscriptionPlan,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        firstname: true,
+        email: true,
+        accountType: true,
+        subscriptionPlan: true,
+        subscription: {
+          select: {
+            subscriptionId: true,
+            subscriptionPlan: true,
+            isActive: true,
+            pendingSubscriptionPlan: true,
+          },
+        },
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('Utilisateur introuvable.');
+    }
+    if (user.accountType !== AccountType.BUSINESS_OWNER) {
+      throw new BadRequestException(
+        'Les collaborateurs ne possèdent pas d’abonnement personnel.',
+      );
+    }
+    if (user.subscription?.pendingSubscriptionPlan) {
+      throw new BadRequestException(
+        'Un changement d’offre est déjà programmé pour cet utilisateur.',
+      );
+    }
+
+    const previousPlan =
+      user.subscription?.subscriptionPlan ??
+      user.subscriptionPlan ??
+      SubscriptionPlan.FREE;
+    if (
+      targetPlan === SubscriptionPlan.FREE &&
+      (!user.subscription?.subscriptionId || !user.subscription.isActive)
+    ) {
+      await this.planAccessService.assertCanSchedulePlanChange(
+        userId,
+        targetPlan,
+      );
+      const result = await this.prisma.$transaction(async (transaction) => {
+        if (
+          previousPlan === SubscriptionPlan.FREE &&
+          user.subscriptionPlan === SubscriptionPlan.FREE &&
+          (!user.subscription ||
+            (user.subscription.isActive && !user.subscription.subscriptionId))
+        ) {
+          return { unchanged: true };
+        }
+        await transaction.userSubscription.upsert({
+          where: { userId },
+          create: {
+            userId,
+            subscriptionPlan: SubscriptionPlan.FREE,
+            isActive: true,
+          },
+          update: {
+            subscriptionPlan: SubscriptionPlan.FREE,
+            isActive: true,
+            subscriptionId: null,
+            pendingSubscriptionPlan: null,
+            pendingPlanEffectiveAt: null,
+            pendingStripeScheduleId: null,
+          },
+        });
+        await transaction.user.update({
+          where: { id: userId },
+          data: { subscriptionPlan: SubscriptionPlan.FREE },
+        });
+        await transaction.userSubscriptionHistory.create({
+          data: { userId, subscriptionPlan: SubscriptionPlan.FREE },
+        });
+        await transaction.adminAuditLog.create({
+          data: {
+            adminUserId,
+            action: 'ADMIN_CHANGED_SUBSCRIPTION',
+            targetType: 'UserSubscription',
+            targetId: userId,
+            metadata: { previousPlan, targetPlan },
+          },
+        });
+        return { applied: true };
+      });
+      if ('unchanged' in result) {
+        return result;
+      }
+      const emailSent = await this.sendSubscriptionMail(
+        user.email,
+        this.mail.createAdminPlanChangeMail({
+          firstname: user.firstname,
+          targetPlan,
+          effectiveAt: null,
+        }),
+      );
+      return { ...result, emailSent };
+    }
+
+    const isStripeActive = Boolean(
+      user.subscription?.subscriptionId && user.subscription.isActive,
+    );
+    const changeType = getPlanChangeType(previousPlan, targetPlan);
+    const upgrade =
+      isStripeActive && changeType === 'UPGRADE'
+        ? await this.prisma.adminSubscriptionUpgrade.create({
+            data: {
+              userId,
+              stripeSubscriptionId: user.subscription!.subscriptionId!,
+              previousPlan,
+              targetPlan,
+            },
+            select: { id: true },
+          })
+        : null;
+
+    const result = await this.subscriptionService.changePlanForAdmin(
+      userId,
+      targetPlan,
+    );
+    if (upgrade && 'stripeInvoiceId' in result && result.stripeInvoiceId) {
+      await this.prisma.adminSubscriptionUpgrade.update({
+        where: { id: upgrade.id },
+        data: { stripeInvoiceId: result.stripeInvoiceId },
+      });
+    }
+    await this.audit(
+      adminUserId,
+      'ADMIN_REQUESTED_SUBSCRIPTION_CHANGE',
+      'UserSubscription',
+      userId,
+      { previousPlan, targetPlan },
+    );
+
+    if ('url' in result) {
+      if (!result.url) {
+        throw new BadRequestException(
+          'Le lien de paiement Stripe est indisponible.',
+        );
+      }
+      const emailSent = await this.sendSubscriptionMail(
+        user.email,
+        this.mail.createAdminCheckoutMail({
+          firstname: user.firstname,
+          targetPlan,
+          checkoutUrl: result.url,
+        }),
+      );
+      return { checkoutCreated: true, emailSent };
+    }
+    if ('scheduled' in result && result.scheduled) {
+      const emailSent = await this.sendSubscriptionMail(
+        user.email,
+        this.mail.createAdminPlanChangeMail({
+          firstname: user.firstname,
+          targetPlan,
+          effectiveAt: result.effectiveAt,
+        }),
+      );
+      return { ...result, emailSent };
+    }
+    return result;
+  }
+
+  private async sendSubscriptionMail(
+    to: string,
+    content: { subject: string; text: string; html?: string },
+  ): Promise<boolean> {
+    try {
+      await this.mail.sendMail({ to, ...content });
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Impossible d’envoyer le mail d’abonnement à ${to}.`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return false;
+    }
+  }
+
+  async cancelPendingSubscriptionChange(adminUserId: string, userId: string) {
+    const subscription = await this.prisma.userSubscription.findUnique({
+      where: { userId },
+      select: { pendingSubscriptionPlan: true },
+    });
+    if (!subscription?.pendingSubscriptionPlan) {
+      throw new BadRequestException(
+        'Aucun changement d’offre programmé pour cet utilisateur.',
+      );
+    }
+
+    const result =
+      await this.subscriptionService.cancelPendingPlanChange(userId);
+    await this.audit(
+      adminUserId,
+      'ADMIN_CANCELED_SUBSCRIPTION_CHANGE',
+      'UserSubscription',
+      userId,
+      { pendingPlan: subscription.pendingSubscriptionPlan },
+    );
+    return result;
   }
 
   async resyncSubscription(adminUserId: string, userId: string) {

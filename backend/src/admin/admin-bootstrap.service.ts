@@ -33,7 +33,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
       if (!existingUser.isAdmin) {
         await this.prisma.user.update({
           where: { id: existingUser.id },
-          data: { isAdmin: true },
+          data: { isAdmin: true, bannedAt: null },
         });
         this.logger.log(`Compte administrateur activé pour ${email}.`);
       }

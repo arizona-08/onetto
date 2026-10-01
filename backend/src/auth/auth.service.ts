@@ -64,6 +64,10 @@ export class AuthService {
         throw new BadRequestException('Invalid email or password.');
       }
 
+      if (existingUser.bannedAt) {
+        throw new UnauthorizedException('Ce compte est suspendu.');
+      }
+
       if (!existingUser.emailVerifiedAt) {
         throw new UnauthorizedException(
           'Veuillez confirmer votre adresse e-mail avant de vous connecter.',
@@ -118,8 +122,26 @@ export class AuthService {
         secret: process.env.JWT_REFRESH_SECRET,
       });
 
-      // 3. Si valide, créer un nouvel access token tout neuf
-      const newPayload = { sub: payload.sub, email: payload.email };
+      const user = await this.prismaService.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          email: true,
+          bannedAt: true,
+          passwordChangedAt: true,
+        },
+      });
+      if (
+        !user ||
+        user.bannedAt ||
+        (user.passwordChangedAt &&
+          payload.iat &&
+          payload.iat * 1000 < user.passwordChangedAt.getTime())
+      ) {
+        throw new UnauthorizedException();
+      }
+
+      const newPayload = { sub: user.id, email: user.email };
       const newAccessToken = await this.jwtService.signAsync(newPayload, {
         secret: process.env.JWT_SECRET,
         expiresIn: '15m',

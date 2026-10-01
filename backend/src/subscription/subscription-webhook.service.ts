@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { $Enums } from '@prisma/client';
 import Stripe from 'stripe';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { MailService } from 'src/mail/mail.service';
 
 @Injectable()
 export class SubscriptionWebhookService {
@@ -12,6 +13,7 @@ export class SubscriptionWebhookService {
   constructor(
     private readonly prismaService: PrismaService,
     configService: ConfigService,
+    private readonly mail: MailService,
   ) {
     this.stripe = new Stripe(
       configService.getOrThrow<string>('STRIPE_SECRET_KEY'),
@@ -32,18 +34,25 @@ export class SubscriptionWebhookService {
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
+        const subscription = event.data.object;
         await this.syncSubscription(subscription.id);
         await this.markEventAsProcessed(event.id);
         break;
       }
       case 'invoice.paid': {
-        const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId =
+        const invoice = event.data.object;
+        const subscriptionRef =
           invoice.parent?.subscription_details?.subscription;
+        const subscriptionId =
+          typeof subscriptionRef === 'string'
+            ? subscriptionRef
+            : subscriptionRef?.id;
 
-        if (typeof subscriptionId === 'string') {
+        if (subscriptionId) {
           await this.syncSubscription(subscriptionId);
+          if (invoice.billing_reason === 'subscription_update') {
+            await this.sendAdminUpgradeConfirmation(invoice.id, subscriptionId);
+          }
         } else {
           this.logger.warn(
             `Invoice ${invoice.id} is not attached to a subscription.`,
@@ -54,10 +63,14 @@ export class SubscriptionWebhookService {
         break;
       }
       case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId =
+        const invoice = event.data.object;
+        const subscriptionRef =
           invoice.parent?.subscription_details?.subscription;
-        if (typeof subscriptionId === 'string') {
+        const subscriptionId =
+          typeof subscriptionRef === 'string'
+            ? subscriptionRef
+            : subscriptionRef?.id;
+        if (subscriptionId) {
           await this.syncSubscription(subscriptionId);
         }
         await this.markEventAsProcessed(event.id);
@@ -180,6 +193,173 @@ export class SubscriptionWebhookService {
         });
       }
     });
+  }
+
+  private async sendAdminUpgradeConfirmation(
+    invoiceId: string,
+    stripeSubscriptionId: string,
+  ): Promise<void> {
+    const invoice = await this.stripe.invoices.retrieve(invoiceId);
+    if (invoice.status !== 'paid') {
+      return;
+    }
+
+    const select = {
+      id: true,
+      previousPlan: true,
+      targetPlan: true,
+      stripeInvoiceId: true,
+      emailSentAt: true,
+      user: { select: { firstname: true, email: true } },
+    } as const;
+    const exactMatch =
+      await this.prismaService.adminSubscriptionUpgrade.findUnique({
+        where: { stripeInvoiceId: invoice.id },
+        select,
+      });
+    const createdAt = new Date(invoice.created * 1000);
+    const fallbackMatch = exactMatch
+      ? null
+      : await this.prismaService.adminSubscriptionUpgrade.findFirst({
+          where: {
+            stripeSubscriptionId,
+            stripeInvoiceId: null,
+            emailSentAt: null,
+            createdAt: {
+              gte: new Date(createdAt.getTime() - 60 * 60 * 1000),
+              lte: new Date(createdAt.getTime() + 2 * 60 * 1000),
+            },
+          },
+          select,
+          orderBy: { createdAt: 'desc' },
+        });
+    const upgrade = exactMatch ?? fallbackMatch;
+    if (!upgrade || upgrade.emailSentAt) {
+      return;
+    }
+    if (!exactMatch) {
+      const invoiceContainsTargetPlan = invoice.lines.data.some((line) => {
+        const price = line.pricing?.price_details?.price;
+        const priceId = typeof price === 'string' ? price : price?.id;
+        if (!priceId) {
+          return false;
+        }
+        try {
+          return (
+            this.matchPriceIdToSubscriptionPlan(priceId) === upgrade.targetPlan
+          );
+        } catch {
+          return false;
+        }
+      });
+      if (!invoiceContainsTargetPlan) {
+        return;
+      }
+    }
+    if (!invoice.invoice_pdf) {
+      throw new Error(`La facture PDF Stripe ${invoice.id} est indisponible.`);
+    }
+
+    const claimedAt = new Date();
+    const claim = await this.prismaService.adminSubscriptionUpgrade.updateMany({
+      where: {
+        id: upgrade.id,
+        emailSentAt: null,
+        OR: [
+          { emailSendingAt: null },
+          {
+            emailSendingAt: {
+              lt: new Date(claimedAt.getTime() - 5 * 60 * 1000),
+            },
+          },
+        ],
+      },
+      data: {
+        stripeInvoiceId: invoice.id,
+        emailSendingAt: claimedAt,
+      },
+    });
+    if (claim.count !== 1) {
+      throw new Error(
+        `Le mail de la facture ${invoice.id} est déjà en cours d’envoi.`,
+      );
+    }
+
+    try {
+      const pdf = await this.downloadInvoicePdf(invoice.invoice_pdf);
+      const content = this.mail.createAdminUpgradeSuccessMail({
+        firstname: upgrade.user.firstname,
+        previousPlan: upgrade.previousPlan,
+        targetPlan: upgrade.targetPlan,
+        invoiceNumber: invoice.number,
+        totalInCents: invoice.total,
+        currency: invoice.currency,
+        invoicePdfUrl: invoice.invoice_pdf,
+      });
+      const filename = (invoice.number ?? invoice.id).replace(
+        /[^a-zA-Z0-9_-]/g,
+        '-',
+      );
+      await this.mail.sendMail({
+        to: upgrade.user.email,
+        ...content,
+        attachments: [
+          {
+            filename: `facture-${filename}.pdf`,
+            content: pdf,
+            contentType: 'application/pdf',
+          },
+        ],
+      });
+      await this.prismaService.adminSubscriptionUpgrade.update({
+        where: { id: upgrade.id },
+        data: { emailSentAt: new Date(), emailSendingAt: null },
+      });
+    } catch (error) {
+      await this.prismaService.adminSubscriptionUpgrade.updateMany({
+        where: {
+          id: upgrade.id,
+          emailSendingAt: claimedAt,
+          emailSentAt: null,
+        },
+        data: { emailSendingAt: null },
+      });
+      throw error;
+    }
+  }
+
+  private async downloadInvoicePdf(url: string): Promise<Buffer> {
+    const parsedUrl = new URL(url);
+    if (
+      parsedUrl.protocol !== 'https:' ||
+      !parsedUrl.hostname.endsWith('.stripe.com')
+    ) {
+      throw new Error('URL de facture Stripe invalide.');
+    }
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Téléchargement de la facture Stripe impossible : ${response.status}.`,
+      );
+    }
+    const contentLength = Number(response.headers.get('content-length'));
+    if (contentLength > 10 * 1024 * 1024) {
+      throw new Error(
+        'La facture Stripe dépasse la taille maximale autorisée.',
+      );
+    }
+    const pdf = Buffer.from(await response.arrayBuffer());
+    if (pdf.length > 10 * 1024 * 1024) {
+      throw new Error(
+        'La facture Stripe dépasse la taille maximale autorisée.',
+      );
+    }
+    if (pdf.subarray(0, 4).toString() !== '%PDF') {
+      throw new Error('Le document Stripe reçu n’est pas un PDF valide.');
+    }
+    return pdf;
   }
 
   private getStripeId(value: string | { id: string }): string {

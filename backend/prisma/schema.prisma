@@ -25,6 +25,7 @@ model User {
   passwordChangedAt       DateTime?
   accountType            AccountType       @default(BUSINESS_OWNER)
   isAdmin                Boolean           @default(false)
+  bannedAt               DateTime?
   subscriptionPlan       SubscriptionPlan?
   lastConnectedCompanyId String?
 
@@ -35,6 +36,7 @@ model User {
   subscriptionHistory  UserSubscriptionHistory[]
   notifications        AppNotification[]
   adminAuditLogs       AdminAuditLog[]     @relation("AdminAuditActor")
+  adminSubscriptionUpgrades AdminSubscriptionUpgrade[]
 }
 
 model AdminAuditLog {
@@ -50,6 +52,22 @@ model AdminAuditLog {
 
   @@index([createdAt])
   @@index([targetType, targetId])
+}
+
+model AdminSubscriptionUpgrade {
+  id                   String           @id @default(uuid())
+  userId               String
+  stripeSubscriptionId String
+  previousPlan         SubscriptionPlan
+  targetPlan           SubscriptionPlan
+  stripeInvoiceId      String?          @unique
+  emailSendingAt       DateTime?
+  emailSentAt          DateTime?
+  createdAt            DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([stripeSubscriptionId, targetPlan, emailSentAt])
 }
 
 enum AccountType {

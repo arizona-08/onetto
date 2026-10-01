@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "AdminSubscriptionUpgrade_stripeSubscriptionId_targetPlan_emailS" RENAME TO "AdminSubscriptionUpgrade_stripeSubscriptionId_targetPlan_em_idx";

@@ -62,7 +62,7 @@ describe('AdminBootstrapService', () => {
 
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { id: 'user-1' },
-      data: { isAdmin: true },
+      data: { isAdmin: true, bannedAt: null },
     });
   });
 });

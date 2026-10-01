@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PlanAccessService } from 'src/plan-access/plan-access.service';
@@ -42,6 +42,52 @@ export class SubscriptionService {
     return { ...subscription, ...access };
   }
 
+  async changePlanForAdmin(
+    userId: string,
+    targetPlan: $Enums.SubscriptionPlan,
+  ) {
+    await this.planAccessService.getUserAccess(userId);
+    const subscription = await this.prismaService.userSubscription.findUnique({
+      where: { userId },
+      select: { pendingSubscriptionPlan: true },
+    });
+    if (subscription?.pendingSubscriptionPlan) {
+      throw new BadRequestException(
+        'Un changement d’offre est déjà programmé. Annulez-le avant une nouvelle modification.',
+      );
+    }
+
+    if (targetPlan === 'FREE') {
+      return this.scheduleFreePlan(userId);
+    }
+
+    await this.planAccessService.assertCanSchedulePlanChange(
+      userId,
+      targetPlan,
+    );
+    const priceId = this.priceIdForPlan(targetPlan);
+    return this.createCheckoutSession(priceId, userId);
+  }
+
+  private priceIdForPlan(plan: $Enums.SubscriptionPlan): string {
+    const configKeyByPlan: Partial<Record<$Enums.SubscriptionPlan, string>> = {
+      STARTER_MONTHLY: 'STRIPE_STARTER_MONTHLY_PRICE_ID',
+      STARTER_YEARLY: 'STRIPE_STARTER_YEARLY_PRICE_ID',
+      PRO_MONTHLY: 'STRIPE_PRO_MONTHLY_PRICE_ID',
+      PRO_YEARLY: 'STRIPE_PRO_YEARLY_PRICE_ID',
+    };
+    const configKey = configKeyByPlan[plan];
+    const priceId = configKey
+      ? this.configService.get<string>(configKey)
+      : null;
+    if (!priceId) {
+      throw new BadRequestException(
+        'Le tarif Stripe de cette offre est absent.',
+      );
+    }
+    return priceId;
+  }
+
   async createCheckoutSession(planProductId: string, userId: string) {
     await this.planAccessService.getUserAccess(userId);
     const targetPlan = this.matchPriceIdToSubscriptionPlan(planProductId);
@@ -82,7 +128,7 @@ export class SubscriptionService {
           userId: userId,
         },
       },
-      success_url: `${frontendUrl}/subscription/success`,
+      success_url: `${frontendUrl}/subscriptions/success`,
     });
     return { url: session.url };
   }
@@ -171,9 +217,15 @@ export class SubscriptionService {
     const stripeSubscription = await this.stripe.subscriptions.retrieve(
       current.subscriptionId!,
     );
+    if (stripeSubscription.pending_update) {
+      throw new BadRequestException(
+        'Un paiement de changement d’offre est déjà en attente sur Stripe.',
+      );
+    }
     const item = stripeSubscription.items.data[0];
-    if (!item)
+    if (!item) {
       throw new Error('La souscription Stripe ne contient aucune offre.');
+    }
     const updated = await this.stripe.subscriptions.update(
       current.subscriptionId!,
       {
@@ -185,8 +237,13 @@ export class SubscriptionService {
         expand: ['latest_invoice.payment_intent'],
       },
     );
+    const stripeInvoiceId =
+      typeof updated.latest_invoice === 'string'
+        ? updated.latest_invoice
+        : (updated.latest_invoice?.id ?? null);
     // Stripe webhooks are the only authority that can activate the new plan.
     return {
+      stripeInvoiceId,
       pendingPayment: Boolean(updated.pending_update),
       message: updated.pending_update
         ? 'Le changement sera appliqué après confirmation du paiement par Stripe.'

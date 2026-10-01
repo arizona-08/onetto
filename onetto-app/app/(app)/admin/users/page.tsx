@@ -9,6 +9,7 @@ type Users = {
     email: string;
     accountType: string;
     isAdmin: boolean;
+    bannedAt: string | null;
     subscription: { subscriptionPlan: string; isActive: boolean } | null;
     _count: { ownedCompanies: number };
   }>;
@@ -45,6 +46,9 @@ export default async function AdminUsersPage() {
                   >
                     {user.firstname} {user.lastname}
                   </Link>
+                  {user.bannedAt && (
+                    <span className="ml-2 text-xs text-red-700">BANNI</span>
+                  )}
                   {user.isAdmin && (
                     <span className="ml-2 text-xs text-primary">ADMIN</span>
                   )}

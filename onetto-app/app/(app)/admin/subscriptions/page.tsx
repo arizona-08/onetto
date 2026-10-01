@@ -25,8 +25,8 @@ export default async function AdminSubscriptionsPage() {
           Abonnements ({response.data.pagination.total})
         </h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Les changements sont synchronisés avec Stripe ; aucun plan n’est
-          modifié directement.
+          Modifiez l’offre depuis la fiche utilisateur. Les changements payants
+          sont traités par Stripe.
         </p>
       </header>
       <div className="overflow-x-auto">

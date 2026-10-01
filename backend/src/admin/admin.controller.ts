@@ -18,6 +18,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   MinLength,
   ValidateIf,
@@ -73,12 +74,14 @@ class UpdateUserDto {
   @IsString()
   @MinLength(1)
   @MaxLength(100)
+  @Matches(/\S/, { message: 'Le prénom ne peut pas être vide.' })
   firstname?: string;
 
   @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(100)
+  @Matches(/\S/, { message: 'Le nom ne peut pas être vide.' })
   lastname?: string;
 
   @IsOptional()
@@ -90,20 +93,54 @@ class UpdateUserDto {
   accountType?: AccountType;
 }
 
+class UpdateUserSubscriptionDto {
+  @IsEnum(SubscriptionPlan)
+  subscriptionPlan: SubscriptionPlan;
+}
+
 class UpdateCompanyDto {
-  @IsOptional() @IsString() @MinLength(1) name?: string;
-  @IsOptional() @IsEmail() email?: string;
-  @IsOptional() @IsString() phoneNumber?: string;
-  @IsOptional() @IsString() address?: string;
-  @IsOptional() @IsString() city?: string;
-  @IsOptional() @IsString() postalCode?: string;
-  @IsOptional() @IsString() country?: string;
-  @IsOptional() @IsBoolean() subjectToVat?: boolean;
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  name?: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  phoneNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  postalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  subjectToVat?: boolean;
+
   @IsOptional()
   @ValidateIf((_, value) => value !== null)
   @IsString()
   vatNumber?: string | null;
-  @IsOptional() @IsEnum(CompanyStatus) status?: CompanyStatus;
+
+  @IsOptional()
+  @IsEnum(CompanyStatus)
+  status?: CompanyStatus;
+
   @IsOptional()
   @ValidateIf((_, value) => value !== null)
   @IsString()
@@ -160,6 +197,16 @@ export class AdminController {
     @Body() data: UpdateUserDto,
   ) {
     return this.admin.updateUser(this.adminId(req), userId, data);
+  }
+
+  @Patch('users/:userId/ban')
+  banUser(@Req() req: ExtendedRequest, @Param('userId') userId: string) {
+    return this.admin.setUserBanState(this.adminId(req), userId, true);
+  }
+
+  @Delete('users/:userId/ban')
+  unbanUser(@Req() req: ExtendedRequest, @Param('userId') userId: string) {
+    return this.admin.setUserBanState(this.adminId(req), userId, false);
   }
 
   @Get('companies')
@@ -235,6 +282,30 @@ export class AdminController {
   @Get('subscriptions')
   subscriptions(@Query() query: PaginationQuery & { plan?: SubscriptionPlan }) {
     return this.admin.subscriptions({ page: query.page, plan: query.plan });
+  }
+
+  @Patch('users/:userId/subscription')
+  changeUserSubscription(
+    @Req() req: ExtendedRequest,
+    @Param('userId') userId: string,
+    @Body() data: UpdateUserSubscriptionDto,
+  ) {
+    return this.admin.changeUserSubscription(
+      this.adminId(req),
+      userId,
+      data.subscriptionPlan,
+    );
+  }
+
+  @Delete('users/:userId/subscription/pending')
+  cancelPendingSubscriptionChange(
+    @Req() req: ExtendedRequest,
+    @Param('userId') userId: string,
+  ) {
+    return this.admin.cancelPendingSubscriptionChange(
+      this.adminId(req),
+      userId,
+    );
   }
 
   @Post('subscriptions/:userId/resync')

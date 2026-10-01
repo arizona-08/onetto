@@ -1,0 +1,3 @@
+ALTER TABLE "User"
+  ADD COLUMN "address" TEXT,
+  ADD COLUMN "bannedAt" TIMESTAMP(3);
