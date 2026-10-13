@@ -1,6 +1,7 @@
 import SubscriptionPlans from "@/app/components/organisms/SubscriptionPlans";
 import { getMySubscriptionServer } from "@/lib/subscription/subscription.server";
 import { ShieldCheck } from "lucide-react";
+import { redirect } from "next/navigation";
 
 function formatSubscriptionPlan(plan: string | undefined) {
   const labels: Record<string, string> = {
@@ -16,6 +17,9 @@ function formatSubscriptionPlan(plan: string | undefined) {
 
 async function SubscriptionPage() {
   const subscriptionResult = await getMySubscriptionServer();
+  if (!subscriptionResult.ok && subscriptionResult.error.statusCode === 401) {
+    redirect("/auth/login?next=%2Fsettings%2Fmy-subscription");
+  }
   const subscription = subscriptionResult.ok ? subscriptionResult.data : null;
   const currentPlan = subscription?.subscriptionPlan ?? "FREE";
   const isActive = Boolean(subscription?.isActive);

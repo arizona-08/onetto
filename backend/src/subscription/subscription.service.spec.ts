@@ -182,6 +182,7 @@ describe('SubscriptionService — remise d’invitation', () => {
     expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         mode: 'subscription',
+        success_url: 'http://localhost:3000/settings/my-subscription',
         customer_email: 'ada@example.test',
         discounts: [{ coupon: 'coupon-1' }],
         subscription_data: {

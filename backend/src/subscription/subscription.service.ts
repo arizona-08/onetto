@@ -132,7 +132,9 @@ export class SubscriptionService {
       );
     }
 
-    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+    const frontendUrl = this.configService
+      .getOrThrow<string>('FRONTEND_URL')
+      .replace(/\/+$/, '');
 
     const invitation = await this.prismaService.adminUserInvitation.findFirst({
       where: {
@@ -177,7 +179,7 @@ export class SubscriptionService {
             ...(invitation ? { adminInvitationId: invitation.id } : {}),
           },
         },
-        success_url: `${frontendUrl}/subscriptions/success`,
+        success_url: `${frontendUrl}/settings/my-subscription`,
       });
 
     try {
