@@ -1,21 +1,66 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import React, { Suspense } from "react";
 import AuthShell from "../AuthShell";
 import { register } from "@/lib/auth/auth";
-import { ApiError } from "@/lib/api";
+import { ApiError, apiClient } from "@/lib/api";
+import { subscriptionPlanLabel } from "@/lib/subscription/plan-labels";
 
 function getErrorMessage(error: ApiError): string {
   return Array.isArray(error.message) ? error.message.join(" ") : error.message;
 }
 
-function RegisterPage() {
+type InvitationOffer = {
+  email: string;
+  subscriptionPlan:
+    | "FREE"
+    | "STARTER_MONTHLY"
+    | "STARTER_YEARLY"
+    | "PRO_MONTHLY"
+    | "PRO_YEARLY";
+  discountPercent: number;
+};
+
+function RegisterContent() {
   const router = useRouter();
+  const invitationToken = useSearchParams().get("invitation");
+  const [invitation, setInvitation] = React.useState<InvitationOffer | null>(
+    null,
+  );
+  const [invitationError, setInvitationError] = React.useState("");
+  const [isInvitationLoading, setIsInvitationLoading] = React.useState(
+    Boolean(invitationToken),
+  );
+  const [email, setEmail] = React.useState("");
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!invitationToken) {
+      return;
+    }
+    let active = true;
+    void apiClient<InvitationOffer>(
+      `api/users/invitation?token=${encodeURIComponent(invitationToken)}`,
+    ).then((result) => {
+      if (!active) {
+        return;
+      }
+      if (result.ok) {
+        setInvitation(result.data);
+        setEmail(result.data.email);
+      } else {
+        setInvitationError(getErrorMessage(result.error));
+      }
+      setIsInvitationLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [invitationToken]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -30,6 +75,7 @@ function RegisterPage() {
       email: String(formData.get("email") || ""),
       password: String(formData.get("password") || ""),
       confirmationPassword: String(formData.get("confirmationPassword") || ""),
+      ...(invitationToken ? { invitationToken } : {}),
     };
     const result = await register(registrationData);
 
@@ -57,6 +103,30 @@ function RegisterPage() {
       title="Créer un compte"
       subtitle="Commencez à organiser vos factures, vos clients et votre catalogue de services."
     >
+      {invitation && (
+        <div className="mb-5 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-zinc-700">
+          Votre invitation pour l’offre{" "}
+          {subscriptionPlanLabel(invitation.subscriptionPlan)}
+          {invitation.subscriptionPlan === "FREE" ? (
+            <> ne nécessite aucun paiement.</>
+          ) : (
+            <>
+              {" "}
+              inclut une remise de {invitation.discountPercent} % sur chaque
+              facture. Après l’activation de votre compte, vous pourrez
+              finaliser l’abonnement dans « Mon abonnement ».
+            </>
+          )}
+        </div>
+      )}
+      {invitationError && (
+        <p
+          role="alert"
+          className="mb-5 rounded-xl bg-red-50 p-4 text-sm text-red-700"
+        >
+          {invitationError}
+        </p>
+      )}
       <form className="space-y-5" onSubmit={handleSubmit}>
         <button
           type="button"
@@ -65,7 +135,7 @@ function RegisterPage() {
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white font-title text-sm font-semibold text-primary">
             G
           </span>
-          S'inscrire avec Google
+          S’inscrire avec Google
         </button>
 
         <div className="flex items-center gap-4">
@@ -122,6 +192,9 @@ function RegisterPage() {
             name="email"
             type="email"
             required
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            readOnly={Boolean(invitation)}
             placeholder="vous@exemple.com"
             className="rounded-md border border-zinc-200 bg-custom-gray-light px-4 py-3 text-sm text-zinc-800 outline-none transition-colors focus:border-primary focus:bg-white"
           />
@@ -170,12 +243,12 @@ function RegisterPage() {
             className="mt-1 h-4 w-4 rounded border-zinc-300 accent-primary"
           />
           <span>
-            J'accepte les{" "}
+            J’accepte les{" "}
             <Link
               href="/legal#CGU"
               className="text-primary font-medium hover:text-primary-hover underline"
             >
-              conditions d'utilisation
+              conditions d’utilisation
             </Link>{" "}
             et la{" "}
             <Link
@@ -184,13 +257,15 @@ function RegisterPage() {
             >
               politique de confidentialité
             </Link>{" "}
-            d'Onetto.
+            d’Onetto.
           </span>
         </label>
 
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={
+            isLoading || isInvitationLoading || Boolean(invitationError)
+          }
           className="w-full rounded-md bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-70"
         >
           {isLoading ? "Création..." : "Créer mon compte"}
@@ -222,4 +297,10 @@ function RegisterPage() {
   );
 }
 
-export default RegisterPage;
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterContent />
+    </Suspense>
+  );
+}

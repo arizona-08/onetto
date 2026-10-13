@@ -7,7 +7,7 @@ import {
   getBillingInterval,
   getPlanChangeType,
 } from './subscription-plan.utils';
-import { $Enums } from '@prisma/client';
+import { $Enums, AdminUserInvitation } from '@prisma/client';
 
 @Injectable()
 export class SubscriptionService {
@@ -24,10 +24,11 @@ export class SubscriptionService {
   }
 
   async getSubscriptionForUser(userId: string) {
-    const [subscription, access] = await Promise.all([
+    const [subscription, access, invitation] = await Promise.all([
       this.prismaService.userSubscription.findUnique({
         where: { userId },
         select: {
+          subscriptionId: true,
           subscriptionPlan: true,
           isActive: true,
           canceledAtPeriodEnd: true,
@@ -37,9 +38,30 @@ export class SubscriptionService {
         },
       }),
       this.planAccessService.getUserAccess(userId),
+      this.prismaService.adminUserInvitation.findFirst({
+        where: {
+          userId,
+          subscriptionPlan: { not: 'FREE' },
+          acceptedAt: { not: null },
+          redeemedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        select: { subscriptionPlan: true, discountPercent: true },
+      }),
     ]);
 
-    return { ...subscription, ...access };
+    return {
+      subscriptionPlan: subscription?.subscriptionPlan ?? null,
+      isActive: subscription?.isActive ?? null,
+      canceledAtPeriodEnd: subscription?.canceledAtPeriodEnd ?? null,
+      willCancelAtPeriodEnd: subscription?.willCancelAtPeriodEnd ?? null,
+      pendingPlanEffectiveAt: subscription?.pendingPlanEffectiveAt ?? null,
+      ...access,
+      invitationOffer:
+        subscription?.subscriptionId && subscription.isActive
+          ? null
+          : invitation,
+    };
   }
 
   async changePlanForAdmin(
@@ -112,25 +134,132 @@ export class SubscriptionService {
 
     const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
 
-    const session = await this.stripe.checkout.sessions.create({
-      mode: 'subscription',
-      line_items: [
-        {
-          price: planProductId,
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        userId: userId,
+    const invitation = await this.prismaService.adminUserInvitation.findFirst({
+      where: {
+        userId,
+        subscriptionPlan: targetPlan,
+        acceptedAt: { not: null },
+        redeemedAt: null,
+        expiresAt: { gt: new Date() },
       },
-      subscription_data: {
+      select: {
+        id: true,
+        email: true,
+        subscriptionPlan: true,
+        discountPercent: true,
+        stripeCouponId: true,
+      },
+    });
+    let couponId = invitation
+      ? await this.getInvitationCouponId(invitation, planProductId)
+      : null;
+
+    const createSession = (discountCouponId: string | null) =>
+      this.stripe.checkout.sessions.create({
+        mode: 'subscription',
+        ...(invitation ? { customer_email: invitation.email } : {}),
+        ...(discountCouponId
+          ? { discounts: [{ coupon: discountCouponId }] }
+          : {}),
+        line_items: [
+          {
+            price: planProductId,
+            quantity: 1,
+          },
+        ],
         metadata: {
           userId: userId,
+          ...(invitation ? { adminInvitationId: invitation.id } : {}),
         },
+        subscription_data: {
+          metadata: {
+            userId: userId,
+            ...(invitation ? { adminInvitationId: invitation.id } : {}),
+          },
+        },
+        success_url: `${frontendUrl}/subscriptions/success`,
+      });
+
+    try {
+      const session = await createSession(couponId);
+      return { url: session.url };
+    } catch (error) {
+      if (
+        !invitation ||
+        !couponId ||
+        !this.isStripeInvalidRequest(error, 'coupon_expired')
+      ) {
+        throw error;
+      }
+
+      couponId = await this.createInvitationCoupon(
+        invitation,
+        planProductId,
+        couponId,
+      );
+      const session = await createSession(couponId);
+      return { url: session.url };
+    }
+  }
+
+  private async getInvitationCouponId(
+    invitation: Pick<
+      AdminUserInvitation,
+      'id' | 'discountPercent' | 'stripeCouponId'
+    >,
+    priceId: string,
+  ): Promise<string> {
+    const existingCouponId = invitation.stripeCouponId;
+    if (existingCouponId) {
+      try {
+        const coupon = await this.stripe.coupons.retrieve(existingCouponId);
+        if (coupon.valid) {
+          return coupon.id;
+        }
+      } catch (error) {
+        if (!this.isStripeInvalidRequest(error, 'resource_missing')) {
+          throw error;
+        }
+      }
+    }
+
+    return this.createInvitationCoupon(invitation, priceId, existingCouponId);
+  }
+
+  private async createInvitationCoupon(
+    invitation: Pick<AdminUserInvitation, 'id' | 'discountPercent'>,
+    priceId: string,
+    previousCouponId: string | null,
+  ): Promise<string> {
+    const price = await this.stripe.prices.retrieve(priceId);
+    const productId =
+      typeof price.product === 'string' ? price.product : price.product.id;
+    const idempotencyKey = previousCouponId
+      ? `admin-invitation-coupon-${invitation.id}-replace-${previousCouponId}`
+      : `admin-invitation-coupon-${invitation.id}`;
+    const coupon = await this.stripe.coupons.create(
+      {
+        percent_off: invitation.discountPercent,
+        duration: 'forever',
+        max_redemptions: 1,
+        applies_to: { products: [productId] },
+        name: `Invitation Onetto ${invitation.discountPercent} %`,
+        metadata: { adminInvitationId: invitation.id },
       },
-      success_url: `${frontendUrl}/subscriptions/success`,
+      { idempotencyKey },
+    );
+    await this.prismaService.adminUserInvitation.update({
+      where: { id: invitation.id },
+      data: { stripeCouponId: coupon.id },
     });
-    return { url: session.url };
+    return coupon.id;
+  }
+
+  private isStripeInvalidRequest(error: unknown, code: string): boolean {
+    return (
+      error instanceof Stripe.errors.StripeInvalidRequestError &&
+      error.code === code
+    );
   }
 
   async scheduleFreePlan(userId: string) {

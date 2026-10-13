@@ -16,6 +16,14 @@ type SubscriptionPlansProps = {
   currentPlan: string;
   pendingPlan: string | null;
   pendingPlanEffectiveAt: string | null;
+  invitationOffer: {
+    subscriptionPlan:
+      | "STARTER_MONTHLY"
+      | "STARTER_YEARLY"
+      | "PRO_MONTHLY"
+      | "PRO_YEARLY";
+    discountPercent: number;
+  } | null;
 };
 
 function getProductPlan(productName: string) {
@@ -37,14 +45,26 @@ function SubscriptionPlans({
   currentPlan,
   pendingPlan,
   pendingPlanEffectiveAt,
+  invitationOffer,
 }: SubscriptionPlansProps) {
   const { showToast } = useToast();
+  const invitationProduct = STRIPE_PRODUCTS.find((product) => {
+    if (!invitationOffer) {
+      return false;
+    }
 
-  async function purchaseSubscriptionPlan(
-    event: React.MouseEvent<HTMLButtonElement>,
-    planProductId: string,
-  ) {
-    event.preventDefault();
+    return invitationOffer.subscriptionPlan.startsWith(
+      product.name.toUpperCase(),
+    );
+  });
+  let invitationPriceId: string | null = null;
+  if (invitationOffer && invitationProduct) {
+    invitationPriceId = invitationOffer.subscriptionPlan.endsWith("YEARLY")
+      ? invitationProduct.prices.yearlyPrice.id
+      : invitationProduct.prices.monthlyPrice.id;
+  }
+
+  async function purchaseSubscriptionPlan(planProductId: string) {
     try {
       const responseUrl = await getCheckoutSession(planProductId);
       if (!responseUrl.ok) {
@@ -96,6 +116,33 @@ function SubscriptionPlans({
   return (
     <>
       <section aria-labelledby="plans-heading">
+        {invitationOffer && invitationPriceId && (
+          <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Votre invitation {invitationProduct?.name}
+              </p>
+              <h2 className="mt-1 font-title text-lg font-semibold text-zinc-900">
+                -{invitationOffer.discountPercent} % sur chaque facture
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                Offre {invitationProduct?.name}{" "}
+                {invitationOffer.subscriptionPlan.endsWith("YEARLY")
+                  ? "annuelle"
+                  : "mensuelle"}
+                . La remise sera appliquée automatiquement lors du paiement
+                Stripe.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void purchaseSubscriptionPlan(invitationPriceId)}
+              className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover"
+            >
+              Profiter de l’offre
+            </button>
+          </div>
+        )}
         {pendingPlan && (
           <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
             <p>
@@ -226,9 +273,8 @@ function SubscriptionPlans({
                   ) : (
                     <>
                       <button
-                        onClick={(event) =>
-                          purchaseSubscriptionPlan(
-                            event,
+                        onClick={() =>
+                          void purchaseSubscriptionPlan(
                             product.prices.monthlyPrice.id,
                           )
                         }
@@ -237,9 +283,8 @@ function SubscriptionPlans({
                         Choisir mensuel
                       </button>
                       <button
-                        onClick={(event) =>
-                          purchaseSubscriptionPlan(
-                            event,
+                        onClick={() =>
+                          void purchaseSubscriptionPlan(
                             product.prices.yearlyPrice.id,
                           )
                         }

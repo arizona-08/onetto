@@ -15,6 +15,8 @@ import {
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsIn,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
@@ -96,6 +98,18 @@ class UpdateUserDto {
 class UpdateUserSubscriptionDto {
   @IsEnum(SubscriptionPlan)
   subscriptionPlan: SubscriptionPlan;
+}
+
+class InviteUserDto {
+  @IsEmail()
+  email: string;
+
+  @IsEnum(SubscriptionPlan)
+  subscriptionPlan: SubscriptionPlan;
+
+  @IsInt()
+  @IsIn([0, 5, 10, 15, 20, 25, 30, 35, 40])
+  discountPercent: number;
 }
 
 class UpdateCompanyDto {
@@ -183,6 +197,11 @@ export class AdminController {
       plan: query.plan,
       active: query.active,
     });
+  }
+
+  @Post('users/invitations')
+  inviteUser(@Req() req: ExtendedRequest, @Body() body: InviteUserDto) {
+    return this.admin.inviteUser(this.adminId(req), body);
   }
 
   @Get('users/:userId')

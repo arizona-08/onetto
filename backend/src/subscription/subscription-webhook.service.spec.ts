@@ -194,3 +194,107 @@ describe('SubscriptionWebhookService — mail d’upgrade admin', () => {
     expect(prisma.processedStripeWebhookEvents.create).not.toHaveBeenCalled();
   });
 });
+
+describe('SubscriptionWebhookService — invitation Pro', () => {
+  const transaction = {
+    user: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    userSubscription: {
+      findUnique: jest.fn(),
+      upsert: jest.fn(),
+    },
+    userSubscriptionHistory: { create: jest.fn() },
+    adminUserInvitation: { updateMany: jest.fn() },
+  };
+  const prisma = {
+    $transaction: jest.fn(),
+  };
+  const service = new SubscriptionWebhookService(
+    prisma as never,
+    { getOrThrow: () => 'sk_test_example' } as never,
+    {} as never,
+  );
+  const stripe = Reflect.get(service, 'stripe') as Stripe;
+  const retrieveSubscription = jest.spyOn(stripe.subscriptions, 'retrieve');
+  const previousPriceId = process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
+
+  beforeAll(() => {
+    process.env.STRIPE_PRO_MONTHLY_PRICE_ID = 'price_pro_monthly';
+  });
+
+  afterAll(() => {
+    retrieveSubscription.mockRestore();
+    if (previousPriceId === undefined) {
+      delete process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
+    } else {
+      process.env.STRIPE_PRO_MONTHLY_PRICE_ID = previousPriceId;
+    }
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prisma.$transaction.mockImplementation(
+      (callback: (tx: typeof transaction) => Promise<unknown>) =>
+        callback(transaction),
+    );
+    transaction.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      subscriptionPlan: 'FREE',
+    });
+    transaction.userSubscription.findUnique.mockResolvedValue(null);
+    retrieveSubscription.mockResolvedValue({
+      id: 'sub-1',
+      status: 'active',
+      customer: 'cus-1',
+      items: { data: [{ price: { id: 'price_pro_monthly' } }] },
+      metadata: { userId: 'user-1', adminInvitationId: 'inv-1' },
+      cancel_at: null,
+      canceled_at: null,
+    } as Awaited<ReturnType<typeof stripe.subscriptions.retrieve>>);
+  });
+
+  it('marque l’invitation utilisée lorsque Stripe confirme l’abonnement actif', async () => {
+    await service.syncSubscription('sub-1');
+
+    const invitationUpdates = transaction.adminUserInvitation.updateMany.mock
+      .calls as Array<
+      [
+        {
+          where: {
+            id: string;
+            userId: string;
+            subscriptionPlan: string;
+            redeemedAt: null;
+          };
+          data: { redeemedAt: Date };
+        },
+      ]
+    >;
+    const invitationUpdate = invitationUpdates[0][0];
+    expect(invitationUpdate.where).toEqual({
+      id: 'inv-1',
+      userId: 'user-1',
+      subscriptionPlan: 'PRO_MONTHLY',
+      redeemedAt: null,
+    });
+    expect(invitationUpdate.data.redeemedAt).toBeInstanceOf(Date);
+  });
+
+  it('ne consomme pas l’invitation tant que le paiement est en retard', async () => {
+    retrieveSubscription.mockResolvedValueOnce({
+      id: 'sub-1',
+      status: 'past_due',
+      customer: 'cus-1',
+      items: { data: [{ price: { id: 'price_pro_monthly' } }] },
+      metadata: { userId: 'user-1', adminInvitationId: 'inv-1' },
+      cancel_at: null,
+      canceled_at: null,
+    } as Awaited<ReturnType<typeof stripe.subscriptions.retrieve>>);
+
+    await service.syncSubscription('sub-1');
+
+    expect(transaction.adminUserInvitation.updateMany).not.toHaveBeenCalled();
+  });
+});

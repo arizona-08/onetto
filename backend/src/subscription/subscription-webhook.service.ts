@@ -187,6 +187,19 @@ export class SubscriptionWebhookService {
         data: { subscriptionPlan: userPlan },
       });
 
+      const adminInvitationId = subscription.metadata.adminInvitationId;
+      if (subscription.status === 'active' && adminInvitationId) {
+        await tx.adminUserInvitation.updateMany({
+          where: {
+            id: adminInvitationId,
+            userId,
+            subscriptionPlan,
+            redeemedAt: null,
+          },
+          data: { redeemedAt: new Date() },
+        });
+      }
+
       if (user.subscriptionPlan !== userPlan) {
         await tx.userSubscriptionHistory.create({
           data: { userId, subscriptionPlan: userPlan },

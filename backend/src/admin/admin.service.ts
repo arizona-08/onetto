@@ -19,6 +19,7 @@ import { SubscriptionService } from 'src/subscription/subscription.service';
 import { PlanAccessService } from 'src/plan-access/plan-access.service';
 import { MailService } from 'src/mail/mail.service';
 import { getPlanChangeType } from 'src/subscription/subscription-plan.utils';
+import { createHash, randomBytes } from 'crypto';
 
 const PAGE_SIZE = 25;
 
@@ -137,6 +138,95 @@ export class AdminService {
     ]);
 
     return this.paginate(items, total, page);
+  }
+
+  async inviteUser(
+    adminUserId: string,
+    input: {
+      email: string;
+      subscriptionPlan: SubscriptionPlan;
+      discountPercent: number;
+    },
+  ) {
+    const email = input.email.trim().toLowerCase();
+    const permittedDiscounts = [5, 10, 15, 20, 25, 30, 35, 40];
+    const isFree = input.subscriptionPlan === SubscriptionPlan.FREE;
+    const hasValidDiscount = isFree
+      ? input.discountPercent === 0
+      : permittedDiscounts.includes(input.discountPercent);
+    if (
+      !Object.values(SubscriptionPlan).includes(input.subscriptionPlan) ||
+      !hasValidDiscount
+    ) {
+      throw new BadRequestException('Offre ou remise non autorisée.');
+    }
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existingUser) {
+      throw new ConflictException(
+        'Cette adresse appartient déjà à un compte. L’invitation est réservée aux nouveaux utilisateurs.',
+      );
+    }
+
+    const token = randomBytes(32).toString('base64url');
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    await this.prisma.$transaction(async (transaction) => {
+      const invitation = await transaction.adminUserInvitation.upsert({
+        where: { email },
+        create: {
+          email,
+          tokenHash,
+          subscriptionPlan: input.subscriptionPlan,
+          discountPercent: input.discountPercent,
+          invitedById: adminUserId,
+          expiresAt,
+        },
+        update: {
+          tokenHash,
+          subscriptionPlan: input.subscriptionPlan,
+          discountPercent: input.discountPercent,
+          invitedById: adminUserId,
+          expiresAt,
+          createdAt: new Date(),
+          userId: null,
+          acceptedAt: null,
+          redeemedAt: null,
+          stripeCouponId: null,
+        },
+        select: { id: true },
+      });
+      await transaction.adminAuditLog.create({
+        data: {
+          adminUserId,
+          action: 'ADMIN_INVITED_USER',
+          targetType: 'AdminUserInvitation',
+          targetId: invitation.id,
+          metadata: {
+            email,
+            subscriptionPlan: input.subscriptionPlan,
+            discountPercent: input.discountPercent,
+          },
+        },
+      });
+    });
+
+    const frontendUrl = (
+      process.env.FRONTEND_URL ?? 'http://localhost:3000'
+    ).replace(/\/$/, '');
+    const invitationUrl = `${frontendUrl}/auth/register?invitation=${encodeURIComponent(token)}`;
+    const emailSent = await this.sendSubscriptionMail(
+      email,
+      this.mail.createAdminUserInvitationMail({
+        email,
+        plan: input.subscriptionPlan,
+        discountPercent: input.discountPercent,
+        invitationUrl,
+      }),
+    );
+    return { invited: true, emailSent };
   }
 
   async user(userId: string) {

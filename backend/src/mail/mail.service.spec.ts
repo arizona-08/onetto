@@ -14,6 +14,50 @@ const reminderTypes = [
 describe('MailService templates', () => {
   const service = new MailService({ sendMail: jest.fn() } as never);
 
+  it('reprend le template Onetto pour une invitation Pro avec remise récurrente', () => {
+    const mail = service.createAdminUserInvitationMail({
+      email: 'ada@example.test',
+      plan: 'PRO_YEARLY',
+      discountPercent: 40,
+      invitationUrl: 'https://onetto.test/auth/register?invitation=jeton',
+    });
+
+    expect(mail.subject).toContain('40 %');
+    expect(mail.text).toContain('chaque facture');
+    expect(mail.html).toContain('Pro — Annuel');
+    expect(mail.html).toContain('Créer mon compte');
+    expect(mail.html).toContain(
+      'https://onetto.test/auth/register?invitation=jeton',
+    );
+  });
+
+  it('présente Starter avec la remise récurrente', () => {
+    const mail = service.createAdminUserInvitationMail({
+      email: 'ada@example.test',
+      plan: 'STARTER_MONTHLY',
+      discountPercent: 15,
+      invitationUrl: 'https://onetto.test/auth/register?invitation=jeton',
+    });
+
+    expect(mail.subject).toContain('Starter');
+    expect(mail.html).toContain('15 %');
+    expect(mail.text).toContain('chaque facture');
+  });
+
+  it('présente une invitation gratuite sans paiement ni remise', () => {
+    const mail = service.createAdminUserInvitationMail({
+      email: 'ada@example.test',
+      plan: 'FREE',
+      discountPercent: 0,
+      invitationUrl: 'https://onetto.test/auth/register?invitation=jeton',
+    });
+
+    expect(mail.subject).toContain('offre gratuite');
+    expect(mail.text).toContain('aucun paiement');
+    expect(mail.html).not.toContain('Remise récurrente');
+    expect(mail.html).not.toContain('Stripe');
+  });
+
   it('personnalise le lien Checkout sans injecter de HTML utilisateur', () => {
     const mail = service.createAdminCheckoutMail({
       firstname: '<Ada>',

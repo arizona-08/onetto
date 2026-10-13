@@ -37,6 +37,28 @@ model User {
   notifications        AppNotification[]
   adminAuditLogs       AdminAuditLog[]     @relation("AdminAuditActor")
   adminSubscriptionUpgrades AdminSubscriptionUpgrade[]
+  adminInvitationsSent AdminUserInvitation[] @relation("AdminInvitationSender")
+  acceptedAdminInvitation AdminUserInvitation? @relation("AdminInvitationRecipient")
+}
+
+model AdminUserInvitation {
+  id               String           @id @default(uuid())
+  email            String           @unique
+  tokenHash        String           @unique
+  subscriptionPlan SubscriptionPlan
+  discountPercent  Int
+  invitedById      String
+  userId           String?          @unique
+  stripeCouponId   String?          @unique
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  redeemedAt       DateTime?
+  createdAt        DateTime         @default(now())
+
+  invitedBy User  @relation("AdminInvitationSender", fields: [invitedById], references: [id])
+  user      User? @relation("AdminInvitationRecipient", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([expiresAt])
 }
 
 model AdminAuditLog {

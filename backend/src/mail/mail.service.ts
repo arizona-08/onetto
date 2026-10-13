@@ -96,6 +96,13 @@ type AdminUpgradeSuccessMailInput = {
   invoicePdfUrl: string;
 };
 
+type AdminUserInvitationMailInput = {
+  email: string;
+  plan: SubscriptionPlan;
+  discountPercent: number;
+  invitationUrl: string;
+};
+
 const planLabels: Record<SubscriptionPlan, string> = {
   FREE: 'Gratuit',
   STARTER_MONTHLY: 'Starter — Mensuel',
@@ -220,6 +227,60 @@ export class MailService {
         },
         footer: 'Onetto · Votre espace professionnel',
         note: 'Votre nouvelle offre sera activée après confirmation du paiement. Si vous n’attendiez pas ce changement, contactez notre équipe.',
+      }),
+    };
+  }
+
+  createAdminUserInvitationMail(
+    input: AdminUserInvitationMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    const plan = planLabels[input.plan];
+    const isFree = input.plan === 'FREE';
+    const discount = `${input.discountPercent} %`;
+    const details: Array<[string, string]> = [
+      ['Offre invitée', this.escapeHtml(plan)],
+    ];
+    if (!isFree) {
+      details.push(['Remise récurrente', this.escapeHtml(discount)]);
+    }
+    details.push(['Adresse invitée', this.escapeHtml(input.email)]);
+    return {
+      subject: isFree
+        ? 'Votre invitation Onetto — offre gratuite'
+        : `Votre invitation Onetto ${plan} — ${discount} de remise`,
+      text: [
+        'Bonjour,',
+        '',
+        `L’équipe Onetto vous invite à découvrir l’offre ${plan}.`,
+        isFree
+          ? 'Cette offre est gratuite et ne nécessite aucun paiement.'
+          : `Une remise de ${discount} s’appliquera à chaque facture de cet abonnement.`,
+        `Créez votre compte avec ${input.email} pour en profiter :`,
+        input.invitationUrl,
+        '',
+        isFree
+          ? 'Cette invitation est valable 30 jours.'
+          : 'Cette invitation est valable 30 jours. Votre abonnement ne sera activé qu’après votre paiement sécurisé sur Stripe.',
+        'Si vous n’attendiez pas cette invitation, vous pouvez ignorer ce message.',
+      ].join('\n'),
+      html: this.createEmailLayout({
+        badge: 'INVITATION ONETTO',
+        title: isFree
+          ? 'Votre accès gratuit vous attend'
+          : 'Votre offre à tarif réduit vous attend',
+        greeting: 'Bonjour,',
+        message: isFree
+          ? `L’équipe Onetto vous invite à découvrir <strong>${this.escapeHtml(plan)}</strong>. Créez votre compte pour commencer, sans paiement.`
+          : `L’équipe Onetto vous invite à découvrir <strong>${this.escapeHtml(plan)}</strong>. Profitez de <strong>${this.escapeHtml(discount)} de remise</strong> sur chaque facture de cet abonnement.`,
+        details: this.createDetailsTable(details),
+        action: {
+          label: 'Créer mon compte',
+          url: this.escapeHtml(input.invitationUrl),
+        },
+        footer: 'Onetto · Votre espace professionnel',
+        note: isFree
+          ? 'Invitation valable 30 jours. Aucun paiement n’est nécessaire. Si vous n’attendiez pas cette invitation, ignorez ce message.'
+          : 'Invitation valable 30 jours. Aucun abonnement payant ne sera activé avant votre paiement sécurisé sur Stripe. Si vous n’attendiez pas cette invitation, ignorez ce message.',
       }),
     };
   }

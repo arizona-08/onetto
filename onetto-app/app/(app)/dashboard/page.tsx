@@ -1,27 +1,35 @@
 import Greetings from "@/app/components/atoms/Greetings";
 import ProRevenueChart from "@/app/components/organisms/ProRevenueChart";
 import StarterRevenueChart from "@/app/components/organisms/StarterRevenueChart";
-import { getActiveCompanyPlanAccessServer } from "@/lib/companies/companies.server";
 import {
+  getActiveCompanyPlanAccessServer,
+  getMyCompaniesServer,
+} from "@/lib/companies/companies.server";
+import {
+  type DashboardSummary,
+  type ProDashboard,
   getDashboardSummaryServer,
   getProDashboardServer,
 } from "@/lib/documents/document.server";
+import { getMySubscriptionServer } from "@/lib/subscription/subscription.server";
 import {
   ArrowDownLeft,
-  ArrowUpRight,
   BarChart3,
   BellRing,
   CalendarClock,
   CircleAlert,
   Clock3,
   FileText,
-  Landmark,
   ReceiptText,
   TrendingUp,
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import {
+  emptyDashboardSummary,
+  emptyProDashboard,
+} from "./empty-dashboard-data";
 
 function formatCurrency(amount: number) {
   return amount.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
@@ -146,25 +154,84 @@ function PanelTitle({
   );
 }
 
-async function Dashboard() {
-  const accessResponse = await getActiveCompanyPlanAccessServer();
-  const [response, proResponse] = await Promise.all([
-    getDashboardSummaryServer(),
-    accessResponse.ok && accessResponse.data.currentPlan === "PRO"
-      ? getProDashboardServer()
-      : Promise.resolve(null),
-  ]);
-  const summary = response.ok ? response.data : null;
-  const proDashboard = proResponse?.ok ? proResponse.data : null;
-  const isStarterDashboard =
-    accessResponse.ok && accessResponse.data.currentPlan === "STARTER";
+function NoActiveCompanyNotice() {
+  return (
+    <div className="mt-6 rounded-2xl border border-primary/20 bg-primary/[0.05] p-5 text-sm text-zinc-700">
+      <p>
+        Votre abonnement est actif. Créez une entreprise pour commencer à
+        alimenter ce tableau de bord.
+      </p>
+      <Link
+        href="/my-companies"
+        className="mt-3 inline-block font-semibold text-primary hover:underline"
+      >
+        Gérer mes entreprises
+      </Link>
+    </div>
+  );
+}
 
-  if (
-    summary &&
-    proDashboard &&
-    accessResponse.ok &&
-    accessResponse.data.currentPlan === "PRO"
-  ) {
+async function Dashboard() {
+  const [subscriptionResponse, companiesResponse] = await Promise.all([
+    getMySubscriptionServer(),
+    getMyCompaniesServer(),
+  ]);
+  const personalPlan = subscriptionResponse.ok
+    ? subscriptionResponse.data?.currentPlan
+    : null;
+  const companyAccessResponse = personalPlan
+    ? null
+    : await getActiveCompanyPlanAccessServer();
+  const companyPlan = companyAccessResponse?.ok
+    ? companyAccessResponse.data.currentPlan
+    : null;
+  const currentPlan = personalPlan ?? companyPlan;
+
+  if (!companiesResponse.ok || !currentPlan) {
+    return (
+      <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
+        <p
+          role="alert"
+          className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800"
+        >
+          Impossible de charger votre tableau de bord pour le moment.
+        </p>
+      </main>
+    );
+  }
+
+  const hasActiveCompany = Boolean(companiesResponse.data.activeCompanyId);
+  let summary: DashboardSummary | null = null;
+  let proDashboard: ProDashboard | null = null;
+
+  if (hasActiveCompany) {
+    const [summaryResponse, proResponse] = await Promise.all([
+      getDashboardSummaryServer(),
+      currentPlan === "PRO" ? getProDashboardServer() : Promise.resolve(null),
+    ]);
+    summary = summaryResponse.ok ? summaryResponse.data : null;
+    proDashboard = proResponse?.ok ? proResponse.data : null;
+  } else {
+    summary = emptyDashboardSummary();
+    if (currentPlan === "PRO") {
+      proDashboard = emptyProDashboard();
+    }
+  }
+
+  if (!summary || (currentPlan === "PRO" && !proDashboard)) {
+    return (
+      <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
+        <p
+          role="alert"
+          className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800"
+        >
+          Impossible de charger les données du tableau de bord pour le moment.
+        </p>
+      </main>
+    );
+  }
+
+  if (currentPlan === "PRO" && proDashboard) {
     const maxForecast = Math.max(
       ...proDashboard.cashflowForecast.map((item) => item.amount),
       1,
@@ -175,6 +242,7 @@ async function Dashboard() {
           plan="Pro"
           description="Suivez vos encaissements, vos prévisions et la performance de votre activité."
         />
+        {!hasActiveCompany && <NoActiveCompanyNotice />}
         <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="CA facturé"
@@ -409,7 +477,7 @@ async function Dashboard() {
     );
   }
 
-  if (summary && isStarterDashboard) {
+  if (currentPlan === "STARTER") {
     const performance = summary.starter.commercialPerformance;
     return (
       <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
@@ -417,6 +485,7 @@ async function Dashboard() {
           plan="Starter"
           description="Gardez le contrôle sur vos factures, devis et relances."
         />
+        {!hasActiveCompany && <NoActiveCompanyNotice />}
         <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="CA facturé"
@@ -584,6 +653,7 @@ async function Dashboard() {
         plan="Free"
         description="Une vue claire de vos factures et devis récents."
       />
+      {!hasActiveCompany && <NoActiveCompanyNotice />}
       <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="CA facturé"

@@ -4,6 +4,7 @@ import {
   Get,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -17,6 +18,11 @@ import { UpdateProfileDto } from './dtos/update-profile.dto';
 @Controller('api/users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
+
+  @Get('invitation')
+  invitation(@Query('token') token: string) {
+    return this.userService.getInvitation(token);
+  }
 
   @Get('all')
   async findAll() {

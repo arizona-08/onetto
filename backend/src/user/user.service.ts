@@ -47,6 +47,23 @@ export class UserService {
 
       const createdUser = await this.prismaService.$transaction(
         async (prisma) => {
+          const invitation = data.invitationToken
+            ? await prisma.adminUserInvitation.findFirst({
+                where: {
+                  tokenHash: this.hashVerificationToken(data.invitationToken),
+                  email,
+                  expiresAt: { gt: new Date() },
+                  userId: null,
+                  redeemedAt: null,
+                },
+                select: { id: true },
+              })
+            : null;
+          if (data.invitationToken && !invitation) {
+            throw new BadRequestException(
+              'Cette invitation est invalide, expirée ou destinée à une autre adresse.',
+            );
+          }
           const user = await prisma.user.create({
             data: {
               firstname: data.firstname,
@@ -68,6 +85,18 @@ export class UserService {
             },
           });
 
+          if (invitation) {
+            const claimed = await prisma.adminUserInvitation.updateMany({
+              where: { id: invitation.id, userId: null },
+              data: { userId: user.id, acceptedAt: new Date() },
+            });
+            if (claimed.count !== 1) {
+              throw new BadRequestException(
+                'Cette invitation a déjà été utilisée.',
+              );
+            }
+          }
+
           return user;
         },
       );
@@ -75,6 +104,7 @@ export class UserService {
       await this.sendVerificationEmail(createdUser.email, verificationToken);
 
       const { password, ...userWithoutPassword } = createdUser;
+      void password;
 
       return {
         message: 'User created successfully.',
@@ -90,6 +120,29 @@ export class UserService {
         error instanceof Error ? error.message : undefined,
       );
     }
+  }
+
+  async getInvitation(token: string) {
+    if (!token || !/^[A-Za-z0-9_-]{40,100}$/.test(token)) {
+      throw new BadRequestException('Invitation invalide.');
+    }
+    const invitation = await this.prismaService.adminUserInvitation.findFirst({
+      where: {
+        tokenHash: this.hashVerificationToken(token),
+        expiresAt: { gt: new Date() },
+        userId: null,
+        redeemedAt: null,
+      },
+      select: {
+        email: true,
+        subscriptionPlan: true,
+        discountPercent: true,
+      },
+    });
+    if (!invitation) {
+      throw new BadRequestException('Invitation invalide ou expirée.');
+    }
+    return invitation;
   }
 
   async confirmEmail(token: string) {
@@ -199,6 +252,7 @@ export class UserService {
       }
 
       const { password, ...userWithoutPassword } = user;
+      void password;
 
       return userWithoutPassword;
     } catch (error: any) {

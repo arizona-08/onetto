@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { subscriptionPlanLabel } from "@/lib/subscription/plan-labels";
 import { apiServer } from "@/lib/api-server";
+import AdminInviteUser from "./AdminInviteUser";
 type Users = {
   items: Array<{
     id: string;
@@ -20,10 +21,11 @@ export default async function AdminUsersPage() {
   if (!response.ok) return <p>Accès administrateur requis.</p>;
   return (
     <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-      <header className="border-b border-zinc-100 p-5">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 p-5">
         <h2 className="font-title text-lg font-semibold">
           Utilisateurs ({response.data.pagination.total})
         </h2>
+        <AdminInviteUser />
       </header>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
