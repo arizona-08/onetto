@@ -18,6 +18,7 @@ import {
   Ellipsis,
   ExternalLink,
   FileChartColumnIncreasing,
+  LoaderCircle,
   MessageSquareText,
   RotateCcw,
   Send,
@@ -44,6 +45,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
   const [isDownloadingFacturX, setIsDownloadingFacturX] = useState(false);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const [isSendingB2B, setIsSendingB2B] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
   const [isGoCardlessReconnectOpen, setIsGoCardlessReconnectOpen] =
     useState(false);
@@ -120,10 +122,14 @@ function ShowDocument({ document }: ShowDocumentProps) {
   }, []);
 
   async function handleSendDocument() {
+    setIsSending(true);
     let response;
-
-    if (isDraftEstimate || isDraftInvoice) {
-      response = await sendDocumentToClient(document.id);
+    try {
+      if (isDraftEstimate || isDraftInvoice) {
+        response = await sendDocumentToClient(document.id);
+      }
+    } finally {
+      setIsSending(false);
     }
 
     if (!response?.ok) {
@@ -375,11 +381,20 @@ function ShowDocument({ document }: ShowDocumentProps) {
           {(isDraftEstimate || isDraftInvoice) && (
             <div className="flex flex-col items-center gap-2">
               <button
-                disabled={isSendingBlocked}
+                disabled={isSendingBlocked || isSending}
                 className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-primary bg-primary px-4 py-2 text-center text-white transition-all duration-150 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={handleSendDocument}
               >
-                Confirmer et envoyer <Send />
+                {isSending ? (
+                  <>
+                    <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+                    <span className="sr-only">Envoi en cours…</span>
+                  </>
+                ) : (
+                  <>
+                    Confirmer et envoyer <Send aria-hidden="true" />
+                  </>
+                )}
               </button>
               {isSendingBlocked && (
                 <p

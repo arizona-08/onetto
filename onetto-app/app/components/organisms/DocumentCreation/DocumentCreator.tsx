@@ -17,7 +17,7 @@ import {
   updateDraftDocument,
 } from "@/lib/documents/document";
 import { getActiveCompanyPlanAccess } from "@/lib/companies/companies";
-import { CheckCircle2, Send, X } from "lucide-react";
+import { CheckCircle2, LoaderCircle, Send, X } from "lucide-react";
 import DocumentForm from "./DocumentForm";
 import DocumentPreview from "./DocumentPreview";
 import { useToast } from "../../context/ToastContext";
@@ -470,16 +470,20 @@ function DocumentCreator({
             onClick={handleConfirmAndSend}
             className="flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {(isInCreationEstimate || isDraftEstimate) &&
-              (isSent
-                ? "Devis envoyé"
-                : isSending
-                  ? "Envoi du devis…"
-                  : "Confirmer et envoyer le devis")}
-            {(isDraftInvoice || isCreatingInvoice) &&
-              "Confirmer et envoyer la facture"}
-
-            <Send className="h-4 w-4" aria-hidden="true" />
+            {isSending ? (
+              <>
+                <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+                <span className="sr-only">Envoi en cours…</span>
+              </>
+            ) : (
+              <>
+                {(isInCreationEstimate || isDraftEstimate) &&
+                  (isSent ? "Devis envoyé" : "Confirmer et envoyer le devis")}
+                {(isDraftInvoice || isCreatingInvoice) &&
+                  (isSent ? "Facture envoyée" : "Confirmer et envoyer la facture")}
+                <Send className="h-4 w-4" aria-hidden="true" />
+              </>
+            )}
           </button>
 
           <button
