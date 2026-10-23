@@ -80,6 +80,7 @@ export type Document = {
   invoicePaymentMode?: {
     paymentMode: "ONE_TIME" | "INSTALMENTS";
     numberOfInstalments: number | null;
+    firstDueDate?: string | null;
   } | null;
   invoiceInstalmentPlan?: {
     startDate: string;

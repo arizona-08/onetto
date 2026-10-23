@@ -120,8 +120,15 @@ export class SubscriptionService {
           subscriptionId: true,
           subscriptionPlan: true,
           isActive: true,
+          pendingSubscriptionPlan: true,
         },
       });
+
+    if (existingSubscription?.pendingSubscriptionPlan === 'FREE') {
+      throw new BadRequestException(
+        'Annulez d’abord le passage au gratuit avant de choisir une autre offre.',
+      );
+    }
 
     if (existingSubscription?.isActive && existingSubscription.subscriptionId) {
       return this.changeExistingSubscription(

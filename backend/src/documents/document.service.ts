@@ -368,6 +368,7 @@ export class DocumentService {
           paymentModeFrequency: null,
           numberOfInstalments: null,
           amountPerInstalmentInCents: null,
+          firstDueDate: null,
         },
       });
       await prisma.invoiceInstalmentPlan.deleteMany({
@@ -382,10 +383,6 @@ export class DocumentService {
     );
 
     const firstDueDate = parseDateOnly(instalmentsDetails.firstDueDate);
-    const authorizationDeadline = new Date(
-      firstDueDate.getTime() -
-        REMINDER_RULES.INSTALMENT_AUTHORIZATION_LEAD_DAYS * 24 * 60 * 60 * 1000,
-    );
     if (Number.isNaN(firstDueDate.getTime())) {
       throw new BadRequestException(
         'La date de première échéance est invalide.',
@@ -398,12 +395,6 @@ export class DocumentService {
     // monthly instalments.
 
     const totalAmountInCents = Math.round(invoice.totalPrice * 100);
-    const schedule = buildInstalmentSchedule(
-      totalAmountInCents,
-      instalmentsDetails.numberOfInstalments,
-      firstDueDate,
-      'WEEKLY',
-    );
     const amountPerInstalmentInCents = Math.floor(
       totalAmountInCents / instalmentsDetails.numberOfInstalments,
     );
@@ -416,37 +407,21 @@ export class DocumentService {
         paymentModeFrequency: 'WEEKLY',
         numberOfInstalments: instalmentsDetails.numberOfInstalments,
         amountPerInstalmentInCents,
+        firstDueDate,
       },
       update: {
         paymentMode: 'INSTALMENTS',
         paymentModeFrequency: 'WEEKLY',
         numberOfInstalments: instalmentsDetails.numberOfInstalments,
         amountPerInstalmentInCents,
+        firstDueDate,
       },
     });
 
+    // Drafts only retain the payment configuration. The business schedule is
+    // created after the invoice email has been sent successfully.
     await prisma.invoiceInstalmentPlan.deleteMany({
       where: { invoiceId: invoice.id },
-    });
-    await prisma.invoiceInstalmentPlan.create({
-      data: {
-        invoiceId: invoice.id,
-        totalAmountInCents,
-        numberOfInstalments: instalmentsDetails.numberOfInstalments,
-        amountPerInstalmentInCents,
-        startDate: firstDueDate,
-        authorizationDeadline,
-        // A provider reference is required by the current schema. It is an
-        // internal placeholder until a future provider integration replaces it.
-        providerReference: `onetto-${randomBytes(16).toString('hex')}`,
-        invoicePaymentInstalments: {
-          create: schedule.map((instalment) => ({
-            instalmentNumber: instalment.sequence,
-            amountInCents: instalment.amountInCents,
-            dueDate: instalment.dueDate,
-          })),
-        },
-      },
     });
   }
 
@@ -1881,7 +1856,11 @@ export class DocumentService {
           : undefined,
       });
 
-      await this.markDocumentAsDelivered(document.id, isInvoice);
+      if (isInvoice) {
+        await this.markInvoiceAsDelivered(document.id, document.totalPrice);
+      } else {
+        await this.markDocumentAsDelivered(document.id, false);
+      }
 
       if (
         isInvoice &&
@@ -2332,6 +2311,84 @@ export class DocumentService {
     await this.prismaService.document.update({
       where: { id: documentId },
       data,
+    });
+  }
+
+  private async markInvoiceAsDelivered(documentId: string, totalPrice: number) {
+    await this.prismaService.$transaction(async (prisma) => {
+      const paymentMode = await prisma.invoicePaymentMode.findUnique({
+        where: { invoiceId: documentId },
+      });
+
+      if (paymentMode?.paymentMode === 'INSTALMENTS') {
+        const firstDueDate = paymentMode.firstDueDate;
+        const numberOfInstalments = paymentMode.numberOfInstalments;
+        const frequency = paymentMode.paymentModeFrequency;
+
+        if (
+          !firstDueDate ||
+          (numberOfInstalments !== 2 && numberOfInstalments !== 3) ||
+          !frequency
+        ) {
+          throw new BadRequestException(
+            'Les détails des échéances de cette facture sont incomplets.',
+          );
+        }
+
+        const paymentAccess = await prisma.invoicePublicAccess.findUnique({
+          where: { invoiceId: documentId },
+          include: { invoicePaymentLink: true },
+        });
+
+        if (!paymentAccess?.invoicePaymentLink) {
+          throw new BadRequestException(
+            'Le lien de paiement de cette facture est introuvable.',
+          );
+        }
+
+        const totalAmountInCents = Math.round(totalPrice * 100);
+        const schedule = buildInstalmentSchedule(
+          totalAmountInCents,
+          numberOfInstalments,
+          firstDueDate,
+          frequency,
+        );
+        const authorizationDeadline = new Date(
+          firstDueDate.getTime() -
+            REMINDER_RULES.INSTALMENT_AUTHORIZATION_LEAD_DAYS *
+              24 *
+              60 *
+              60 *
+              1000,
+        );
+
+        await prisma.invoiceInstalmentPlan.create({
+          data: {
+            invoiceId: documentId,
+            totalAmountInCents,
+            numberOfInstalments,
+            amountPerInstalmentInCents: Math.floor(
+              totalAmountInCents / numberOfInstalments,
+            ),
+            startDate: firstDueDate,
+            authorizationDeadline,
+            providerReference:
+              paymentAccess.invoicePaymentLink.providerReference,
+            invoicePaymentInstalments: {
+              create: schedule.map((instalment) => ({
+                instalmentNumber: instalment.sequence,
+                amountInCents: instalment.amountInCents,
+                dueDate: instalment.dueDate,
+              })),
+            },
+          },
+        });
+      }
+
+      await prisma.document.update({
+        where: { id: documentId },
+        data: { invoiceStatus: 'PENDING', sentAt: new Date() },
+      });
     });
   }
 

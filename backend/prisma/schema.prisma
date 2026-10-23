@@ -441,7 +441,6 @@ enum EstimateNegociationStatus {
   REJECTED
 }
 
-// doit générer un InvoiceInstalmentPlan si INSTALMENTS
 model InvoicePaymentMode {
   id                         String                @id @default(uuid())
   invoiceId                  String                @unique
@@ -449,6 +448,7 @@ model InvoicePaymentMode {
   paymentModeFrequency       PaymentModeFrequency?
   numberOfInstalments        Int?
   amountPerInstalmentInCents Int?
+  firstDueDate               DateTime?
 
   invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }

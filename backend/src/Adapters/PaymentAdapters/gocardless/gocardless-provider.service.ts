@@ -347,12 +347,6 @@ export class GoCardlessProviderService
         );
       }
 
-      await this.generateInstalmentPlan(
-        input.invoiceId,
-        billingRequestId,
-        input.instalments_details as CreatePaymentLinkInput['instalments_details'],
-      );
-
       const createdBillingRequestFlow = await client.billingRequestFlows.create(
         {
           redirect_uri:
@@ -408,31 +402,6 @@ export class GoCardlessProviderService
         error as Error,
       );
     }
-  }
-
-  async generateInstalmentPlan(
-    invoiceId: string,
-    billingRequestId: string,
-    input: CreatePaymentLinkInput['instalments_details'],
-  ) {
-    const instalmentPlan =
-      await this.prismaService.invoiceInstalmentPlan.findUnique({
-        where: { invoiceId },
-        select: { id: true },
-      });
-
-    if (!instalmentPlan) {
-      throw new BadRequestException(
-        "L'échéancier métier de cette facture n'a pas été trouvé.",
-      );
-    }
-
-    // The business schedule is created with the invoice. Provider information
-    // is attached only when the customer payment flow is initiated.
-    await this.prismaService.invoiceInstalmentPlan.update({
-      where: { id: instalmentPlan.id },
-      data: { providerReference: billingRequestId },
-    });
   }
 
   async createRecurringPaymentLink(

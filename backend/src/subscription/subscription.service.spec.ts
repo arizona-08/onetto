@@ -75,6 +75,75 @@ describe('SubscriptionService — modification admin', () => {
   });
 });
 
+describe('SubscriptionService — passage au gratuit programmé', () => {
+  const prisma = {
+    userSubscription: {
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+  };
+  const access = { getUserAccess: jest.fn() };
+  const service = new SubscriptionService(
+    prisma as never,
+    { getOrThrow: () => 'sk_test_example' } as never,
+    access as never,
+  );
+  const stripe = {
+    subscriptions: { update: jest.fn() },
+  };
+  const previousPriceId = process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
+
+  beforeAll(() => {
+    process.env.STRIPE_PRO_MONTHLY_PRICE_ID = 'price_pro_monthly';
+    Reflect.set(service, 'stripe', stripe);
+  });
+
+  afterAll(() => {
+    if (previousPriceId === undefined) {
+      delete process.env.STRIPE_PRO_MONTHLY_PRICE_ID;
+    } else {
+      process.env.STRIPE_PRO_MONTHLY_PRICE_ID = previousPriceId;
+    }
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prisma.userSubscription.findUnique.mockResolvedValue({
+      subscriptionId: 'sub_123',
+      pendingSubscriptionPlan: SubscriptionPlan.FREE,
+    });
+  });
+
+  it('bloque le choix d’une offre payante avant l’annulation manuelle', async () => {
+    await expect(
+      service.createCheckoutSession('price_pro_monthly', 'user-1'),
+    ).rejects.toThrow(
+      'Annulez d’abord le passage au gratuit avant de choisir une autre offre.',
+    );
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+  });
+
+  it('annule le passage au gratuit sur Stripe et dans la base', async () => {
+    await expect(service.cancelPendingPlanChange('user-1')).resolves.toEqual({
+      canceled: true,
+    });
+
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith('sub_123', {
+      cancel_at_period_end: false,
+    });
+    expect(prisma.userSubscription.update).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+      data: {
+        pendingSubscriptionPlan: null,
+        pendingPlanEffectiveAt: null,
+        pendingStripeScheduleId: null,
+        willCancelAtPeriodEnd: false,
+        canceledAtPeriodEnd: null,
+      },
+    });
+  });
+});
+
 describe('SubscriptionService — remise d’invitation', () => {
   const prisma = {
     userSubscription: { findUnique: jest.fn() },

@@ -143,16 +143,19 @@ function DocumentCreator({
         dueDate: document.paymentDueAt, // à adapter pour les devis avec document.toValidateAt
       });
       if (
-        document.invoicePaymentMode?.paymentMode === "INSTALMENTS" &&
-        document.invoiceInstalmentPlan
+        document.invoicePaymentMode?.paymentMode === "INSTALMENTS"
       ) {
         setPaymentMode("INSTALMENTS");
         setNumberOfInstalments(
-          document.invoiceInstalmentPlan.numberOfInstalments as 2 | 3,
+          document.invoicePaymentMode.numberOfInstalments as 2 | 3,
         );
-        setFirstDueDate(
-          toDateInputValue(new Date(document.invoiceInstalmentPlan.startDate)),
-        );
+        const savedFirstDueDate =
+          document.invoicePaymentMode.firstDueDate ??
+          document.invoiceInstalmentPlan?.startDate;
+
+        if (savedFirstDueDate) {
+          setFirstDueDate(toDateInputValue(new Date(savedFirstDueDate)));
+        }
       }
     }
   }, [document]);
