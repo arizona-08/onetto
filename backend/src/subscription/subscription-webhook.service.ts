@@ -93,7 +93,6 @@ export class SubscriptionWebhookService {
       );
     }
 
-    const subscriptionPlan = this.matchPriceIdToSubscriptionPlan(priceId);
     const isCanceled = subscription.status === 'canceled';
     const customerId = this.getStripeId(subscription.customer);
     const isActive =
@@ -140,6 +139,7 @@ export class SubscriptionWebhookService {
         return;
       }
 
+      const subscriptionPlan = this.matchPriceIdToSubscriptionPlan(priceId);
       const existingLocalSubscription = await tx.userSubscription.findUnique({
         where: { userId },
         select: { pendingSubscriptionPlan: true },

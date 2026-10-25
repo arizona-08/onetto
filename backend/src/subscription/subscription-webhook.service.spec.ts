@@ -297,4 +297,40 @@ describe('SubscriptionWebhookService — invitation Pro', () => {
 
     expect(transaction.adminUserInvitation.updateMany).not.toHaveBeenCalled();
   });
+
+  it('ignore un abonnement Stripe sans utilisateur local, même si son prix est inconnu', async () => {
+    retrieveSubscription.mockResolvedValueOnce({
+      id: 'sub-external',
+      status: 'active',
+      customer: 'cus-external',
+      items: { data: [{ price: { id: 'price_external' } }] },
+      metadata: {},
+      cancel_at: null,
+      canceled_at: null,
+    } as Awaited<ReturnType<typeof stripe.subscriptions.retrieve>>);
+
+    await expect(
+      service.syncSubscription('sub-external'),
+    ).resolves.toBeUndefined();
+
+    expect(transaction.userSubscription.upsert).not.toHaveBeenCalled();
+    expect(transaction.user.update).not.toHaveBeenCalled();
+  });
+
+  it('signale un prix inconnu lorsqu’il est lié à un utilisateur local', async () => {
+    retrieveSubscription.mockResolvedValueOnce({
+      id: 'sub-1',
+      status: 'active',
+      customer: 'cus-1',
+      items: { data: [{ price: { id: 'price_unknown' } }] },
+      metadata: { userId: 'user-1' },
+      cancel_at: null,
+      canceled_at: null,
+    } as Awaited<ReturnType<typeof stripe.subscriptions.retrieve>>);
+
+    await expect(service.syncSubscription('sub-1')).rejects.toThrow(
+      'Unknown price ID: price_unknown',
+    );
+    expect(transaction.userSubscription.upsert).not.toHaveBeenCalled();
+  });
 });
