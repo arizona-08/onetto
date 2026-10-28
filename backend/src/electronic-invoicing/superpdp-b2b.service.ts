@@ -419,6 +419,7 @@ export class SuperPdpB2bService {
         companyId: input.companyId,
         type: 'INVOICE',
         company: {
+          status: 'ACTIVE',
           OR: [
             { ownerId: input.user.id },
             {

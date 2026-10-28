@@ -21,6 +21,7 @@ describe('AuthGuard — comptes bannis', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jwtService.verifyAsync.mockResolvedValue({
+      sub: 'user-1',
       email: 'user@test.com',
       iat: 1,
     });
@@ -38,5 +39,16 @@ describe('AuthGuard — comptes bannis', () => {
     userService.findBy.mockResolvedValue({ bannedAt: null });
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
+    expect(userService.findBy).toHaveBeenCalledWith('id', 'user-1');
+  });
+
+  it('refuse immédiatement un JWT émis avant la clôture', async () => {
+    userService.findBy.mockResolvedValue({
+      bannedAt: null,
+      closedAt: new Date(),
+    });
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 });

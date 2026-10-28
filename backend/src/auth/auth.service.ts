@@ -64,6 +64,9 @@ export class AuthService {
         throw new BadRequestException('Invalid email or password.');
       }
 
+      if (existingUser.closedAt) {
+        throw new UnauthorizedException('Ce compte est clôturé.');
+      }
       if (existingUser.bannedAt) {
         throw new UnauthorizedException('Ce compte est suspendu.');
       }
@@ -128,12 +131,14 @@ export class AuthService {
           id: true,
           email: true,
           bannedAt: true,
+          closedAt: true,
           passwordChangedAt: true,
         },
       });
       if (
         !user ||
         user.bannedAt ||
+        user.closedAt ||
         (user.passwordChangedAt &&
           payload.iat &&
           payload.iat * 1000 < user.passwordChangedAt.getTime())
@@ -173,12 +178,12 @@ export class AuthService {
     const email = emailInput.trim().toLowerCase();
     const user = await this.prismaService.user.findUnique({
       where: { email },
-      select: { id: true, email: true },
+      select: { id: true, email: true, closedAt: true },
     });
     const message =
       'Si un compte correspond à cette adresse, un e-mail de réinitialisation a été envoyé.';
 
-    if (!user) {
+    if (!user || user.closedAt) {
       return { message };
     }
 
@@ -223,6 +228,7 @@ export class AuthService {
       where: {
         passwordResetTokenHash: this.hashToken(token),
         passwordResetExpiresAt: { gt: new Date() },
+        closedAt: null,
       },
       select: { id: true },
     });

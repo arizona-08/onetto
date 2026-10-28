@@ -26,6 +26,8 @@ model User {
   accountType            AccountType       @default(BUSINESS_OWNER)
   isAdmin                Boolean           @default(false)
   bannedAt               DateTime?
+  closedAt               DateTime?
+  profileMinimizedAt     DateTime?
   subscriptionPlan       SubscriptionPlan?
   lastConnectedCompanyId String?
 
@@ -39,6 +41,30 @@ model User {
   adminSubscriptionUpgrades AdminSubscriptionUpgrade[]
   adminInvitationsSent AdminUserInvitation[] @relation("AdminInvitationSender")
   acceptedAdminInvitation AdminUserInvitation? @relation("AdminInvitationRecipient")
+  accountClosure       AccountClosure?
+}
+
+model AccountClosure {
+  userId           String               @id
+  user             User                 @relation(fields: [userId], references: [id])
+  status           AccountClosureStatus @default(PENDING)
+  pendingActions   String[]             @default([])
+  reviewedActions  String[]             @default([])
+  requestedAt      DateTime             @default(now())
+  lastAttemptAt    DateTime?
+  processingAt     DateTime?
+  nextAttemptAt    DateTime?
+  lastError        String?
+  completedAt      DateTime?
+
+  @@index([status, nextAttemptAt])
+}
+
+enum AccountClosureStatus {
+  PENDING
+  WAITING_SETTLEMENT
+  ACTION_REQUIRED
+  COMPLETED
 }
 
 model AdminUserInvitation {
@@ -150,6 +176,7 @@ model Company {
   status                    CompanyStatus     @default(ACTIVE)
   closingReason             String?
   closedAt                  DateTime?
+  closedByAccountClosureAt  DateTime?
   isPaymentAccountConnected Boolean           @default(false)
   legalForm                 String?
   legalStatus               CompanyLegalStatus @default(MICRO_ENTERPRISE)
@@ -176,6 +203,7 @@ model Company {
 }
 
 enum AppNotificationType {
+  COMPANY_CLOSED
   SUPPLIER_INVOICE_RECEIVED
   PAYMENT_SUBMITTED
   PAYMENT_SUCCEEDED
@@ -196,6 +224,7 @@ model AppNotification {
   deduplicationKey String
   metadata         Json?
   readAt           DateTime?
+  emailSentAt      DateTime?
   createdAt        DateTime            @default(now())
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)

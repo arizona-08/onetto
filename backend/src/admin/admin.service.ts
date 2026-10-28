@@ -534,15 +534,23 @@ export class AdminService {
   ) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { id: true },
+      select: { id: true, closedAt: true, closedByAccountClosureAt: true },
     });
     if (!company) throw new NotFoundException('Entreprise introuvable.');
+    if (
+      data.status === CompanyStatus.ACTIVE &&
+      company.closedByAccountClosureAt
+    ) {
+      throw new ConflictException(
+        'Cette entreprise a été fermée avec le compte propriétaire.',
+      );
+    }
     const updated = await this.prisma.company.update({
       where: { id: companyId },
       data: {
         ...data,
         ...(data.status === CompanyStatus.CLOSED
-          ? { closedAt: new Date() }
+          ? { closedAt: company.closedAt ?? new Date() }
           : data.status === CompanyStatus.ACTIVE
             ? { closedAt: null, closingReason: null }
             : {}),
@@ -567,15 +575,17 @@ export class AdminService {
     const [company, user] = await Promise.all([
       this.prisma.company.findUnique({
         where: { id: companyId },
-        select: { id: true, ownerId: true },
+        select: { id: true, ownerId: true, status: true },
       }),
       this.prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, accountType: true },
+        select: { id: true, accountType: true, closedAt: true },
       }),
     ]);
-    if (!company) throw new NotFoundException('Entreprise introuvable.');
-    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+    if (!company || company.status !== CompanyStatus.ACTIVE)
+      throw new NotFoundException('Entreprise active introuvable.');
+    if (!user || user.closedAt)
+      throw new NotFoundException('Utilisateur actif introuvable.');
     if (
       company.ownerId === userId ||
       user.accountType !== AccountType.EMPLOYEE

@@ -181,11 +181,11 @@ export class UserService {
     const email = emailInput.trim().toLowerCase();
     const user = await this.prismaService.user.findUnique({
       where: { email },
-      select: { id: true, email: true, emailVerifiedAt: true },
+      select: { id: true, email: true, emailVerifiedAt: true, closedAt: true },
     });
 
     // Same response whether or not an account exists, to avoid revealing registered emails.
-    if (!user || user.emailVerifiedAt) {
+    if (!user || user.emailVerifiedAt || user.closedAt) {
       return {
         message:
           'Si un compte non confirmé correspond à cette adresse, un e-mail de confirmation a été envoyé.',

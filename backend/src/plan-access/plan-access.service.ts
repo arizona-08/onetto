@@ -128,6 +128,13 @@ export class PlanAccessService {
   }
 
   async assertFeatureAvailable(companyId: string, feature: PlanFeature) {
+    const company = await this.prismaService.company.findUnique({
+      where: { id: companyId },
+      select: { status: true },
+    });
+    if (company?.status !== 'ACTIVE') {
+      throw new ForbiddenException('Cette entreprise est fermée.');
+    }
     const access = await this.getCompanyAccess(companyId);
     if (!access.features[feature]) {
       throw new ForbiddenException(FEATURE_LABELS[feature]);

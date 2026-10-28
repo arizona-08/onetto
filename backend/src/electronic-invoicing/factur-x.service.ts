@@ -25,6 +25,7 @@ export class FacturXService {
         id: documentId,
         type: 'INVOICE',
         company: {
+          status: 'ACTIVE',
           OR: [
             { ownerId: user.id },
             { companyUsers: { some: { userId: user.id } } },
@@ -111,6 +112,7 @@ export class FacturXService {
         id: documentId,
         type: 'INVOICE',
         company: {
+          status: 'ACTIVE',
           OR: [
             { ownerId: user.id },
             { companyUsers: { some: { userId: user.id } } },
@@ -175,6 +177,7 @@ export class FacturXService {
         id: documentId,
         type: 'INVOICE',
         company: {
+          status: 'ACTIVE',
           OR: [
             { ownerId: user.id },
             { companyUsers: { some: { userId: user.id } } },
@@ -236,6 +239,7 @@ export class FacturXService {
         id: documentId,
         type: 'INVOICE',
         company: {
+          status: 'ACTIVE',
           OR: [
             { ownerId: user.id },
             { companyUsers: { some: { userId: user.id } } },

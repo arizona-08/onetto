@@ -17,6 +17,7 @@ import { InvoicePaymentStatusModule } from 'src/invoice-payments/invoice-payment
 import { PlanAccessModule } from 'src/plan-access/plan-access.module';
 import { GoCardlessInstalmentRetryService } from './gocardless-instalment-retry.service';
 import { GoCardlessConnectionHealthService } from './gocardless-connection-health.service';
+import { UserModule } from 'src/user/user.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { GoCardlessConnectionHealthService } from './gocardless-connection-healt
     MailModule,
     InvoicePaymentStatusModule,
     PlanAccessModule,
+    UserModule,
   ],
   controllers: [GoCardlessWebhookController, GoCardlessOAuthController],
   providers: [

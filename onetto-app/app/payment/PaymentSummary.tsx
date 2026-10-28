@@ -85,13 +85,19 @@ export default function PaymentSummary({
               </div>
             </div>
             <InstalmentSchedule instalments={instalments} className="mt-7" />
-            <a
-              href={payment.paymentLink}
-              className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
-            >
-              <CreditCard className="h-4 w-4" />
-              Payer la facture
-            </a>
+            {payment.paymentLink ? (
+              <a
+                href={payment.paymentLink}
+                className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary hover:text-white"
+              >
+                <CreditCard className="h-4 w-4" />
+                Payer la facture
+              </a>
+            ) : (
+              <p className="mt-8 rounded-lg bg-zinc-100 px-4 py-3 text-sm text-zinc-700">
+                Le paiement en ligne de cette facture n’est plus disponible.
+              </p>
+            )}
           </div>
         </article>
       </div>

@@ -17,6 +17,7 @@ import { validateSuperPdpConfiguration } from './electronic-invoicing/superpdp.c
 import { NotificationsModule } from './notifications/notifications.module';
 import { StorageModule } from './storage/storage.module';
 import { AdminModule } from './admin/admin.module';
+import { AccountClosureModule } from './account-closure/account-closure.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { AdminModule } from './admin/admin.module';
     NotificationsModule,
     StorageModule,
     AdminModule,
+    AccountClosureModule,
     ScheduleModule.forRoot(),
   ],
   controllers: [AppController],

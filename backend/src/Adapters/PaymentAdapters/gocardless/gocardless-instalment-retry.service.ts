@@ -24,7 +24,11 @@ type InstalmentWithPlan = {
   amountInCents: number;
   providerPaymentId: string | null;
   instalmentStatus:
-    'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'OVERDUE';
+    | 'PENDING'
+    | 'PAYMENT_IN_PROGRESS'
+    | 'SUCCESS'
+    | 'FAILED'
+    | 'OVERDUE';
   automaticRetryScheduled: boolean;
   invoiceInstalmentPlan: {
     invoiceId: string;
@@ -35,6 +39,7 @@ type InstalmentWithPlan = {
       companyId: string;
       company: {
         ownerId: string;
+        status: string;
         companyUsers: Array<{ id: string }>;
       };
     };
@@ -284,6 +289,7 @@ export class GoCardlessInstalmentRetryService {
                   company: {
                     select: {
                       ownerId: true,
+                      status: true,
                       companyUsers: {
                         where: { userId: user.id },
                         select: { id: true },
@@ -304,7 +310,10 @@ export class GoCardlessInstalmentRetryService {
     }
 
     const company = instalment.invoiceInstalmentPlan.invoice.company;
-    if (company.ownerId !== user.id && company.companyUsers.length === 0) {
+    if (
+      company.status !== 'ACTIVE' ||
+      (company.ownerId !== user.id && company.companyUsers.length === 0)
+    ) {
       throw new ForbiddenException('Vous n’avez pas accès à cette échéance.');
     }
     return instalment;

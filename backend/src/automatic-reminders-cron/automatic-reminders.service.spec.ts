@@ -32,6 +32,9 @@ describe('AutomaticRemindersService', () => {
         create: jest.fn().mockResolvedValue({}),
       },
       document: { findMany: jest.fn().mockResolvedValue([]) },
+      company: {
+        findUnique: jest.fn().mockResolvedValue({ status: 'ACTIVE' }),
+      },
     };
     const mail = {
       createReminderMail: jest.fn().mockReturnValue({

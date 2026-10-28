@@ -31,18 +31,29 @@ export class GoCardlessOAuthService {
     private readonly gocardlessStatusMatcherService: GoCardlessStatusMatcherService,
   ) {}
 
-  async buildAuthorizationUrl(input: { email?: string; companyId: string }) {
+  async buildAuthorizationUrl(input: {
+    email?: string;
+    companyId: string;
+    userId: string;
+  }) {
     console.log(
       'Building authorization URL for companyId:',
       input.companyId,
       'and email:',
       input.email,
     );
-    const existingCompany = await this.prismaService.company.findUnique({
-      where: { id: input.companyId },
+    const existingCompany = await this.prismaService.company.findFirst({
+      where: {
+        id: input.companyId,
+        status: 'ACTIVE',
+        OR: [
+          { ownerId: input.userId },
+          { companyUsers: { some: { userId: input.userId, role: 'ADMIN' } } },
+        ],
+      },
     });
 
-    if (!existingCompany) {
+    if (!existingCompany || existingCompany.status !== 'ACTIVE') {
       throw new BadGatewayException(
         `Company with ID ${input.companyId} does not exist.`,
       );
@@ -160,6 +171,9 @@ export class GoCardlessOAuthService {
         `Company with ID ${companyPaymentOAuthState.companyId} does not exist.`,
       );
     }
+    if (existingCompany.status !== 'ACTIVE') {
+      throw new BadGatewayException('Cette entreprise est fermée.');
+    }
 
     const accessTokenResponse =
       await this.getAccessTokenFromAuthorizationCode(authorizationCode);
@@ -168,32 +182,35 @@ export class GoCardlessOAuthService {
         'GoCardless a renvoyé un jeton inactif. Reconnectez votre compte GoCardless.',
       );
     }
-    await this.prismaService.companyPaymentAccount.upsert({
-      where: { companyId: existingCompany.id },
-      create: {
-        companyId: existingCompany.id,
-        provider: 'GOCARDLESS',
-        providerAccountId: accessTokenResponse.organisation_id,
-        accessToken: accessTokenResponse.access_token,
-      },
-      update: {
-        provider: 'GOCARDLESS',
-        providerAccountId: accessTokenResponse.organisation_id,
-        accessToken: accessTokenResponse.access_token,
-        creditorId: null,
-        verificationStatus: 'NOT_VERIFIED',
-      },
-    });
-
-    await this.prismaService.companyPaymentOAuthState.delete({
-      where: { state },
-    });
-
-    await this.prismaService.company.update({
-      where: { id: existingCompany.id },
-      data: {
-        isPaymentAccountConnected: true,
-      },
+    await this.prismaService.$transaction(async (tx) => {
+      const currentCompany = await tx.company.findUnique({
+        where: { id: existingCompany.id },
+        select: { status: true },
+      });
+      if (currentCompany?.status !== 'ACTIVE') {
+        throw new BadGatewayException('Cette entreprise est fermée.');
+      }
+      await tx.companyPaymentAccount.upsert({
+        where: { companyId: existingCompany.id },
+        create: {
+          companyId: existingCompany.id,
+          provider: 'GOCARDLESS',
+          providerAccountId: accessTokenResponse.organisation_id,
+          accessToken: accessTokenResponse.access_token,
+        },
+        update: {
+          provider: 'GOCARDLESS',
+          providerAccountId: accessTokenResponse.organisation_id,
+          accessToken: accessTokenResponse.access_token,
+          creditorId: null,
+          verificationStatus: 'NOT_VERIFIED',
+        },
+      });
+      await tx.companyPaymentOAuthState.delete({ where: { state } });
+      await tx.company.update({
+        where: { id: existingCompany.id },
+        data: { isPaymentAccountConnected: true },
+      });
     });
 
     // The OAuth response alone is not sufficient: ensure the newly stored

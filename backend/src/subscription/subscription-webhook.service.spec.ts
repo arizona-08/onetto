@@ -298,6 +298,19 @@ describe('SubscriptionWebhookService — invitation Pro', () => {
     expect(transaction.adminUserInvitation.updateMany).not.toHaveBeenCalled();
   });
 
+  it('ne rouvre pas un compte clôturé lors d’un webhook Stripe tardif', async () => {
+    transaction.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      subscriptionPlan: 'FREE',
+      closedAt: new Date(),
+    });
+    await service.syncSubscription('sub-1');
+    expect(transaction.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { subscriptionPlan: 'PRO_MONTHLY' },
+    });
+  });
+
   it('ignore un abonnement Stripe sans utilisateur local, même si son prix est inconnu', async () => {
     retrieveSubscription.mockResolvedValueOnce({
       id: 'sub-external',

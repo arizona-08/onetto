@@ -31,6 +31,7 @@ export class SuperPdpEreportingService {
         companyId: input.companyId,
         type: 'INVOICE',
         company: {
+          status: 'ACTIVE',
           OR: [
             { ownerId: input.userId },
             {

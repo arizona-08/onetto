@@ -10,5 +10,6 @@ import { CompaniesService } from './companies.service';
   imports: [PrismaModule, AuthModule, UserModule, PlanAccessModule],
   controllers: [CompaniesController],
   providers: [CompaniesService],
+  exports: [CompaniesService],
 })
 export class CompaniesModule {}

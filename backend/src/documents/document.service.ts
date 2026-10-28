@@ -1354,6 +1354,7 @@ export class DocumentService {
               },
               company: {
                 select: {
+                  status: true,
                   name: true,
                   email: true,
                   phoneNumber: true,
@@ -1372,7 +1373,8 @@ export class DocumentService {
       },
     );
 
-    if (!negociation) return null;
+    if (!negociation || negociation.document.company.status === 'CLOSED')
+      return null;
     const access = await this.planAccessService.getCompanyAccess(
       negociation.document.companyId,
     );
@@ -1391,7 +1393,7 @@ export class DocumentService {
         where: {
           negociationToken,
           status: 'PENDING',
-          document: { type: 'ESTIMATE' },
+          document: { type: 'ESTIMATE', company: { status: 'ACTIVE' } },
         },
         select: { document: { select: { companyId: true } } },
       });
@@ -1407,7 +1409,7 @@ export class DocumentService {
         where: {
           negociationToken,
           status: 'PENDING',
-          document: { type: 'ESTIMATE' },
+          document: { type: 'ESTIMATE', company: { status: 'ACTIVE' } },
         },
         select: { id: true, documentId: true },
       });
@@ -1448,7 +1450,7 @@ export class DocumentService {
         where: {
           negociationToken,
           status: 'PENDING',
-          document: { type: 'ESTIMATE' },
+          document: { type: 'ESTIMATE', company: { status: 'ACTIVE' } },
         },
         select: { id: true, documentId: true },
       });
@@ -2091,6 +2093,7 @@ export class DocumentService {
       where: {
         userId,
         companyId,
+        company: { status: 'ACTIVE' },
       },
     });
 
@@ -2203,6 +2206,7 @@ export class DocumentService {
               },
               company: {
                 select: {
+                  status: true,
                   name: true,
                   email: true,
                   address: true,
@@ -2217,14 +2221,23 @@ export class DocumentService {
         },
       });
 
-    if (!publicAccess || publicAccess.expiresAt < new Date()) {
+    if (
+      !publicAccess ||
+      publicAccess.expiresAt < new Date() ||
+      publicAccess.invoice.type !== 'INVOICE' ||
+      !publicAccess.invoice.sentAt
+    ) {
       throw new BadRequestException(
         'Ce lien de paiement est invalide ou expiré.',
       );
     }
 
     return {
-      paymentLink: publicAccess.invoicePaymentLink.url,
+      paymentLink:
+        publicAccess.invoice.company.status === 'ACTIVE' &&
+        publicAccess.invoicePaymentLink.linkStatus === 'VALID'
+          ? publicAccess.invoicePaymentLink.url
+          : null,
       expiresAt: publicAccess.expiresAt,
       document: publicAccess.invoice,
     };

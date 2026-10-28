@@ -41,6 +41,7 @@ export class SuperPdpOAuthService {
     const company = await this.prismaService.company.findFirst({
       where: {
         id: input.companyId,
+        status: 'ACTIVE',
         OR: [
           { ownerId: input.userId },
           {
@@ -128,6 +129,12 @@ export class SuperPdpOAuthService {
     if (!oauthState || oauthState.expiresAt < new Date()) {
       throw new BadRequestException('État OAuth SuperPDP invalide ou expiré.');
     }
+    const company = await this.prismaService.company.findUnique({
+      where: { id: oauthState.companyId },
+      select: { status: true },
+    });
+    if (company?.status !== 'ACTIVE')
+      throw new BadRequestException('Entreprise fermée.');
 
     const token = await this.exchangeCode(input.code);
     if (!token.access_token || !token.refresh_token || !token.expires_at) {
@@ -144,6 +151,13 @@ export class SuperPdpOAuthService {
 
     try {
       await this.prismaService.$transaction(async (prisma) => {
+        const currentCompany = await prisma.company.findUnique({
+          where: { id: oauthState.companyId },
+          select: { status: true },
+        });
+        if (currentCompany?.status !== 'ACTIVE') {
+          throw new BadRequestException('Cette entreprise est fermée.');
+        }
         await prisma.electronicInvoicingConnection.upsert({
           where: { companyId: oauthState.companyId },
           create: {
@@ -366,6 +380,7 @@ export class SuperPdpOAuthService {
     const company = await this.prismaService.company.findFirst({
       where: {
         id: input.companyId,
+        status: 'ACTIVE',
         OR: [
           { ownerId: input.userId },
           {

@@ -1,4 +1,14 @@
-import { Controller, Get, Param, Query, Res } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { AuthGuard } from 'src/auth/auth.guard';
+import type { ExtendedRequest } from 'src/types/extended-request.types';
 import { GoCardlessOAuthService } from './gocardless-oauth.service';
 import type { Response } from 'express';
 
@@ -8,14 +18,17 @@ export class GoCardlessOAuthController {
     private readonly gocardlessOAuthService: GoCardlessOAuthService,
   ) {}
 
+  @UseGuards(AuthGuard)
   @Get('authorize')
   async authorize(
     @Query('email') email: string,
     @Query('companyId') companyId: string,
+    @Req() req: ExtendedRequest,
   ) {
     return await this.gocardlessOAuthService.buildAuthorizationUrl({
       email,
       companyId,
+      userId: req.user!.id,
     });
   }
 

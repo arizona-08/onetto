@@ -4,11 +4,18 @@ import { PlanAccessService } from './plan-access.service';
 describe('PlanAccessService', () => {
   const prisma = {
     user: { findUniqueOrThrow: jest.fn() },
-    company: { count: jest.fn(), findUniqueOrThrow: jest.fn() },
+    company: {
+      count: jest.fn(),
+      findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+    },
   };
   const service = new PlanAccessService(prisma as never);
 
-  beforeEach(() => jest.resetAllMocks());
+  beforeEach(() => {
+    jest.resetAllMocks();
+    prisma.company.findUnique.mockResolvedValue({ status: 'ACTIVE' });
+  });
 
   it.each([
     ['FREE', 'FREE', 1],

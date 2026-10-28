@@ -25,7 +25,11 @@ export class SuperPdpIncomingInvoicesService {
   async synchronizeAll() {
     const connections =
       await this.prisma.electronicInvoicingConnection.findMany({
-        where: { provider: 'SUPER_PDP', status: 'ACTIVE' },
+        where: {
+          provider: 'SUPER_PDP',
+          status: 'ACTIVE',
+          company: { status: 'ACTIVE' },
+        },
         select: { companyId: true },
       });
     const results = await Promise.allSettled(
