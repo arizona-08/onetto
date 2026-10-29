@@ -35,7 +35,7 @@ export default async function AdminPage({
   const period: Period =
     requestedPeriod === "week" || requestedPeriod === "month"
       ? requestedPeriod
-      : "year";
+      : "month";
   const dashboard = await apiServer<Dashboard>("api/admin/dashboard");
   if (!dashboard.ok)
     return (
