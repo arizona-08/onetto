@@ -1,3 +1,5 @@
+import type { AppUserRole } from '@prisma/client';
+
 export type User = {
   sub: string;
   email: string;
@@ -7,7 +9,7 @@ export type User = {
   firstname: string;
   lastname: string;
   accountType: string;
-  isAdmin: boolean;
+  appUserRole: AppUserRole;
   subscriptionPlan: string | null;
   lastConnectedCompanyId?: string;
   passwordChangedAt?: Date | null;

@@ -89,7 +89,10 @@ function TopSidebar() {
   }, []);
 
   React.useEffect(() => {
-    if (user?.isAdmin || pathname.startsWith("/admin")) {
+    if (
+      (user && user.appUserRole !== "USER") ||
+      pathname.startsWith("/admin")
+    ) {
       return;
     }
 
@@ -97,7 +100,7 @@ function TopSidebar() {
     window.addEventListener(COMPANY_UPDATED_EVENT, loadCompanies);
     return () =>
       window.removeEventListener(COMPANY_UPDATED_EVENT, loadCompanies);
-  }, [loadCompanies, pathname, user?.isAdmin]);
+  }, [loadCompanies, pathname, user?.appUserRole]);
 
   const activeCompany = companies.find(
     (company) => company.id === activeCompanyId,
@@ -135,9 +138,10 @@ function TopSidebar() {
     router.refresh();
   }
 
-  const isAdmin =
-    user?.isAdmin === true || (user === null && pathname.startsWith("/admin"));
-  const links = isAdmin ? adminLinks : userLinks;
+  const hasAdminAccess =
+    (user !== null && user.appUserRole !== "USER") ||
+    (user === null && pathname.startsWith("/admin"));
+  const links = hasAdminAccess ? adminLinks : userLinks;
 
   return (
     <header className="bg-white relative w-full border-b border-zinc-200 lg:w-64 lg:h-screen p-4 lg:flex lg:flex-col">
@@ -160,7 +164,7 @@ function TopSidebar() {
             className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary lg:hidden"
             onClick={() => setShowMobileCompaniesMenu(!showMobileCompaniesMenu)}
           >
-            {isAdmin
+            {hasAdminAccess
               ? user
                 ? getInitials(user.firstname + " " + user.lastname)
                 : "A"
@@ -174,7 +178,7 @@ function TopSidebar() {
             {showMobileCompaniesMenu && (
               <div>
                 <div className="px-4 py-3">
-                  {!isAdmin && (
+                  {!hasAdminAccess && (
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                         {activeCompany ? getInitials(activeCompany.name) : "O"}
@@ -190,7 +194,7 @@ function TopSidebar() {
                       </div>
                     </div>
                   )}
-                  {!isAdmin && <hr className="my-3 border-zinc-200" />}
+                  {!hasAdminAccess && <hr className="my-3 border-zinc-200" />}
                   <p className="truncate text-sm font-medium text-zinc-800">
                     {user
                       ? `${user.firstname} ${user.lastname}`
@@ -200,7 +204,7 @@ function TopSidebar() {
                     {user?.email ?? ""}
                   </p>
                 </div>
-                {!isAdmin && (
+                {!hasAdminAccess && (
                   <>
                     <hr className="border-zinc-200" />
                     <ul>
@@ -259,7 +263,7 @@ function TopSidebar() {
         <nav className="mt-4">
           <ul className="px-2 lg:px-0">
             {links.map((link) => {
-              const isCurrentPathName = isAdmin
+              const isCurrentPathName = hasAdminAccess
                 ? pathname === link.href ||
                   (link.href !== "/admin" &&
                     pathname.startsWith(link.href + "/"))
@@ -287,7 +291,7 @@ function TopSidebar() {
         </nav>
 
         <div className="hidden lg:block relative w-full rounded-lg p-2 transition-colors hover:bg-zinc-100 group duration-300">
-          {!isAdmin && (
+          {!hasAdminAccess && (
             <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-full opacity-0 invisible group-hover:visible group-hover:opacity-100 transition-all duration-150 space-y-2">
               <ul className="bg-white border border-zinc-200 rounded-lg">
                 {otherCompanies.map((company) => (
@@ -315,7 +319,7 @@ function TopSidebar() {
             </div>
           )}
           <div className="space-y-3 cursor-pointer">
-            {!isAdmin && (
+            {!hasAdminAccess && (
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                   {activeCompany ? getInitials(activeCompany.name) : "O"}
@@ -330,7 +334,7 @@ function TopSidebar() {
                 </div>
               </div>
             )}
-            {!isAdmin && <hr className="border-zinc-200" />}
+            {!hasAdminAccess && <hr className="border-zinc-200" />}
 
             <div className="flex items-center justify-between gap-3 px-1">
               <div className="min-w-0">

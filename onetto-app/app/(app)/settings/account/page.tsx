@@ -54,7 +54,7 @@ export default function AccountPage() {
       email: updatedUser.email,
       role: updatedUser.accountType,
       emailVerifiedAt: updatedUser.emailVerifiedAt,
-      isAdmin: user?.isAdmin ?? false,
+      appUserRole: user?.appUserRole ?? "USER",
     });
     showToast(response.data.message, "success");
   }

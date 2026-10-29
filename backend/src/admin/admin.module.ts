@@ -9,6 +9,7 @@ import { AdminBootstrapService } from './admin-bootstrap.service';
 import { AdminController } from './admin.controller';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
+import { AdminRevenueService } from './admin-revenue.service';
 @Module({
   imports: [
     PrismaModule,
@@ -19,6 +20,11 @@ import { AdminService } from './admin.service';
     MailModule,
   ],
   controllers: [AdminController],
-  providers: [AdminBootstrapService, AdminService, AdminGuard],
+  providers: [
+    AdminBootstrapService,
+    AdminService,
+    AdminRevenueService,
+    AdminGuard,
+  ],
 })
 export class AdminModule {}

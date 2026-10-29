@@ -40,7 +40,7 @@ function LoginPage() {
     const user = result.data.user;
     setUser(user);
 
-    router.push("/dashboard");
+    router.push(user.appUserRole === "USER" ? "/dashboard" : "/admin");
   }
 
   return (

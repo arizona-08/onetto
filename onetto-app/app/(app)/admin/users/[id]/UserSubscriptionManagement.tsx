@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api";
 import { subscriptionPlanLabel } from "@/lib/subscription/plan-labels";
+import { useAuthUser } from "@/app/components/context/AuthUserContext";
 
 const plans = [
   "FREE",
@@ -46,14 +47,17 @@ type ModalState =
 
 export default function UserSubscriptionManagement({
   userId,
+  appUserRole,
   accountType,
   subscription,
 }: {
   userId: string;
+  appUserRole: "SUPERADMIN" | "ADMIN" | "USER";
   accountType: string;
   subscription: Subscription;
 }) {
   const router = useRouter();
+  const { user: viewer } = useAuthUser();
   const currentPlan = subscription?.isActive
     ? subscription.subscriptionPlan
     : "FREE";
@@ -62,6 +66,10 @@ export default function UserSubscriptionManagement({
   const [isCanceling, setIsCanceling] = useState(false);
   const [modal, setModal] = useState<ModalState | null>(null);
   const hasPendingChange = Boolean(subscription?.pendingSubscriptionPlan);
+  const canManage =
+    appUserRole === "USER" ||
+    viewer?.appUserRole === "SUPERADMIN" ||
+    viewer?.id === userId;
   let subscriptionStatus = "inactive";
   if (currentPlan === "FREE") {
     subscriptionStatus = "sans facturation active";
@@ -179,6 +187,18 @@ export default function UserSubscriptionManagement({
       tone: "success",
     });
     router.refresh();
+  }
+
+  if (!canManage) {
+    return (
+      <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+        <h3 className="font-semibold">Abonnement</h3>
+        <p className="mt-2 text-sm text-zinc-600">
+          Offre actuelle : {subscriptionPlanLabel(currentPlan)}. Seul un super
+          administrateur peut modifier l’abonnement d’un autre administrateur.
+        </p>
+      </section>
+    );
   }
 
   return (

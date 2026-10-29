@@ -4,17 +4,19 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/app/components/context/ToastContext";
 import { apiClient } from "@/lib/api";
+import { useAuthUser } from "@/app/components/context/AuthUserContext";
 
 type ManagedUser = {
   id: string;
   firstname: string;
   lastname: string;
   bannedAt: string | null;
-  isAdmin: boolean;
+  appUserRole: "SUPERADMIN" | "ADMIN" | "USER";
 };
 
 export default function UserManagement({ user }: { user: ManagedUser }) {
   const router = useRouter();
+  const { user: viewer } = useAuthUser();
   const { showToast } = useToast();
   const [profile, setProfile] = useState({
     firstname: user.firstname,
@@ -24,6 +26,13 @@ export default function UserManagement({ user }: { user: ManagedUser }) {
   const [isChangingBan, setIsChangingBan] = useState(false);
   const [bannedAt, setBannedAt] = useState(user.bannedAt);
   const [error, setError] = useState<string | null>(null);
+  const canManage =
+    user.appUserRole === "USER" ||
+    viewer?.appUserRole === "SUPERADMIN" ||
+    viewer?.id === user.id;
+  const canBan =
+    user.appUserRole === "USER" ||
+    (user.appUserRole === "ADMIN" && viewer?.appUserRole === "SUPERADMIN");
 
   async function saveProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,59 +90,61 @@ export default function UserManagement({ user }: { user: ManagedUser }) {
 
   return (
     <div className="space-y-6">
-      <form
-        onSubmit={saveProfile}
-        className="rounded-2xl border border-zinc-200 bg-white p-5"
-      >
-        <h3 className="font-semibold">Informations personnelles</h3>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-zinc-800">
-            Prénom
-            <input
-              required
-              maxLength={100}
-              value={profile.firstname}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  firstname: event.target.value,
-                }))
-              }
-              className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2.5 outline-none focus:border-primary"
-            />
-          </label>
-          <label className="text-sm font-medium text-zinc-800">
-            Nom
-            <input
-              required
-              maxLength={100}
-              value={profile.lastname}
-              onChange={(event) =>
-                setProfile((current) => ({
-                  ...current,
-                  lastname: event.target.value,
-                }))
-              }
-              className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2.5 outline-none focus:border-primary"
-            />
-          </label>
-        </div>
-        {error && (
-          <p role="alert" className="mt-4 text-sm text-red-700">
-            {error}
-          </p>
-        )}
-        <div className="mt-5 flex justify-end">
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {isSaving ? "Enregistrement…" : "Enregistrer les modifications"}
-          </button>
-        </div>
-      </form>
-      {!user.isAdmin && (
+      {canManage && (
+        <form
+          onSubmit={saveProfile}
+          className="rounded-2xl border border-zinc-200 bg-white p-5"
+        >
+          <h3 className="font-semibold">Informations personnelles</h3>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="text-sm font-medium text-zinc-800">
+              Prénom
+              <input
+                required
+                maxLength={100}
+                value={profile.firstname}
+                onChange={(event) =>
+                  setProfile((current) => ({
+                    ...current,
+                    firstname: event.target.value,
+                  }))
+                }
+                className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2.5 outline-none focus:border-primary"
+              />
+            </label>
+            <label className="text-sm font-medium text-zinc-800">
+              Nom
+              <input
+                required
+                maxLength={100}
+                value={profile.lastname}
+                onChange={(event) =>
+                  setProfile((current) => ({
+                    ...current,
+                    lastname: event.target.value,
+                  }))
+                }
+                className="mt-2 w-full rounded-lg border border-zinc-300 px-3 py-2.5 outline-none focus:border-primary"
+              />
+            </label>
+          </div>
+          {error && (
+            <p role="alert" className="mt-4 text-sm text-red-700">
+              {error}
+            </p>
+          )}
+          <div className="mt-5 flex justify-end">
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {isSaving ? "Enregistrement…" : "Enregistrer les modifications"}
+            </button>
+          </div>
+        </form>
+      )}
+      {canBan && (
         <section className="rounded-2xl border border-zinc-200 bg-white p-5">
           <h3 className="font-semibold">Accès au compte</h3>
           <p className="mt-2 text-sm text-zinc-600">

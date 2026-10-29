@@ -21,6 +21,7 @@ import {
   IsString,
   IsUUID,
   Matches,
+  Min,
   MaxLength,
   MinLength,
   ValidateIf,
@@ -35,16 +36,22 @@ import { AuthGuard } from 'src/auth/auth.guard';
 import type { ExtendedRequest } from 'src/types/extended-request.types';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
+import { AdminRevenueService } from './admin-revenue.service';
+import type { RevenuePeriod } from './admin-revenue.service';
+import { UpdateCompanyServiceDto } from 'src/companies/dtos/update-company-service.dto';
 
 class PaginationQuery {
   @IsOptional()
   @Type(() => Number)
+  @IsInt()
+  @Min(1)
   page?: number;
 }
 
 class UsersQuery extends PaginationQuery {
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   q?: string;
 
   @IsOptional()
@@ -64,11 +71,85 @@ class UsersQuery extends PaginationQuery {
 class CompaniesQuery extends PaginationQuery {
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   q?: string;
 
   @IsOptional()
   @IsEnum(CompanyStatus)
   status?: CompanyStatus;
+}
+
+class SearchQuery extends PaginationQuery {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+}
+
+class RevenueQuery {
+  @IsOptional()
+  @IsIn(['week', 'month', 'year'])
+  period?: RevenuePeriod;
+}
+
+class ServicesQuery extends SearchQuery {
+  @IsOptional()
+  @IsUUID()
+  companyId?: string;
+}
+
+class SubscriptionsQuery extends SearchQuery {
+  @IsOptional()
+  @IsEnum(SubscriptionPlan)
+  plan?: SubscriptionPlan;
+}
+
+class SystemQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  webhooksPage?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  webhooksQ?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  auditsPage?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  auditsQ?: string;
+}
+
+class CompanyDetailQuery {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  collaboratorsPage?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  collaboratorsQ?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  documentsPage?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  documentsQ?: string;
 }
 
 class UpdateUserDto {
@@ -181,11 +262,19 @@ class UpdateCompanyUserDto {
 @UseGuards(AuthGuard, AdminGuard)
 @Controller('api/admin')
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly revenueService: AdminRevenueService,
+  ) {}
 
   @Get('dashboard')
   dashboard() {
     return this.admin.dashboard();
+  }
+
+  @Get('dashboard/revenue')
+  revenue(@Query() query: RevenueQuery) {
+    return this.revenueService.revenue(query.period ?? 'year');
   }
 
   @Get('users')
@@ -238,8 +327,16 @@ export class AdminController {
   }
 
   @Get('companies/:companyId')
-  company(@Param('companyId') companyId: string) {
-    return this.admin.company(companyId);
+  company(
+    @Param('companyId') companyId: string,
+    @Query() query: CompanyDetailQuery,
+  ) {
+    return this.admin.company(companyId, {
+      collaboratorsPage: query.collaboratorsPage,
+      collaboratorsQuery: query.collaboratorsQ,
+      documentsPage: query.documentsPage,
+      documentsQuery: query.documentsQ,
+    });
   }
 
   @Patch('companies/:companyId')
@@ -288,9 +385,7 @@ export class AdminController {
   }
 
   @Get('services')
-  services(
-    @Query() query: PaginationQuery & { q?: string; companyId?: string },
-  ) {
+  services(@Query() query: ServicesQuery) {
     return this.admin.services({
       page: query.page,
       query: query.q,
@@ -298,9 +393,30 @@ export class AdminController {
     });
   }
 
+  @Patch('services/:serviceId')
+  updateService(
+    @Req() req: ExtendedRequest,
+    @Param('serviceId') serviceId: string,
+    @Body() data: UpdateCompanyServiceDto,
+  ) {
+    return this.admin.updateService(this.adminId(req), serviceId, data);
+  }
+
+  @Delete('services/:serviceId')
+  deleteService(
+    @Req() req: ExtendedRequest,
+    @Param('serviceId') serviceId: string,
+  ) {
+    return this.admin.deleteService(this.adminId(req), serviceId);
+  }
+
   @Get('subscriptions')
-  subscriptions(@Query() query: PaginationQuery & { plan?: SubscriptionPlan }) {
-    return this.admin.subscriptions({ page: query.page, plan: query.plan });
+  subscriptions(@Query() query: SubscriptionsQuery) {
+    return this.admin.subscriptions({
+      page: query.page,
+      query: query.q,
+      plan: query.plan,
+    });
   }
 
   @Patch('users/:userId/subscription')
@@ -336,13 +452,18 @@ export class AdminController {
   }
 
   @Get('payments')
-  payments(@Query() query: PaginationQuery & { q?: string }) {
+  payments(@Query() query: SearchQuery) {
     return this.admin.payments({ page: query.page, query: query.q });
   }
 
   @Get('system')
-  system() {
-    return this.admin.system();
+  system(@Query() query: SystemQuery) {
+    return this.admin.system({
+      webhooksPage: query.webhooksPage,
+      webhooksQuery: query.webhooksQ,
+      auditsPage: query.auditsPage,
+      auditsQuery: query.auditsQ,
+    });
   }
 
   @Get('search')

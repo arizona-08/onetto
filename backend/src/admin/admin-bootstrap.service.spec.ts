@@ -33,7 +33,7 @@ describe('AdminBootstrapService', () => {
     expect(prisma.user.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         email: 'admin@test.com',
-        isAdmin: true,
+        appUserRole: 'SUPERADMIN',
         subscriptionPlan: 'FREE',
       }),
     });
@@ -47,7 +47,10 @@ describe('AdminBootstrapService', () => {
   });
 
   it('ne recrée pas un administrateur déjà existant', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: 'admin-1', isAdmin: true });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'admin-1',
+      appUserRole: 'SUPERADMIN',
+    });
 
     await service.onApplicationBootstrap();
 
@@ -55,14 +58,14 @@ describe('AdminBootstrapService', () => {
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
-  it('promeut le compte configuré s’il existe sans droit administrateur', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: 'user-1', isAdmin: false });
+  it('ne promeut pas automatiquement un compte existant', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      appUserRole: 'USER',
+    });
 
     await service.onApplicationBootstrap();
 
-    expect(prisma.user.update).toHaveBeenCalledWith({
-      where: { id: 'user-1' },
-      data: { isAdmin: true, bannedAt: null },
-    });
+    expect(prisma.user.update).not.toHaveBeenCalled();
   });
 });

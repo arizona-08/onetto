@@ -48,7 +48,7 @@ describe('AdminService — bannissement', () => {
   it('refuse le bannissement d’un administrateur', async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: 'admin-2',
-      isAdmin: true,
+      appUserRole: 'ADMIN',
       bannedAt: null,
     });
 
@@ -58,15 +58,38 @@ describe('AdminService — bannissement', () => {
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
+  it('permet à un super administrateur de bannir un administrateur', async () => {
+    prisma.user.findUnique
+      .mockResolvedValueOnce({
+        id: 'admin-2',
+        appUserRole: 'ADMIN',
+        bannedAt: null,
+      })
+      .mockResolvedValueOnce({ appUserRole: 'SUPERADMIN' });
+    prisma.user.update.mockResolvedValue({
+      id: 'admin-2',
+      appUserRole: 'ADMIN',
+      bannedAt: new Date(),
+    });
+
+    await service.setUserBanState('super-1', 'admin-2', true);
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'admin-2', appUserRole: 'ADMIN' },
+      }),
+    );
+  });
+
   it('bannit un utilisateur et journalise l’action', async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
-      isAdmin: false,
+      appUserRole: 'USER',
       bannedAt: null,
     });
     prisma.user.update.mockResolvedValue({
       id: 'user-1',
-      isAdmin: false,
+      appUserRole: 'USER',
       bannedAt: new Date(),
     });
 
@@ -78,9 +101,9 @@ describe('AdminService — bannissement', () => {
     const updateCall = updateCalls[0][0];
     expect(updateCall.data.bannedAt).toBeInstanceOf(Date);
     expect(prisma.user.update).toHaveBeenCalledWith({
-      where: { id: 'user-1', isAdmin: false },
+      where: { id: 'user-1', appUserRole: 'USER' },
       data: { bannedAt: updateCall.data.bannedAt },
-      select: { id: true, isAdmin: true, bannedAt: true },
+      select: { id: true, appUserRole: true, bannedAt: true },
     });
     expect(prisma.adminAuditLog.create).toHaveBeenCalledWith({
       data: {
@@ -95,21 +118,21 @@ describe('AdminService — bannissement', () => {
   it('débannit un utilisateur', async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
-      isAdmin: false,
+      appUserRole: 'USER',
       bannedAt: new Date(),
     });
     prisma.user.update.mockResolvedValue({
       id: 'user-1',
-      isAdmin: false,
+      appUserRole: 'USER',
       bannedAt: null,
     });
 
     await service.setUserBanState('admin-1', 'user-1', false);
 
     expect(prisma.user.update).toHaveBeenCalledWith({
-      where: { id: 'user-1', isAdmin: false },
+      where: { id: 'user-1', appUserRole: 'USER' },
       data: { bannedAt: null },
-      select: { id: true, isAdmin: true, bannedAt: true },
+      select: { id: true, appUserRole: true, bannedAt: true },
     });
   });
 
@@ -175,6 +198,7 @@ describe('AdminService — changement d’abonnement', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mail.sendMail.mockResolvedValue(undefined);
+    prisma.user.findUnique.mockResolvedValue({ appUserRole: 'USER' });
     prisma.adminSubscriptionUpgrade.create.mockResolvedValue({
       id: 'upgrade-1',
     });
@@ -183,6 +207,7 @@ describe('AdminService — changement d’abonnement', () => {
   it('refuse un abonnement personnel à un collaborateur', async () => {
     prisma.user.findUnique.mockResolvedValue({
       accountType: 'EMPLOYEE',
+      appUserRole: 'USER',
       subscriptionPlan: null,
       subscription: null,
     });
@@ -202,6 +227,7 @@ describe('AdminService — changement d’abonnement', () => {
       firstname: 'Ada',
       email: 'ada@example.test',
       accountType: 'BUSINESS_OWNER',
+      appUserRole: 'USER',
       subscriptionPlan: SubscriptionPlan.STARTER_MONTHLY,
       subscription: {
         subscriptionId: 'sub_123',
@@ -226,6 +252,7 @@ describe('AdminService — changement d’abonnement', () => {
       firstname: 'Ada',
       email: 'ada@example.test',
       accountType: 'BUSINESS_OWNER',
+      appUserRole: 'USER',
       subscriptionPlan: SubscriptionPlan.STARTER_MONTHLY,
       subscription: {
         subscriptionId: 'sub_123',
@@ -286,6 +313,7 @@ describe('AdminService — changement d’abonnement', () => {
       firstname: 'Ada',
       email: 'ada@example.test',
       accountType: 'BUSINESS_OWNER',
+      appUserRole: 'USER',
       subscriptionPlan: SubscriptionPlan.PRO_MONTHLY,
       subscription: {
         subscriptionId: null,
@@ -344,6 +372,7 @@ describe('AdminService — changement d’abonnement', () => {
       firstname: 'Ada',
       email: 'ada@example.test',
       accountType: 'BUSINESS_OWNER',
+      appUserRole: 'USER',
       subscriptionPlan: SubscriptionPlan.FREE,
       subscription: null,
     });
@@ -379,6 +408,7 @@ describe('AdminService — changement d’abonnement', () => {
       firstname: 'Ada',
       email: 'ada@example.test',
       accountType: 'BUSINESS_OWNER',
+      appUserRole: 'USER',
       subscriptionPlan: SubscriptionPlan.PRO_MONTHLY,
       subscription: {
         subscriptionId: 'sub_123',
@@ -411,6 +441,7 @@ describe('AdminService — changement d’abonnement', () => {
       firstname: 'Ada',
       email: 'ada@example.test',
       accountType: 'BUSINESS_OWNER',
+      appUserRole: 'USER',
       subscriptionPlan: SubscriptionPlan.FREE,
       subscription: null,
     });

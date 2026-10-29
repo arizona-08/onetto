@@ -1,3 +1,5 @@
+export type AppUserRole = "SUPERADMIN" | "ADMIN" | "USER";
+
 export interface AuthUser {
   id: string;
   firstname: string;
@@ -5,7 +7,7 @@ export interface AuthUser {
   email: string;
   role: string;
   emailVerifiedAt: string | null;
-  isAdmin: boolean;
+  appUserRole: AppUserRole;
 }
 
 export interface LoginResponse {

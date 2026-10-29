@@ -24,7 +24,7 @@ model User {
   passwordResetExpiresAt  DateTime?
   passwordChangedAt       DateTime?
   accountType            AccountType       @default(BUSINESS_OWNER)
-  isAdmin                Boolean           @default(false)
+  appUserRole           AppUserRole       @default(USER)
   bannedAt               DateTime?
   closedAt               DateTime?
   profileMinimizedAt     DateTime?
@@ -121,6 +121,12 @@ model AdminSubscriptionUpgrade {
 enum AccountType {
   BUSINESS_OWNER
   EMPLOYEE
+}
+
+enum AppUserRole {
+  SUPERADMIN
+  ADMIN
+  USER
 }
 
 model UserSubscription {

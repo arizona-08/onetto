@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
-import { AccountType, SubscriptionPlan } from '@prisma/client';
+import { AccountType, AppUserRole, SubscriptionPlan } from '@prisma/client';
 import argon2 from 'argon2';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -26,16 +26,14 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
-      select: { id: true, isAdmin: true },
+      select: { id: true, appUserRole: true },
     });
 
     if (existingUser) {
-      if (!existingUser.isAdmin) {
-        await this.prisma.user.update({
-          where: { id: existingUser.id },
-          data: { isAdmin: true, bannedAt: null },
-        });
-        this.logger.log(`Compte administrateur activé pour ${email}.`);
+      if (existingUser.appUserRole !== AppUserRole.SUPERADMIN) {
+        this.logger.warn(
+          `Le compte ${email} existe déjà. Son rôle doit être vérifié manuellement.`,
+        );
       }
       return;
     }
@@ -51,7 +49,7 @@ export class AdminBootstrapService implements OnApplicationBootstrap {
           password: hashedPassword,
           emailVerifiedAt: new Date(),
           accountType: AccountType.BUSINESS_OWNER,
-          isAdmin: true,
+          appUserRole: AppUserRole.SUPERADMIN,
           subscriptionPlan: SubscriptionPlan.FREE,
         },
       });
