@@ -272,7 +272,7 @@ function TopSidebar() {
                 <li key={link.name} className="mb-2">
                   <a
                     href={link.href}
-                    className={`flex items-center gap-3 px-4 py-2 rounded-lg font-normal transition-colors truncate ${isCurrentPathName ? "bg-zinc-200 text-zinc-900 font-medium" : "text-zinc-600 hover:bg-zinc-200"}`}
+                    className={`flex items-center gap-3 px-4 py-2 rounded-lg font-normal transition-colors truncate ${isCurrentPathName ? "bg-[#EEEFFF] text-[#0A0C56] font-medium" : "text-[#21259A] hover:bg-[#EEEFFF]"}`}
                   >
                     {link.icon}
                     {link.name}
