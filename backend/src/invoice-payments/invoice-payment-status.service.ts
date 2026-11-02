@@ -83,34 +83,47 @@ export class InvoicePaymentStatusService {
     invoiceId: string,
     paidInstalmentAmountInCents?: number,
   ): Promise<void> {
-    const document = await this.prismaService.document.findUnique({
-      where: { id: invoiceId },
-      select: { id: true, invoiceStatus: true },
-    });
-
-    if (!document || document.invoiceStatus === 'PAID_MANUALLY') return;
-
-    const nextStatus = await this.getInvoiceStatus(document.id);
-    const justPaid = nextStatus === 'PAID' && document.invoiceStatus !== 'PAID';
-    if (nextStatus !== document.invoiceStatus) {
-      await this.prismaService.document.update({
-        where: { id: document.id },
+    let justPaid = false;
+    let synchronized = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const document = await this.prismaService.document.findUnique({
+        where: { id: invoiceId },
+        select: { id: true, invoiceStatus: true },
+      });
+      if (!document || document.invoiceStatus === 'PAID_MANUALLY') return;
+      const nextStatus = await this.getInvoiceStatus(document.id);
+      if (nextStatus === document.invoiceStatus) {
+        synchronized = true;
+        break;
+      }
+      const changed = await this.prismaService.document.updateMany({
+        where: { id: document.id, invoiceStatus: document.invoiceStatus },
         data: { invoiceStatus: nextStatus },
       });
+      if (changed.count === 1) {
+        justPaid = nextStatus === 'PAID';
+        synchronized = true;
+        break;
+      }
+    }
+    if (!synchronized) {
+      throw new Error(
+        `Impossible de synchroniser le statut de la facture ${invoiceId}.`,
+      );
     }
     if (paidInstalmentAmountInCents !== undefined) {
       await this.sendPaymentReceipt(
-        document.id,
+        invoiceId,
         paidInstalmentAmountInCents / 100,
       );
       await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(
-        document.id,
+        invoiceId,
       );
     }
     if (justPaid) {
-      await this.sendInvoicePaidConfirmation(document.id);
+      await this.sendInvoicePaidConfirmation(invoiceId);
       await this.notifyPayment(
-        document.id,
+        invoiceId,
         'PAYMENT_SUCCEEDED',
         'Règlement reçu',
         'Le règlement de la facture a été confirmé.',

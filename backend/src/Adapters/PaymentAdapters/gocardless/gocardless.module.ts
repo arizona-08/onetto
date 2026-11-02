@@ -18,6 +18,7 @@ import { PlanAccessModule } from 'src/plan-access/plan-access.module';
 import { GoCardlessInstalmentRetryService } from './gocardless-instalment-retry.service';
 import { GoCardlessConnectionHealthService } from './gocardless-connection-health.service';
 import { UserModule } from 'src/user/user.module';
+import { GoCardlessReconciliationService } from './gocardless-reconciliation.service';
 
 @Module({
   imports: [
@@ -41,7 +42,12 @@ import { UserModule } from 'src/user/user.module';
     GoCardlessStatusMatcherService,
     GoCardlessInstalmentRetryService,
     GoCardlessConnectionHealthService,
+    GoCardlessReconciliationService,
   ],
-  exports: [GoCardlessProviderService, GoCardlessInstalmentRetryService],
+  exports: [
+    GoCardlessProviderService,
+    GoCardlessInstalmentRetryService,
+    GoCardlessReconciliationService,
+  ],
 })
 export class GoCardlessModule {}

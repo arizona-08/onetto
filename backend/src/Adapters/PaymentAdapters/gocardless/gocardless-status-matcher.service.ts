@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { $Enums } from '@prisma/client';
 
 type GoCardlesshPaymentAccountVerificationStatus =
-  'action_required' | 'in_review' | 'successful' | undefined;
+  | 'action_required'
+  | 'in_review'
+  | 'successful'
+  | undefined;
 
 @Injectable()
 export class GoCardlessStatusMatcherService {
@@ -38,6 +41,7 @@ export class GoCardlessStatusMatcherService {
         return 'SUCCESS';
       case 'failed':
       case 'cancelled':
+      case 'charged_back':
         return 'FAILED';
       default:
         return 'FAILED';

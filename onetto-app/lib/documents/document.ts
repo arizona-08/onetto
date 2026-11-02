@@ -152,6 +152,8 @@ export type InstalmentRetryCapability = {
   automaticRetryScheduled: boolean;
   mandateActionRequired: boolean;
   nextChargeDate?: string;
+  failureReason?: string;
+  lastAttemptAt?: string;
   message: string;
 };
 
@@ -170,6 +172,13 @@ export async function retryInstalmentPayment(
 ) {
   return apiClient<InstalmentRetryCapability>(
     `api/documents/${documentId}/instalments/${instalmentNumber}/retry`,
+    { method: "POST" },
+  );
+}
+
+export async function reconcileInstalmentPayments(documentId: string) {
+  return apiClient<{ message: string; requiresPaymentReview: boolean }>(
+    `api/documents/${documentId}/instalments/reconcile`,
     { method: "POST" },
   );
 }

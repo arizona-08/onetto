@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Jest matchers are dynamically typed. */
 jest.mock('./gocardless-oauth.service', () => ({
   GoCardlessOAuthService: class GoCardlessOAuthService {},
 }));
@@ -8,8 +9,9 @@ describe('GoCardlessWebhookService', () => {
   const prisma = {
     processedWebhookEvents: {
       create: jest.fn(),
-      delete: jest.fn(),
+      deleteMany: jest.fn(),
       findUnique: jest.fn(),
+      updateMany: jest.fn(),
     },
   };
   const billingRequestHandler = { handleWebhook: jest.fn() };
@@ -37,6 +39,7 @@ describe('GoCardlessWebhookService', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     prisma.processedWebhookEvents.create.mockResolvedValue({ id: 'event-1' });
+    prisma.processedWebhookEvents.updateMany.mockResolvedValue({ count: 1 });
     oauth.markProviderAccountDisconnectedIfTokenInactive.mockResolvedValue(
       false,
     );
@@ -53,6 +56,10 @@ describe('GoCardlessWebhookService', () => {
 
   it('ignore un événement dupliqué avant d’appeler le handler', async () => {
     prisma.processedWebhookEvents.create.mockRejectedValue({ code: 'P2002' });
+    prisma.processedWebhookEvents.findUnique.mockResolvedValue({
+      completedAt: new Date(),
+      claimedAt: new Date(),
+    });
 
     await service.redirectWebhookToHandler(webhook);
 
@@ -64,16 +71,40 @@ describe('GoCardlessWebhookService', () => {
       new Error('temporary failure'),
     );
 
-    await service.redirectWebhookToHandler(webhook);
+    await expect(service.redirectWebhookToHandler(webhook)).rejects.toThrow(
+      'n’ont pas pu être traités',
+    );
 
-    expect(prisma.processedWebhookEvents.delete).toHaveBeenCalledWith({
-      where: {
-        provider_providerEventId: {
-          provider: 'GOCARDLESS',
-          providerEventId: 'EV1',
-        },
-      },
+    expect(prisma.processedWebhookEvents.deleteMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        provider: 'GOCARDLESS',
+        providerEventId: 'EV1',
+        completedAt: null,
+      }),
     });
+  });
+
+  it('ne traite pas un événement encore réservé et demande un renvoi', async () => {
+    prisma.processedWebhookEvents.create.mockRejectedValue({ code: 'P2002' });
+    prisma.processedWebhookEvents.findUnique.mockResolvedValue({
+      completedAt: null,
+      claimedAt: new Date(),
+    });
+    await expect(service.redirectWebhookToHandler(webhook)).rejects.toThrow(
+      'n’ont pas pu être traités',
+    );
+    expect(paymentHandler.handleWebhook).not.toHaveBeenCalled();
+  });
+
+  it('reprend une réservation abandonnée après son expiration', async () => {
+    prisma.processedWebhookEvents.create.mockRejectedValue({ code: 'P2002' });
+    prisma.processedWebhookEvents.findUnique.mockResolvedValue({
+      completedAt: null,
+      claimedAt: new Date(Date.now() - 20 * 60_000),
+    });
+    await service.redirectWebhookToHandler(webhook);
+    expect(paymentHandler.handleWebhook).toHaveBeenCalledTimes(1);
+    expect(prisma.processedWebhookEvents.updateMany).toHaveBeenCalledTimes(2);
   });
 
   it('route les schedules, sans les confondre avec les paiements', async () => {

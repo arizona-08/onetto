@@ -154,12 +154,14 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       }
       const payload = {
         name: input.name,
-        currency: 'EUR' as 'EUR',
+        currency: 'EUR' as const,
         total_amount: input.totalAmountInCents.toString(),
         instalments: {
           start_date: input.startDate,
           interval_unit: input.intervalUnit.toLocaleLowerCase() as
-            'weekly' | 'monthly' | 'yearly',
+            | 'weekly'
+            | 'monthly'
+            | 'yearly',
           interval: input.interval,
           amounts: input.amountsInCents.map(String),
         },
@@ -260,11 +262,6 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
     }
   }
 
-  async syncPayByBankPaymentStatus(
-    providerReference: string,
-    providerStatus: $Enums.InvoicePaymentStatus,
-  ) {}
-
   async syncLinkStatus(
     billingRequestId: string,
     billingRequestStatus: $Enums.InvoicePaymentLinkStatus,
@@ -281,13 +278,6 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
         `No invoice payment link found for billing request ID ${billingRequestId}`,
       );
     }
-
-    await this.prismaService.processedWebhookEvents.create({
-      data: {
-        provider: 'GOCARDLESS',
-        providerEventId: billingRequestId,
-      },
-    });
 
     const existingStatus = invoicePaymentLink.linkStatus;
 

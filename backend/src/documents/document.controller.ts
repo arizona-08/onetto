@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseIntPipe,
   Post,
   Put,
   Query,
@@ -19,6 +20,7 @@ import { SendDocumentToClientDto } from './dtos/send-document-to-client.dto';
 import type { ExtendedRequest, User } from 'src/types/extended-request.types';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { GoCardlessInstalmentRetryService } from 'src/Adapters/PaymentAdapters/gocardless/gocardless-instalment-retry.service';
+import { GoCardlessReconciliationService } from 'src/Adapters/PaymentAdapters/gocardless/gocardless-reconciliation.service';
 
 @UseGuards(AuthGuard)
 @Controller('api/documents')
@@ -26,6 +28,7 @@ export class DocumentController {
   constructor(
     private readonly documentService: DocumentService,
     private readonly gocardlessInstalmentRetryService: GoCardlessInstalmentRetryService,
+    private readonly gocardlessReconciliationService: GoCardlessReconciliationService,
   ) {}
 
   @Get('mines')
@@ -251,13 +254,13 @@ export class DocumentController {
   @Get(':documentId/instalments/:instalmentNumber/retry-capability')
   async getInstalmentRetryCapability(
     @Param('documentId') documentId: string,
-    @Param('instalmentNumber') instalmentNumber: string,
+    @Param('instalmentNumber', ParseIntPipe) instalmentNumber: number,
     @Req() req: ExtendedRequest,
   ) {
     if (!req.user) throw new UnauthorizedException('Non authentifié');
     return this.gocardlessInstalmentRetryService.getCapability(
       documentId,
-      Number(instalmentNumber),
+      instalmentNumber,
       req.user,
     );
   }
@@ -265,13 +268,25 @@ export class DocumentController {
   @Post(':documentId/instalments/:instalmentNumber/retry')
   async retryInstalmentPayment(
     @Param('documentId') documentId: string,
-    @Param('instalmentNumber') instalmentNumber: string,
+    @Param('instalmentNumber', ParseIntPipe) instalmentNumber: number,
     @Req() req: ExtendedRequest,
   ) {
     if (!req.user) throw new UnauthorizedException('Non authentifié');
     return this.gocardlessInstalmentRetryService.retry(
       documentId,
-      Number(instalmentNumber),
+      instalmentNumber,
+      req.user,
+    );
+  }
+
+  @Post(':documentId/instalments/reconcile')
+  async reconcileInstalments(
+    @Param('documentId') documentId: string,
+    @Req() req: ExtendedRequest,
+  ) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.gocardlessReconciliationService.reconcileInvoice(
+      documentId,
       req.user,
     );
   }

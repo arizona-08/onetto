@@ -597,6 +597,8 @@ model ProcessedWebhookEvents {
   provider        PaymentProvider
   providerEventId String
   processedAt     DateTime        @default(now())
+  claimedAt       DateTime        @default(now())
+  completedAt     DateTime?
 
   @@unique([provider, providerEventId])
 }
@@ -622,6 +624,10 @@ model InvoiceInstalmentPlan {
   providerScheduledId        String?
   providerMandateId          String?
   isCompleted                Boolean  @default(false)
+  lastReconciledAt           DateTime?
+  nextReconciliationAt       DateTime?
+  reconciliationLeaseUntil   DateTime?
+  reconciliationFailureCount Int      @default(0)
 
   invoice                   Document                   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   invoicePaymentInstalments InvoicePaymentInstalment[]
@@ -638,6 +644,8 @@ model InvoicePaymentInstalment {
   dueDate                 DateTime
   instalmentStatus        InvoicePaymentInstalmentStatus @default(PENDING)
   automaticRetryScheduled Boolean                        @default(false)
+  manualRetryRequestedAt  DateTime?
+  lastProviderEventAt      DateTime?
   paidAt                  DateTime?
   processedReminders      ProcessedInstalmentReminder[]
 
