@@ -16,6 +16,14 @@ export type UserSubscription = {
     cashflowForecast: boolean;
   };
   maxOwnedCompanies: number;
+  invitationOffer: {
+    subscriptionPlan:
+      | "STARTER_MONTHLY"
+      | "STARTER_YEARLY"
+      | "PRO_MONTHLY"
+      | "PRO_YEARLY";
+    discountPercent: number;
+  } | null;
 };
 
 export function getMySubscriptionServer() {

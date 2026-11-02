@@ -4,4 +4,5 @@ export interface RegisterDto {
   email: string;
   password: string;
   confirmationPassword: string;
+  invitationToken?: string;
 }

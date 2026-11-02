@@ -24,7 +24,10 @@ model User {
   passwordResetExpiresAt  DateTime?
   passwordChangedAt       DateTime?
   accountType            AccountType       @default(BUSINESS_OWNER)
-  isAdmin                Boolean           @default(false)
+  appUserRole           AppUserRole       @default(USER)
+  bannedAt               DateTime?
+  closedAt               DateTime?
+  profileMinimizedAt     DateTime?
   subscriptionPlan       SubscriptionPlan?
   lastConnectedCompanyId String?
 
@@ -35,6 +38,53 @@ model User {
   subscriptionHistory  UserSubscriptionHistory[]
   notifications        AppNotification[]
   adminAuditLogs       AdminAuditLog[]     @relation("AdminAuditActor")
+  adminSubscriptionUpgrades AdminSubscriptionUpgrade[]
+  adminInvitationsSent AdminUserInvitation[] @relation("AdminInvitationSender")
+  acceptedAdminInvitation AdminUserInvitation? @relation("AdminInvitationRecipient")
+  accountClosure       AccountClosure?
+}
+
+model AccountClosure {
+  userId           String               @id
+  user             User                 @relation(fields: [userId], references: [id])
+  status           AccountClosureStatus @default(PENDING)
+  pendingActions   String[]             @default([])
+  reviewedActions  String[]             @default([])
+  requestedAt      DateTime             @default(now())
+  lastAttemptAt    DateTime?
+  processingAt     DateTime?
+  nextAttemptAt    DateTime?
+  lastError        String?
+  completedAt      DateTime?
+
+  @@index([status, nextAttemptAt])
+}
+
+enum AccountClosureStatus {
+  PENDING
+  WAITING_SETTLEMENT
+  ACTION_REQUIRED
+  COMPLETED
+}
+
+model AdminUserInvitation {
+  id               String           @id @default(uuid())
+  email            String           @unique
+  tokenHash        String           @unique
+  subscriptionPlan SubscriptionPlan
+  discountPercent  Int
+  invitedById      String
+  userId           String?          @unique
+  stripeCouponId   String?          @unique
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  redeemedAt       DateTime?
+  createdAt        DateTime         @default(now())
+
+  invitedBy User  @relation("AdminInvitationSender", fields: [invitedById], references: [id])
+  user      User? @relation("AdminInvitationRecipient", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([expiresAt])
 }
 
 model AdminAuditLog {
@@ -52,9 +102,31 @@ model AdminAuditLog {
   @@index([targetType, targetId])
 }
 
+model AdminSubscriptionUpgrade {
+  id                   String           @id @default(uuid())
+  userId               String
+  stripeSubscriptionId String
+  previousPlan         SubscriptionPlan
+  targetPlan           SubscriptionPlan
+  stripeInvoiceId      String?          @unique
+  emailSendingAt       DateTime?
+  emailSentAt          DateTime?
+  createdAt            DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([stripeSubscriptionId, targetPlan, emailSentAt])
+}
+
 enum AccountType {
   BUSINESS_OWNER
   EMPLOYEE
+}
+
+enum AppUserRole {
+  SUPERADMIN
+  ADMIN
+  USER
 }
 
 model UserSubscription {
@@ -110,6 +182,7 @@ model Company {
   status                    CompanyStatus     @default(ACTIVE)
   closingReason             String?
   closedAt                  DateTime?
+  closedByAccountClosureAt  DateTime?
   isPaymentAccountConnected Boolean           @default(false)
   legalForm                 String?
   legalStatus               CompanyLegalStatus @default(MICRO_ENTERPRISE)
@@ -136,6 +209,7 @@ model Company {
 }
 
 enum AppNotificationType {
+  COMPANY_CLOSED
   SUPPLIER_INVOICE_RECEIVED
   PAYMENT_SUBMITTED
   PAYMENT_SUCCEEDED
@@ -156,6 +230,7 @@ model AppNotification {
   deduplicationKey String
   metadata         Json?
   readAt           DateTime?
+  emailSentAt      DateTime?
   createdAt        DateTime            @default(now())
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -401,7 +476,6 @@ enum EstimateNegociationStatus {
   REJECTED
 }
 
-// doit générer un InvoiceInstalmentPlan si INSTALMENTS
 model InvoicePaymentMode {
   id                         String                @id @default(uuid())
   invoiceId                  String                @unique
@@ -409,6 +483,7 @@ model InvoicePaymentMode {
   paymentModeFrequency       PaymentModeFrequency?
   numberOfInstalments        Int?
   amountPerInstalmentInCents Int?
+  firstDueDate               DateTime?
 
   invoice Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 }

@@ -40,6 +40,7 @@ export class CompaniesService {
     const company = await this.prismaService.company.findFirst({
       where: {
         id: companyId,
+        status: 'ACTIVE',
         OR: [{ ownerId: userId }, { companyUsers: { some: { userId } } }],
       },
       include: {
@@ -67,6 +68,13 @@ export class CompaniesService {
     try {
       await this.planAccessService.assertCanCreateCompany(ownerId);
       const company = await this.prismaService.$transaction(async (prisma) => {
+        // Serialize company creation with account closure's user-row update.
+        const owners = await prisma.$queryRaw<Array<{ closedAt: Date | null }>>`
+          SELECT "closedAt" FROM "User" WHERE "id" = ${ownerId} FOR UPDATE
+        `;
+        if (!owners.length || owners[0].closedAt) {
+          throw new BadRequestException('Ce compte est clôturé.');
+        }
         const createdCompany = await prisma.company.create({
           data: {
             ...data,
@@ -102,7 +110,7 @@ export class CompaniesService {
   async getMyCompanies(userId: string) {
     const [ownedCompanies, companyUsers, user] = await Promise.all([
       this.prismaService.company.findMany({
-        where: { ownerId: userId },
+        where: { ownerId: userId, status: 'ACTIVE' },
         include: {
           companyPaymentAccount: {
             select: {
@@ -119,7 +127,7 @@ export class CompaniesService {
         orderBy: { name: 'asc' },
       }),
       this.prismaService.companyUser.findMany({
-        where: { userId },
+        where: { userId, company: { status: 'ACTIVE' } },
         include: {
           company: {
             include: {
@@ -195,7 +203,10 @@ export class CompaniesService {
         },
       });
 
-      if (!user?.lastConnectedCompany) {
+      if (
+        !user?.lastConnectedCompany ||
+        user.lastConnectedCompany.status === 'CLOSED'
+      ) {
         return null;
       }
 
@@ -369,6 +380,7 @@ export class CompaniesService {
         companyId: user.lastConnectedCompanyId,
         userId,
         isHidden: false,
+        company: { status: 'ACTIVE' },
       },
       select: { companyId: true },
     });
@@ -455,7 +467,12 @@ export class CompaniesService {
     reason?: string,
   ) {
     try {
-      await this.getOwnedCompany(companyId, userId);
+      const company = await this.getOwnedCompany(companyId, userId);
+      if (action === 'reactivate' && company.closedByAccountClosureAt) {
+        throw new BadRequestException(
+          'Cette entreprise a été fermée avec le compte de son propriétaire.',
+        );
+      }
 
       let newStatus: 'ACTIVE' | 'CLOSED';
       const closingReason = reason?.trim();
@@ -476,22 +493,45 @@ export class CompaniesService {
           throw new BadRequestException('Action invalide.');
       }
 
-      await this.prismaService.company.update({
-        where: { id: companyId },
-        data:
-          newStatus === 'CLOSED'
-            ? {
-                status: newStatus,
-                closingReason: closingReason ?? null,
-                closedAt: new Date(),
-              }
-            : { status: newStatus },
-      });
+      if (newStatus === 'CLOSED') {
+        await this.closeCompany(
+          this.prismaService,
+          companyId,
+          closingReason!,
+          new Date(),
+        );
+      } else {
+        await this.prismaService.company.update({
+          where: { id: companyId },
+          data: { status: 'ACTIVE', closedAt: null, closingReason: null },
+        });
+      }
 
       return { success: true, status: newStatus };
     } catch (error) {
       this.handleDatabaseError(error, `${action} de l'entreprise`);
     }
+  }
+
+  async closeCompany(
+    db: Pick<PrismaService, 'company'>,
+    companyId: string,
+    reason: string,
+    at: Date,
+    accountClosure = false,
+  ) {
+    const company = await db.company.findUniqueOrThrow({
+      where: { id: companyId },
+    });
+    return db.company.update({
+      where: { id: companyId },
+      data: {
+        status: 'CLOSED',
+        closedAt: company.closedAt ?? at,
+        closingReason: company.closingReason ?? reason,
+        ...(accountClosure ? { closedByAccountClosureAt: at } : {}),
+      },
+    });
   }
 
   async performUserCompanyAction(
@@ -501,7 +541,7 @@ export class CompaniesService {
   ) {
     try {
       const companyUser = await this.prismaService.companyUser.findFirst({
-        where: { companyId, userId },
+        where: { companyId, userId, company: { status: 'ACTIVE' } },
       });
 
       if (!companyUser) {

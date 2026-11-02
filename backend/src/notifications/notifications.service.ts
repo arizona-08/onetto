@@ -22,6 +22,7 @@ export class NotificationsService {
     const company = await this.prisma.company.findUnique({
       where: { id: input.companyId },
       select: {
+        status: true,
         owner: { select: { id: true, email: true } },
         companyUsers: {
           where: { role: 'ADMIN', isHidden: false },
@@ -29,7 +30,7 @@ export class NotificationsService {
         },
       },
     });
-    if (!company) return;
+    if (!company || company.status === 'CLOSED') return;
     const recipients = [
       company.owner,
       ...company.companyUsers.map(({ user }) => user),

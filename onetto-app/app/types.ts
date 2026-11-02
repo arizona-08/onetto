@@ -80,6 +80,7 @@ export type Document = {
   invoicePaymentMode?: {
     paymentMode: "ONE_TIME" | "INSTALMENTS";
     numberOfInstalments: number | null;
+    firstDueDate?: string | null;
   } | null;
   invoiceInstalmentPlan?: {
     startDate: string;
@@ -89,7 +90,11 @@ export type Document = {
       amountInCents: number;
       dueDate: string;
       instalmentStatus:
-        "PENDING" | "PAYMENT_IN_PROGRESS" | "SUCCESS" | "FAILED" | "OVERDUE";
+        | "PENDING"
+        | "PAYMENT_IN_PROGRESS"
+        | "SUCCESS"
+        | "FAILED"
+        | "OVERDUE";
       paidAt?: string | null;
     }>;
   } | null;
@@ -112,7 +117,11 @@ export type InvoiceStatus =
   | "OVERDUE"
   | "REJECTED"; // rejected payment by Bridge API, can ask to recreate another paymentLink
 export type EstimateStatus =
-  "DRAFT" | "SENT" | "ACCEPTED" | "SUPERSEDED" | "REJECTED";
+  | "DRAFT"
+  | "SENT"
+  | "ACCEPTED"
+  | "SUPERSEDED"
+  | "REJECTED";
 
 export type DocumentService = {
   id: string;
@@ -128,7 +137,7 @@ export type DocumentService = {
 };
 
 export type PublicPayment = {
-  paymentLink: string;
+  paymentLink: string | null;
   expiresAt: string;
   document: Pick<
     Document,

@@ -5,16 +5,23 @@ import { apiServer } from "./lib/api-server";
 const AUTH_ROUTE_PREFIX = "/auth";
 const NEGOCIATIONS_ROUTE = "/negociations";
 const PAYMENT_ROUTE_PREFIX = "/payment";
-const SUBSCRIPTION_SUCCESS_ROUTE = "/subscriptions/success";
+const LEGACY_SUBSCRIPTION_SUCCESS_ROUTE = "/subscriptions/success";
+const SUBSCRIPTION_SETTINGS_ROUTE = "/settings/my-subscription";
 const LEGAL_ROUTE = "/legal";
 const ME_ENDPOINT = "/api/auth/me";
 
 function isAuthRoute(pathname: string): boolean {
-  return pathname === AUTH_ROUTE_PREFIX || pathname.startsWith(`${AUTH_ROUTE_PREFIX}/`);
+  return (
+    pathname === AUTH_ROUTE_PREFIX ||
+    pathname.startsWith(`${AUTH_ROUTE_PREFIX}/`)
+  );
 }
 
 function isPaymentRoute(pathname: string): boolean {
-  return pathname === PAYMENT_ROUTE_PREFIX || pathname.startsWith(`${PAYMENT_ROUTE_PREFIX}/`);
+  return (
+    pathname === PAYMENT_ROUTE_PREFIX ||
+    pathname.startsWith(`${PAYMENT_ROUTE_PREFIX}/`)
+  );
 }
 
 export async function proxy(request: NextRequest) {
@@ -22,7 +29,8 @@ export async function proxy(request: NextRequest) {
     isAuthRoute(request.nextUrl.pathname) ||
     isPaymentRoute(request.nextUrl.pathname) ||
     request.nextUrl.pathname === NEGOCIATIONS_ROUTE ||
-    request.nextUrl.pathname === SUBSCRIPTION_SUCCESS_ROUTE ||
+    request.nextUrl.pathname === LEGACY_SUBSCRIPTION_SUCCESS_ROUTE ||
+    request.nextUrl.pathname === SUBSCRIPTION_SETTINGS_ROUTE ||
     request.nextUrl.pathname === LEGAL_ROUTE
   ) {
     return NextResponse.next();
@@ -40,7 +48,10 @@ export async function proxy(request: NextRequest) {
   }
 
   const loginUrl = new URL("/auth/login", request.url);
-  loginUrl.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+  loginUrl.searchParams.set(
+    "next",
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  );
 
   return NextResponse.redirect(loginUrl);
 }

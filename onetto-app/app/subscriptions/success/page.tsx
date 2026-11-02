@@ -1,7 +1,7 @@
-import React from "react";
+import { redirect } from "next/navigation";
 
 function SubscriptionSuccessPage() {
-  return <div>Subscription Success</div>;
+  redirect("/settings/my-subscription");
 }
 
 export default SubscriptionSuccessPage;

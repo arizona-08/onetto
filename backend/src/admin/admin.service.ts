@@ -1,11 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
   AccountType,
+  AppUserRole,
   CompanyStatus,
   CompanyUserRole,
   Prisma,
@@ -13,14 +16,62 @@ import {
 } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SubscriptionWebhookService } from 'src/subscription/subscription-webhook.service';
+import { SubscriptionService } from 'src/subscription/subscription.service';
+import { PlanAccessService } from 'src/plan-access/plan-access.service';
+import { MailService } from 'src/mail/mail.service';
+import { getPlanChangeType } from 'src/subscription/subscription-plan.utils';
+import { createHash, randomBytes } from 'crypto';
+import { UpdateCompanyServiceDto } from 'src/companies/dtos/update-company-service.dto';
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 10;
+
+function userIdentitySearch(query: string): Prisma.UserWhereInput {
+  const words = query.split(/\s+/);
+  const fullName =
+    words.length === 2
+      ? [
+          {
+            AND: [
+              {
+                firstname: { contains: words[0], mode: 'insensitive' as const },
+              },
+              {
+                lastname: { contains: words[1], mode: 'insensitive' as const },
+              },
+            ],
+          },
+          {
+            AND: [
+              {
+                firstname: { contains: words[1], mode: 'insensitive' as const },
+              },
+              {
+                lastname: { contains: words[0], mode: 'insensitive' as const },
+              },
+            ],
+          },
+        ]
+      : [];
+  return {
+    OR: [
+      { email: { contains: query, mode: 'insensitive' } },
+      { firstname: { contains: query, mode: 'insensitive' } },
+      { lastname: { contains: query, mode: 'insensitive' } },
+      ...fullName,
+    ],
+  };
+}
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptionWebhookService: SubscriptionWebhookService,
+    private readonly subscriptionService: SubscriptionService,
+    private readonly planAccessService: PlanAccessService,
+    private readonly mail: MailService,
   ) {}
 
   async dashboard() {
@@ -31,7 +82,6 @@ export class AdminService {
       activeCompanies,
       subscriptions,
       failedPayments,
-      recentUsers,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.user.count({
@@ -44,17 +94,6 @@ export class AdminService {
         _count: true,
       }),
       this.prisma.payByBankPayment.count({ where: { status: 'FAILED' } }),
-      this.prisma.user.findMany({
-        select: {
-          id: true,
-          firstname: true,
-          lastname: true,
-          email: true,
-          accountType: true,
-        },
-        orderBy: { id: 'desc' },
-        take: 8,
-      }),
     ]);
 
     return {
@@ -64,7 +103,6 @@ export class AdminService {
       activeCompanies,
       subscriptions,
       failedPayments,
-      recentUsers,
     };
   }
 
@@ -78,15 +116,7 @@ export class AdminService {
     const page = Math.max(1, params.page ?? 1);
     const query = params.query?.trim();
     const where: Prisma.UserWhereInput = {
-      ...(query
-        ? {
-            OR: [
-              { email: { contains: query, mode: 'insensitive' } },
-              { firstname: { contains: query, mode: 'insensitive' } },
-              { lastname: { contains: query, mode: 'insensitive' } },
-            ],
-          }
-        : {}),
+      ...(query ? userIdentitySearch(query) : {}),
       ...(params.accountType ? { accountType: params.accountType } : {}),
       ...(params.plan || params.active !== undefined
         ? {
@@ -112,7 +142,9 @@ export class AdminService {
           lastname: true,
           email: true,
           accountType: true,
-          isAdmin: true,
+          appUserRole: true,
+          bannedAt: true,
+          closedAt: true,
           subscription: {
             select: { subscriptionPlan: true, isActive: true },
           },
@@ -127,6 +159,95 @@ export class AdminService {
     return this.paginate(items, total, page);
   }
 
+  async inviteUser(
+    adminUserId: string,
+    input: {
+      email: string;
+      subscriptionPlan: SubscriptionPlan;
+      discountPercent: number;
+    },
+  ) {
+    const email = input.email.trim().toLowerCase();
+    const permittedDiscounts = [5, 10, 15, 20, 25, 30, 35, 40];
+    const isFree = input.subscriptionPlan === SubscriptionPlan.FREE;
+    const hasValidDiscount = isFree
+      ? input.discountPercent === 0
+      : permittedDiscounts.includes(input.discountPercent);
+    if (
+      !Object.values(SubscriptionPlan).includes(input.subscriptionPlan) ||
+      !hasValidDiscount
+    ) {
+      throw new BadRequestException('Offre ou remise non autorisée.');
+    }
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existingUser) {
+      throw new ConflictException(
+        'Cette adresse appartient déjà à un compte. L’invitation est réservée aux nouveaux utilisateurs.',
+      );
+    }
+
+    const token = randomBytes(32).toString('base64url');
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    await this.prisma.$transaction(async (transaction) => {
+      const invitation = await transaction.adminUserInvitation.upsert({
+        where: { email },
+        create: {
+          email,
+          tokenHash,
+          subscriptionPlan: input.subscriptionPlan,
+          discountPercent: input.discountPercent,
+          invitedById: adminUserId,
+          expiresAt,
+        },
+        update: {
+          tokenHash,
+          subscriptionPlan: input.subscriptionPlan,
+          discountPercent: input.discountPercent,
+          invitedById: adminUserId,
+          expiresAt,
+          createdAt: new Date(),
+          userId: null,
+          acceptedAt: null,
+          redeemedAt: null,
+          stripeCouponId: null,
+        },
+        select: { id: true },
+      });
+      await transaction.adminAuditLog.create({
+        data: {
+          adminUserId,
+          action: 'ADMIN_INVITED_USER',
+          targetType: 'AdminUserInvitation',
+          targetId: invitation.id,
+          metadata: {
+            email,
+            subscriptionPlan: input.subscriptionPlan,
+            discountPercent: input.discountPercent,
+          },
+        },
+      });
+    });
+
+    const frontendUrl = (
+      process.env.FRONTEND_URL ?? 'http://localhost:3000'
+    ).replace(/\/$/, '');
+    const invitationUrl = `${frontendUrl}/auth/register?invitation=${encodeURIComponent(token)}`;
+    const emailSent = await this.sendSubscriptionMail(
+      email,
+      this.mail.createAdminUserInvitationMail({
+        email,
+        plan: input.subscriptionPlan,
+        discountPercent: input.discountPercent,
+        invitationUrl,
+      }),
+    );
+    return { invited: true, emailSent };
+  }
+
   async user(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -134,10 +255,11 @@ export class AdminService {
         id: true,
         firstname: true,
         lastname: true,
+        bannedAt: true,
         email: true,
         emailVerifiedAt: true,
         accountType: true,
-        isAdmin: true,
+        appUserRole: true,
         lastConnectedCompany: { select: { id: true, name: true } },
         subscription: {
           select: {
@@ -154,7 +276,14 @@ export class AdminService {
           select: { subscriptionPlan: true, createdAt: true },
           orderBy: { createdAt: 'desc' },
         },
-        ownedCompanies: { select: { id: true, name: true, status: true } },
+        ownedCompanies: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+            closedByAccountClosureAt: true,
+          },
+        },
         companies: {
           select: {
             id: true,
@@ -187,12 +316,14 @@ export class AdminService {
       where: { id: userId },
       select: {
         accountType: true,
+        appUserRole: true,
         _count: { select: { ownedCompanies: true, companies: true } },
       },
     });
     if (!user) {
       throw new NotFoundException('Utilisateur introuvable.');
     }
+    await this.assertCanManageUser(adminUserId, userId, user.appUserRole);
 
     if (
       data.accountType === AccountType.EMPLOYEE &&
@@ -249,6 +380,53 @@ export class AdminService {
     }
   }
 
+  async setUserBanState(adminUserId: string, userId: string, ban: boolean) {
+    return this.prisma.$transaction(async (transaction) => {
+      const user = await transaction.user.findUnique({
+        where: { id: userId },
+        select: { id: true, appUserRole: true, bannedAt: true },
+      });
+
+      if (!user) {
+        throw new NotFoundException('Utilisateur introuvable.');
+      }
+      if (user.appUserRole === AppUserRole.SUPERADMIN) {
+        throw new ForbiddenException(
+          'Un super administrateur ne peut pas être banni.',
+        );
+      }
+      if (user.appUserRole === AppUserRole.ADMIN) {
+        const actor = await transaction.user.findUnique({
+          where: { id: adminUserId },
+          select: { appUserRole: true },
+        });
+        if (actor?.appUserRole !== AppUserRole.SUPERADMIN) {
+          throw new ForbiddenException(
+            'Seul un super administrateur peut modifier un autre administrateur.',
+          );
+        }
+      }
+      if (Boolean(user.bannedAt) === ban) {
+        return user;
+      }
+
+      const updated = await transaction.user.update({
+        where: { id: userId, appUserRole: user.appUserRole },
+        data: ban ? { bannedAt: new Date() } : { bannedAt: null },
+        select: { id: true, appUserRole: true, bannedAt: true },
+      });
+      await transaction.adminAuditLog.create({
+        data: {
+          adminUserId,
+          action: ban ? 'ADMIN_BANNED_USER' : 'ADMIN_UNBANNED_USER',
+          targetType: 'User',
+          targetId: userId,
+        },
+      });
+      return updated;
+    });
+  }
+
   async companies(params: {
     page?: number;
     query?: string;
@@ -281,6 +459,7 @@ export class AdminService {
           siret: true,
           subjectToVat: true,
           status: true,
+          closedByAccountClosureAt: true,
           isPaymentAccountConnected: true,
           owner: {
             select: { id: true, firstname: true, lastname: true, email: true },
@@ -289,7 +468,7 @@ export class AdminService {
             select: { clients: true, services: true, documents: true },
           },
         },
-        orderBy: { name: 'asc' },
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
       }),
@@ -297,83 +476,137 @@ export class AdminService {
     return this.paginate(items, total, page);
   }
 
-  async company(companyId: string) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phoneNumber: true,
-        siren: true,
-        siret: true,
-        address: true,
-        city: true,
-        postalCode: true,
-        country: true,
-        subjectToVat: true,
-        vatNumber: true,
-        status: true,
-        closingReason: true,
-        closedAt: true,
-        isPaymentAccountConnected: true,
-        owner: {
-          select: { id: true, firstname: true, lastname: true, email: true },
-        },
-        companyUsers: {
-          select: {
-            id: true,
-            role: true,
-            isHidden: true,
-            user: {
-              select: {
-                id: true,
-                firstname: true,
-                lastname: true,
-                email: true,
-                accountType: true,
+  async company(
+    companyId: string,
+    params: {
+      collaboratorsPage?: number;
+      collaboratorsQuery?: string;
+      documentsPage?: number;
+      documentsQuery?: string;
+    } = {},
+  ) {
+    const collaboratorsPage = Math.max(1, params.collaboratorsPage ?? 1);
+    const documentsPage = Math.max(1, params.documentsPage ?? 1);
+    const collaboratorsQuery = params.collaboratorsQuery?.trim();
+    const documentsQuery = params.documentsQuery?.trim();
+    const collaboratorWhere: Prisma.CompanyUserWhereInput = {
+      companyId,
+      ...(collaboratorsQuery
+        ? {
+            user: { is: userIdentitySearch(collaboratorsQuery) },
+          }
+        : {}),
+    };
+    const documentWhere: Prisma.DocumentWhereInput = {
+      companyId,
+      ...(documentsQuery
+        ? {
+            OR: [
+              {
+                documentNumber: {
+                  contains: documentsQuery,
+                  mode: 'insensitive',
+                },
               },
+              {
+                clientName: {
+                  contains: documentsQuery,
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+    const [company, collaboratorsTotal, documentsTotal] = await Promise.all([
+      this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+          siren: true,
+          siret: true,
+          address: true,
+          city: true,
+          postalCode: true,
+          country: true,
+          subjectToVat: true,
+          vatNumber: true,
+          status: true,
+          closingReason: true,
+          closedAt: true,
+          closedByAccountClosureAt: true,
+          isPaymentAccountConnected: true,
+          owner: {
+            select: { id: true, firstname: true, lastname: true, email: true },
+          },
+          companyUsers: {
+            where: collaboratorWhere,
+            select: {
+              id: true,
+              role: true,
+              isHidden: true,
+              user: {
+                select: {
+                  id: true,
+                  firstname: true,
+                  lastname: true,
+                  email: true,
+                  accountType: true,
+                },
+              },
+            },
+            orderBy: [{ user: { lastname: 'asc' } }, { id: 'asc' }],
+            skip: (collaboratorsPage - 1) * PAGE_SIZE,
+            take: PAGE_SIZE,
+          },
+          documents: {
+            where: documentWhere,
+            select: {
+              id: true,
+              type: true,
+              documentNumber: true,
+              clientName: true,
+              totalPrice: true,
+              invoiceStatus: true,
+              estimateStatus: true,
+              createdAt: true,
+            },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            skip: (documentsPage - 1) * PAGE_SIZE,
+            take: PAGE_SIZE,
+          },
+          companyPaymentAccount: {
+            select: {
+              provider: true,
+              providerAccountId: true,
+              creditorId: true,
+              verificationStatus: true,
             },
           },
         },
-        services: {
-          select: {
-            id: true,
-            name: true,
-            category: true,
-            unitPrice: true,
-            unit: true,
-            taxRate: true,
-          },
-        },
-        documents: {
-          select: {
-            id: true,
-            type: true,
-            documentNumber: true,
-            clientName: true,
-            totalPrice: true,
-            invoiceStatus: true,
-            estimateStatus: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 20,
-        },
-        companyPaymentAccount: {
-          select: {
-            provider: true,
-            providerAccountId: true,
-            creditorId: true,
-            verificationStatus: true,
-          },
-        },
-      },
-    });
+      }),
+      this.prisma.companyUser.count({ where: collaboratorWhere }),
+      this.prisma.document.count({ where: documentWhere }),
+    ]);
     if (!company) {
       throw new NotFoundException('Entreprise introuvable.');
     }
-    return company;
+    return {
+      ...company,
+      companyUsers: this.paginate(
+        company.companyUsers,
+        collaboratorsTotal,
+        collaboratorsPage,
+      ),
+      documents: this.paginate(
+        company.documents,
+        documentsTotal,
+        documentsPage,
+      ),
+    };
   }
 
   async updateCompany(
@@ -395,15 +628,23 @@ export class AdminService {
   ) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { id: true },
+      select: { id: true, closedAt: true, closedByAccountClosureAt: true },
     });
     if (!company) throw new NotFoundException('Entreprise introuvable.');
+    if (
+      data.status === CompanyStatus.ACTIVE &&
+      company.closedByAccountClosureAt
+    ) {
+      throw new ConflictException(
+        'Cette entreprise a été fermée avec le compte propriétaire.',
+      );
+    }
     const updated = await this.prisma.company.update({
       where: { id: companyId },
       data: {
         ...data,
         ...(data.status === CompanyStatus.CLOSED
-          ? { closedAt: new Date() }
+          ? { closedAt: company.closedAt ?? new Date() }
           : data.status === CompanyStatus.ACTIVE
             ? { closedAt: null, closingReason: null }
             : {}),
@@ -428,15 +669,17 @@ export class AdminService {
     const [company, user] = await Promise.all([
       this.prisma.company.findUnique({
         where: { id: companyId },
-        select: { id: true, ownerId: true },
+        select: { id: true, ownerId: true, status: true },
       }),
       this.prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, accountType: true },
+        select: { id: true, accountType: true, closedAt: true },
       }),
     ]);
-    if (!company) throw new NotFoundException('Entreprise introuvable.');
-    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+    if (!company || company.status !== CompanyStatus.ACTIVE)
+      throw new NotFoundException('Entreprise active introuvable.');
+    if (!user || user.closedAt)
+      throw new NotFoundException('Utilisateur actif introuvable.');
     if (
       company.ownerId === userId ||
       user.accountType !== AccountType.EMPLOYEE
@@ -464,6 +707,16 @@ export class AdminService {
     role: CompanyUserRole,
     isHidden?: boolean,
   ) {
+    const existing = await this.prisma.companyUser.findUnique({
+      where: { id: collaboratorId },
+      select: { company: { select: { status: true } } },
+    });
+    if (!existing) throw new NotFoundException('Collaborateur introuvable.');
+    if (existing.company.status !== CompanyStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Les collaborateurs d’une entreprise fermée sont conservés pour l’historique.',
+      );
+    }
     const collaborator = await this.prisma.companyUser.update({
       where: { id: collaboratorId },
       data: { role, ...(isHidden !== undefined ? { isHidden } : {}) },
@@ -479,6 +732,16 @@ export class AdminService {
   }
 
   async removeCompanyUser(adminUserId: string, collaboratorId: string) {
+    const existing = await this.prisma.companyUser.findUnique({
+      where: { id: collaboratorId },
+      select: { company: { select: { status: true } } },
+    });
+    if (!existing) throw new NotFoundException('Collaborateur introuvable.');
+    if (existing.company.status !== CompanyStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Les collaborateurs d’une entreprise fermée sont conservés pour l’historique.',
+      );
+    }
     const collaborator = await this.prisma.companyUser.delete({
       where: { id: collaboratorId },
     });
@@ -507,6 +770,7 @@ export class AdminService {
               { name: { contains: query, mode: 'insensitive' } },
               { description: { contains: query, mode: 'insensitive' } },
               { category: { contains: query, mode: 'insensitive' } },
+              { company: { name: { contains: query, mode: 'insensitive' } } },
             ],
           }
         : {}),
@@ -523,9 +787,9 @@ export class AdminService {
           unitPrice: true,
           unit: true,
           taxRate: true,
-          company: { select: { id: true, name: true } },
+          company: { select: { id: true, name: true, status: true } },
         },
-        orderBy: { name: 'asc' },
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
       }),
@@ -533,9 +797,86 @@ export class AdminService {
     return this.paginate(items, total, page);
   }
 
-  async subscriptions(params: { page?: number; plan?: SubscriptionPlan }) {
+  async updateService(
+    adminUserId: string,
+    serviceId: string,
+    data: UpdateCompanyServiceDto,
+  ) {
+    const service = await this.prisma.companyService.findUnique({
+      where: { id: serviceId },
+      select: {
+        unitPrice: true,
+        taxRate: true,
+        company: { select: { status: true } },
+      },
+    });
+    if (!service) throw new NotFoundException('Prestation introuvable.');
+    if (service.company.status !== CompanyStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Le catalogue d’une entreprise fermée ne peut pas être modifié.',
+      );
+    }
+    const unitPrice = data.unitPrice ?? service.unitPrice;
+    const taxRate = data.taxRate ?? service.taxRate ?? 0;
+    const updated = await this.prisma.companyService.update({
+      where: { id: serviceId },
+      data: {
+        ...data,
+        wtPrice: unitPrice,
+        totalPrice: unitPrice * (1 + taxRate / 100),
+      },
+    });
+    await this.audit(
+      adminUserId,
+      'ADMIN_UPDATED_SERVICE',
+      'CompanyService',
+      serviceId,
+      data,
+    );
+    return updated;
+  }
+
+  async deleteService(adminUserId: string, serviceId: string) {
+    const service = await this.prisma.companyService.findUnique({
+      where: { id: serviceId },
+      select: { company: { select: { status: true } } },
+    });
+    if (!service) throw new NotFoundException('Prestation introuvable.');
+    if (service.company.status !== CompanyStatus.ACTIVE) {
+      throw new BadRequestException(
+        'Le catalogue d’une entreprise fermée ne peut pas être modifié.',
+      );
+    }
+    await this.prisma.companyService.delete({ where: { id: serviceId } });
+    await this.audit(
+      adminUserId,
+      'ADMIN_DELETED_SERVICE',
+      'CompanyService',
+      serviceId,
+      {},
+    );
+    return { success: true };
+  }
+
+  async subscriptions(params: {
+    page?: number;
+    query?: string;
+    plan?: SubscriptionPlan;
+  }) {
     const page = Math.max(1, params.page ?? 1);
-    const where = params.plan ? { subscriptionPlan: params.plan } : {};
+    const query = params.query?.trim();
+    const where: Prisma.UserSubscriptionWhereInput = {
+      ...(params.plan ? { subscriptionPlan: params.plan } : {}),
+      ...(query
+        ? {
+            OR: [
+              { user: { is: userIdentitySearch(query) } },
+              { customerId: { contains: query, mode: 'insensitive' } },
+              { subscriptionId: { contains: query, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
     const [total, items] = await Promise.all([
       this.prisma.userSubscription.count({ where }),
       this.prisma.userSubscription.findMany({
@@ -549,9 +890,17 @@ export class AdminService {
           pendingSubscriptionPlan: true,
           pendingPlanEffectiveAt: true,
           canceledAtPeriodEnd: true,
-          user: { select: { firstname: true, lastname: true, email: true } },
+          user: {
+            select: {
+              firstname: true,
+              lastname: true,
+              email: true,
+              closedAt: true,
+              appUserRole: true,
+            },
+          },
         },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
       }),
@@ -559,7 +908,224 @@ export class AdminService {
     return this.paginate(items, total, page);
   }
 
+  async changeUserSubscription(
+    adminUserId: string,
+    userId: string,
+    targetPlan: SubscriptionPlan,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        firstname: true,
+        email: true,
+        accountType: true,
+        appUserRole: true,
+        closedAt: true,
+        subscriptionPlan: true,
+        subscription: {
+          select: {
+            subscriptionId: true,
+            subscriptionPlan: true,
+            isActive: true,
+            pendingSubscriptionPlan: true,
+          },
+        },
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('Utilisateur introuvable.');
+    }
+    await this.assertCanManageUser(adminUserId, userId, user.appUserRole);
+    if (user.closedAt) {
+      throw new BadRequestException('Ce compte est clôturé.');
+    }
+    if (user.accountType !== AccountType.BUSINESS_OWNER) {
+      throw new BadRequestException(
+        'Les collaborateurs ne possèdent pas d’abonnement personnel.',
+      );
+    }
+    if (user.subscription?.pendingSubscriptionPlan) {
+      throw new BadRequestException(
+        'Un changement d’offre est déjà programmé pour cet utilisateur.',
+      );
+    }
+
+    const previousPlan =
+      user.subscription?.subscriptionPlan ??
+      user.subscriptionPlan ??
+      SubscriptionPlan.FREE;
+    if (
+      targetPlan === SubscriptionPlan.FREE &&
+      (!user.subscription?.subscriptionId || !user.subscription.isActive)
+    ) {
+      await this.planAccessService.assertCanSchedulePlanChange(
+        userId,
+        targetPlan,
+      );
+      const result = await this.prisma.$transaction(async (transaction) => {
+        if (
+          previousPlan === SubscriptionPlan.FREE &&
+          user.subscriptionPlan === SubscriptionPlan.FREE &&
+          (!user.subscription ||
+            (user.subscription.isActive && !user.subscription.subscriptionId))
+        ) {
+          return { unchanged: true };
+        }
+        await transaction.userSubscription.upsert({
+          where: { userId },
+          create: {
+            userId,
+            subscriptionPlan: SubscriptionPlan.FREE,
+            isActive: true,
+          },
+          update: {
+            subscriptionPlan: SubscriptionPlan.FREE,
+            isActive: true,
+            subscriptionId: null,
+            pendingSubscriptionPlan: null,
+            pendingPlanEffectiveAt: null,
+            pendingStripeScheduleId: null,
+          },
+        });
+        await transaction.user.update({
+          where: { id: userId },
+          data: { subscriptionPlan: SubscriptionPlan.FREE },
+        });
+        await transaction.userSubscriptionHistory.create({
+          data: { userId, subscriptionPlan: SubscriptionPlan.FREE },
+        });
+        await transaction.adminAuditLog.create({
+          data: {
+            adminUserId,
+            action: 'ADMIN_CHANGED_SUBSCRIPTION',
+            targetType: 'UserSubscription',
+            targetId: userId,
+            metadata: { previousPlan, targetPlan },
+          },
+        });
+        return { applied: true };
+      });
+      if ('unchanged' in result) {
+        return result;
+      }
+      const emailSent = await this.sendSubscriptionMail(
+        user.email,
+        this.mail.createAdminPlanChangeMail({
+          firstname: user.firstname,
+          targetPlan,
+          effectiveAt: null,
+        }),
+      );
+      return { ...result, emailSent };
+    }
+
+    const isStripeActive = Boolean(
+      user.subscription?.subscriptionId && user.subscription.isActive,
+    );
+    const changeType = getPlanChangeType(previousPlan, targetPlan);
+    const upgrade =
+      isStripeActive && changeType === 'UPGRADE'
+        ? await this.prisma.adminSubscriptionUpgrade.create({
+            data: {
+              userId,
+              stripeSubscriptionId: user.subscription!.subscriptionId!,
+              previousPlan,
+              targetPlan,
+            },
+            select: { id: true },
+          })
+        : null;
+
+    const result = await this.subscriptionService.changePlanForAdmin(
+      userId,
+      targetPlan,
+    );
+    if (upgrade && 'stripeInvoiceId' in result && result.stripeInvoiceId) {
+      await this.prisma.adminSubscriptionUpgrade.update({
+        where: { id: upgrade.id },
+        data: { stripeInvoiceId: result.stripeInvoiceId },
+      });
+    }
+    await this.audit(
+      adminUserId,
+      'ADMIN_REQUESTED_SUBSCRIPTION_CHANGE',
+      'UserSubscription',
+      userId,
+      { previousPlan, targetPlan },
+    );
+
+    if ('url' in result) {
+      if (!result.url) {
+        throw new BadRequestException(
+          'Le lien de paiement Stripe est indisponible.',
+        );
+      }
+      const emailSent = await this.sendSubscriptionMail(
+        user.email,
+        this.mail.createAdminCheckoutMail({
+          firstname: user.firstname,
+          targetPlan,
+          checkoutUrl: result.url,
+        }),
+      );
+      return { checkoutCreated: true, emailSent };
+    }
+    if ('scheduled' in result && result.scheduled) {
+      const emailSent = await this.sendSubscriptionMail(
+        user.email,
+        this.mail.createAdminPlanChangeMail({
+          firstname: user.firstname,
+          targetPlan,
+          effectiveAt: result.effectiveAt,
+        }),
+      );
+      return { ...result, emailSent };
+    }
+    return result;
+  }
+
+  private async sendSubscriptionMail(
+    to: string,
+    content: { subject: string; text: string; html?: string },
+  ): Promise<boolean> {
+    try {
+      await this.mail.sendMail({ to, ...content });
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Impossible d’envoyer le mail d’abonnement à ${to}.`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return false;
+    }
+  }
+
+  async cancelPendingSubscriptionChange(adminUserId: string, userId: string) {
+    await this.assertCanManageUserById(adminUserId, userId);
+    const subscription = await this.prisma.userSubscription.findUnique({
+      where: { userId },
+      select: { pendingSubscriptionPlan: true },
+    });
+    if (!subscription?.pendingSubscriptionPlan) {
+      throw new BadRequestException(
+        'Aucun changement d’offre programmé pour cet utilisateur.',
+      );
+    }
+
+    const result =
+      await this.subscriptionService.cancelPendingPlanChange(userId);
+    await this.audit(
+      adminUserId,
+      'ADMIN_CANCELED_SUBSCRIPTION_CHANGE',
+      'UserSubscription',
+      userId,
+      { pendingPlan: subscription.pendingSubscriptionPlan },
+    );
+    return result;
+  }
+
   async resyncSubscription(adminUserId: string, userId: string) {
+    await this.assertCanManageUserById(adminUserId, userId);
     const subscription = await this.prisma.userSubscription.findUnique({
       where: { userId },
       select: { subscriptionId: true },
@@ -596,6 +1162,15 @@ export class AdminService {
                 },
               },
             },
+            {
+              invoice: {
+                is: {
+                  company: {
+                    name: { contains: query, mode: 'insensitive' },
+                  },
+                },
+              },
+            },
           ],
         }
       : {};
@@ -627,7 +1202,7 @@ export class AdminService {
             take: 1,
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
       }),
@@ -635,17 +1210,64 @@ export class AdminService {
     return this.paginate(items, total, page);
   }
 
-  async system() {
-    const [paymentWebhooks, stripeWebhooks, audits] = await Promise.all([
-      this.prisma.processedWebhookEvents.findMany({
-        orderBy: { processedAt: 'desc' },
-        take: 50,
-      }),
-      this.prisma.processedStripeWebhookEvents.findMany({
-        orderBy: { processedAt: 'desc' },
-        take: 50,
-      }),
+  async system(
+    params: {
+      webhooksPage?: number;
+      webhooksQuery?: string;
+      auditsPage?: number;
+      auditsQuery?: string;
+    } = {},
+  ) {
+    const webhooksPage = Math.max(1, params.webhooksPage ?? 1);
+    const auditsPage = Math.max(1, params.auditsPage ?? 1);
+    const webhooksQuery = params.webhooksQuery?.trim();
+    const auditsQuery = params.auditsQuery?.trim();
+    const webhookSource = Prisma.sql`
+      FROM (
+        SELECT "id", "provider"::text AS "provider", "providerEventId", "processedAt"
+        FROM "ProcessedWebhookEvents"
+        UNION ALL
+        SELECT "id", 'STRIPE'::text AS "provider", "providerEventId", "processedAt"
+        FROM "ProcessedStripeWebhookEvents"
+      ) AS events
+    `;
+    const webhookFilter = webhooksQuery
+      ? Prisma.sql`WHERE events."providerEventId" ILIKE ${`%${webhooksQuery}%`}
+          OR events."provider" ILIKE ${`%${webhooksQuery}%`}`
+      : Prisma.empty;
+    const auditWhere: Prisma.AdminAuditLogWhereInput = auditsQuery
+      ? {
+          OR: [
+            { action: { contains: auditsQuery, mode: 'insensitive' } },
+            { targetType: { contains: auditsQuery, mode: 'insensitive' } },
+            { targetId: { contains: auditsQuery, mode: 'insensitive' } },
+            {
+              adminUser: {
+                email: { contains: auditsQuery, mode: 'insensitive' },
+              },
+            },
+          ],
+        }
+      : {};
+    const [webhookCount, webhooks, auditsTotal, audits] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ total: bigint }>>(
+        Prisma.sql`SELECT COUNT(*) AS total ${webhookSource} ${webhookFilter}`,
+      ),
+      this.prisma.$queryRaw<
+        Array<{
+          id: string;
+          provider: string;
+          providerEventId: string;
+          processedAt: Date;
+        }>
+      >(
+        Prisma.sql`SELECT events.* ${webhookSource} ${webhookFilter}
+          ORDER BY events."processedAt" DESC, events."id" DESC
+          OFFSET ${(webhooksPage - 1) * PAGE_SIZE} LIMIT ${PAGE_SIZE}`,
+      ),
+      this.prisma.adminAuditLog.count({ where: auditWhere }),
       this.prisma.adminAuditLog.findMany({
+        where: auditWhere,
         select: {
           id: true,
           action: true,
@@ -654,11 +1276,19 @@ export class AdminService {
           createdAt: true,
           adminUser: { select: { email: true } },
         },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (auditsPage - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
       }),
     ]);
-    return { paymentWebhooks, stripeWebhooks, audits };
+    return {
+      webhooks: this.paginate(
+        webhooks,
+        Number(webhookCount[0]?.total ?? 0),
+        webhooksPage,
+      ),
+      audits: this.paginate(audits, auditsTotal, auditsPage),
+    };
   }
 
   async search(query: string) {
@@ -726,6 +1356,32 @@ export class AdminService {
         totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
       },
     };
+  }
+
+  private async assertCanManageUserById(adminUserId: string, userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { appUserRole: true },
+    });
+    if (!user) throw new NotFoundException('Utilisateur introuvable.');
+    await this.assertCanManageUser(adminUserId, userId, user.appUserRole);
+  }
+
+  private async assertCanManageUser(
+    adminUserId: string,
+    userId: string,
+    targetRole: AppUserRole,
+  ) {
+    if (targetRole === AppUserRole.USER || adminUserId === userId) return;
+    const admin = await this.prisma.user.findUnique({
+      where: { id: adminUserId },
+      select: { appUserRole: true },
+    });
+    if (admin?.appUserRole !== AppUserRole.SUPERADMIN) {
+      throw new ForbiddenException(
+        'Seul un super administrateur peut modifier un autre administrateur.',
+      );
+    }
   }
 
   private async audit(

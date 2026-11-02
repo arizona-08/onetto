@@ -27,6 +27,7 @@ export class SuperPdpIncomingInvoicesController {
     const company = await this.prisma.company.findFirst({
       where: {
         id: companyId,
+        status: 'ACTIVE',
         OR: [
           { ownerId: userId },
           {
@@ -59,6 +60,7 @@ export class SuperPdpIncomingInvoicesController {
       where: {
         companyId,
         company: {
+          status: 'ACTIVE',
           OR: [
             { ownerId: req.user.id },
             {

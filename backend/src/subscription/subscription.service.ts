@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PlanAccessService } from 'src/plan-access/plan-access.service';
@@ -7,7 +7,7 @@ import {
   getBillingInterval,
   getPlanChangeType,
 } from './subscription-plan.utils';
-import { $Enums } from '@prisma/client';
+import { $Enums, AdminUserInvitation } from '@prisma/client';
 
 @Injectable()
 export class SubscriptionService {
@@ -24,10 +24,11 @@ export class SubscriptionService {
   }
 
   async getSubscriptionForUser(userId: string) {
-    const [subscription, access] = await Promise.all([
+    const [subscription, access, invitation] = await Promise.all([
       this.prismaService.userSubscription.findUnique({
         where: { userId },
         select: {
+          subscriptionId: true,
           subscriptionPlan: true,
           isActive: true,
           canceledAtPeriodEnd: true,
@@ -37,9 +38,76 @@ export class SubscriptionService {
         },
       }),
       this.planAccessService.getUserAccess(userId),
+      this.prismaService.adminUserInvitation.findFirst({
+        where: {
+          userId,
+          subscriptionPlan: { not: 'FREE' },
+          acceptedAt: { not: null },
+          redeemedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        select: { subscriptionPlan: true, discountPercent: true },
+      }),
     ]);
 
-    return { ...subscription, ...access };
+    return {
+      subscriptionPlan: subscription?.subscriptionPlan ?? null,
+      isActive: subscription?.isActive ?? null,
+      canceledAtPeriodEnd: subscription?.canceledAtPeriodEnd ?? null,
+      willCancelAtPeriodEnd: subscription?.willCancelAtPeriodEnd ?? null,
+      pendingPlanEffectiveAt: subscription?.pendingPlanEffectiveAt ?? null,
+      ...access,
+      invitationOffer:
+        subscription?.subscriptionId && subscription.isActive
+          ? null
+          : invitation,
+    };
+  }
+
+  async changePlanForAdmin(
+    userId: string,
+    targetPlan: $Enums.SubscriptionPlan,
+  ) {
+    await this.planAccessService.getUserAccess(userId);
+    const subscription = await this.prismaService.userSubscription.findUnique({
+      where: { userId },
+      select: { pendingSubscriptionPlan: true },
+    });
+    if (subscription?.pendingSubscriptionPlan) {
+      throw new BadRequestException(
+        'Un changement d’offre est déjà programmé. Annulez-le avant une nouvelle modification.',
+      );
+    }
+
+    if (targetPlan === 'FREE') {
+      return this.scheduleFreePlan(userId);
+    }
+
+    await this.planAccessService.assertCanSchedulePlanChange(
+      userId,
+      targetPlan,
+    );
+    const priceId = this.priceIdForPlan(targetPlan);
+    return this.createCheckoutSession(priceId, userId);
+  }
+
+  private priceIdForPlan(plan: $Enums.SubscriptionPlan): string {
+    const configKeyByPlan: Partial<Record<$Enums.SubscriptionPlan, string>> = {
+      STARTER_MONTHLY: 'STRIPE_STARTER_MONTHLY_PRICE_ID',
+      STARTER_YEARLY: 'STRIPE_STARTER_YEARLY_PRICE_ID',
+      PRO_MONTHLY: 'STRIPE_PRO_MONTHLY_PRICE_ID',
+      PRO_YEARLY: 'STRIPE_PRO_YEARLY_PRICE_ID',
+    };
+    const configKey = configKeyByPlan[plan];
+    const priceId = configKey
+      ? this.configService.get<string>(configKey)
+      : null;
+    if (!priceId) {
+      throw new BadRequestException(
+        'Le tarif Stripe de cette offre est absent.',
+      );
+    }
+    return priceId;
   }
 
   async createCheckoutSession(planProductId: string, userId: string) {
@@ -52,8 +120,15 @@ export class SubscriptionService {
           subscriptionId: true,
           subscriptionPlan: true,
           isActive: true,
+          pendingSubscriptionPlan: true,
         },
       });
+
+    if (existingSubscription?.pendingSubscriptionPlan === 'FREE') {
+      throw new BadRequestException(
+        'Annulez d’abord le passage au gratuit avant de choisir une autre offre.',
+      );
+    }
 
     if (existingSubscription?.isActive && existingSubscription.subscriptionId) {
       return this.changeExistingSubscription(
@@ -64,27 +139,136 @@ export class SubscriptionService {
       );
     }
 
-    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+    const frontendUrl = this.configService
+      .getOrThrow<string>('FRONTEND_URL')
+      .replace(/\/+$/, '');
 
-    const session = await this.stripe.checkout.sessions.create({
-      mode: 'subscription',
-      line_items: [
-        {
-          price: planProductId,
-          quantity: 1,
-        },
-      ],
-      metadata: {
-        userId: userId,
+    const invitation = await this.prismaService.adminUserInvitation.findFirst({
+      where: {
+        userId,
+        subscriptionPlan: targetPlan,
+        acceptedAt: { not: null },
+        redeemedAt: null,
+        expiresAt: { gt: new Date() },
       },
-      subscription_data: {
+      select: {
+        id: true,
+        email: true,
+        subscriptionPlan: true,
+        discountPercent: true,
+        stripeCouponId: true,
+      },
+    });
+    let couponId = invitation
+      ? await this.getInvitationCouponId(invitation, planProductId)
+      : null;
+
+    const createSession = (discountCouponId: string | null) =>
+      this.stripe.checkout.sessions.create({
+        mode: 'subscription',
+        ...(invitation ? { customer_email: invitation.email } : {}),
+        ...(discountCouponId
+          ? { discounts: [{ coupon: discountCouponId }] }
+          : {}),
+        line_items: [
+          {
+            price: planProductId,
+            quantity: 1,
+          },
+        ],
         metadata: {
           userId: userId,
+          ...(invitation ? { adminInvitationId: invitation.id } : {}),
         },
+        subscription_data: {
+          metadata: {
+            userId: userId,
+            ...(invitation ? { adminInvitationId: invitation.id } : {}),
+          },
+        },
+        success_url: `${frontendUrl}/settings/my-subscription`,
+      });
+
+    try {
+      const session = await createSession(couponId);
+      return { url: session.url };
+    } catch (error) {
+      if (
+        !invitation ||
+        !couponId ||
+        !this.isStripeInvalidRequest(error, 'coupon_expired')
+      ) {
+        throw error;
+      }
+
+      couponId = await this.createInvitationCoupon(
+        invitation,
+        planProductId,
+        couponId,
+      );
+      const session = await createSession(couponId);
+      return { url: session.url };
+    }
+  }
+
+  private async getInvitationCouponId(
+    invitation: Pick<
+      AdminUserInvitation,
+      'id' | 'discountPercent' | 'stripeCouponId'
+    >,
+    priceId: string,
+  ): Promise<string> {
+    const existingCouponId = invitation.stripeCouponId;
+    if (existingCouponId) {
+      try {
+        const coupon = await this.stripe.coupons.retrieve(existingCouponId);
+        if (coupon.valid) {
+          return coupon.id;
+        }
+      } catch (error) {
+        if (!this.isStripeInvalidRequest(error, 'resource_missing')) {
+          throw error;
+        }
+      }
+    }
+
+    return this.createInvitationCoupon(invitation, priceId, existingCouponId);
+  }
+
+  private async createInvitationCoupon(
+    invitation: Pick<AdminUserInvitation, 'id' | 'discountPercent'>,
+    priceId: string,
+    previousCouponId: string | null,
+  ): Promise<string> {
+    const price = await this.stripe.prices.retrieve(priceId);
+    const productId =
+      typeof price.product === 'string' ? price.product : price.product.id;
+    const idempotencyKey = previousCouponId
+      ? `admin-invitation-coupon-${invitation.id}-replace-${previousCouponId}`
+      : `admin-invitation-coupon-${invitation.id}`;
+    const coupon = await this.stripe.coupons.create(
+      {
+        percent_off: invitation.discountPercent,
+        duration: 'forever',
+        max_redemptions: 1,
+        applies_to: { products: [productId] },
+        name: `Invitation Onetto ${invitation.discountPercent} %`,
+        metadata: { adminInvitationId: invitation.id },
       },
-      success_url: `${frontendUrl}/subscription/success`,
+      { idempotencyKey },
+    );
+    await this.prismaService.adminUserInvitation.update({
+      where: { id: invitation.id },
+      data: { stripeCouponId: coupon.id },
     });
-    return { url: session.url };
+    return coupon.id;
+  }
+
+  private isStripeInvalidRequest(error: unknown, code: string): boolean {
+    return (
+      error instanceof Stripe.errors.StripeInvalidRequestError &&
+      error.code === code
+    );
   }
 
   async scheduleFreePlan(userId: string) {
@@ -171,9 +355,15 @@ export class SubscriptionService {
     const stripeSubscription = await this.stripe.subscriptions.retrieve(
       current.subscriptionId!,
     );
+    if (stripeSubscription.pending_update) {
+      throw new BadRequestException(
+        'Un paiement de changement d’offre est déjà en attente sur Stripe.',
+      );
+    }
     const item = stripeSubscription.items.data[0];
-    if (!item)
+    if (!item) {
       throw new Error('La souscription Stripe ne contient aucune offre.');
+    }
     const updated = await this.stripe.subscriptions.update(
       current.subscriptionId!,
       {
@@ -185,8 +375,13 @@ export class SubscriptionService {
         expand: ['latest_invoice.payment_intent'],
       },
     );
+    const stripeInvoiceId =
+      typeof updated.latest_invoice === 'string'
+        ? updated.latest_invoice
+        : (updated.latest_invoice?.id ?? null);
     // Stripe webhooks are the only authority that can activate the new plan.
     return {
+      stripeInvoiceId,
       pendingPayment: Boolean(updated.pending_update),
       message: updated.pending_update
         ? 'Le changement sera appliqué après confirmation du paiement par Stripe.'

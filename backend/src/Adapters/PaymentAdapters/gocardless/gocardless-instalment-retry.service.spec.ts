@@ -36,7 +36,7 @@ describe('GoCardlessInstalmentRetryService', () => {
         id: 'invoice-1',
         type: 'INVOICE',
         companyId: 'company-1',
-        company: { ownerId: 'user-1', companyUsers: [] },
+        company: { ownerId: 'user-1', status: 'ACTIVE', companyUsers: [] },
       },
     },
   });

@@ -8,6 +8,7 @@ import { UserModule } from 'src/user/user.module';
 import { SubscriptionWebhookService } from './subscription-webhook.service';
 import { SubscriptionWebhookController } from './subscription-webhook.controller';
 import { PlanAccessModule } from 'src/plan-access/plan-access.module';
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { PlanAccessModule } from 'src/plan-access/plan-access.module';
     AuthModule,
     UserModule,
     PlanAccessModule,
+    MailModule,
   ],
   controllers: [SubscriptionController, SubscriptionWebhookController],
   providers: [SubscriptionService, SubscriptionWebhookService],

@@ -25,6 +25,7 @@ export class FacturXService {
         id: documentId,
         type: 'INVOICE',
         company: {
+          status: 'ACTIVE',
           OR: [
             { ownerId: user.id },
             { companyUsers: { some: { userId: user.id } } },
@@ -111,6 +112,7 @@ export class FacturXService {
         id: documentId,
         type: 'INVOICE',
         company: {
+          status: 'ACTIVE',
           OR: [
             { ownerId: user.id },
             { companyUsers: { some: { userId: user.id } } },
@@ -175,6 +177,7 @@ export class FacturXService {
         id: documentId,
         type: 'INVOICE',
         company: {
+          status: 'ACTIVE',
           OR: [
             { ownerId: user.id },
             { companyUsers: { some: { userId: user.id } } },
@@ -236,6 +239,7 @@ export class FacturXService {
         id: documentId,
         type: 'INVOICE',
         company: {
+          status: 'ACTIVE',
           OR: [
             { ownerId: user.id },
             { companyUsers: { some: { userId: user.id } } },
@@ -381,6 +385,16 @@ export class FacturXService {
               scheme: document.clientElectronicAddressScheme,
             }
           : undefined;
+    // B2C invoices are outside French B2B e-invoicing. BT-49 is still
+    // required by the Factur-X converter and may use the buyer's email (EM).
+    const individualBuyerAddress =
+      document.clientType === 'INDIVIDUAL' && document.clientEmail
+        ? { value: document.clientEmail, scheme: 'EM' }
+        : undefined;
+    const invoiceBuyerAddress =
+      document.clientType === 'BUSINESS'
+        ? buyerElectronicAddress
+        : individualBuyerAddress;
     console.log('[Factur-X] B2B addressing data', {
       documentId: document.id,
       operationNature: document.operationNature,
@@ -437,8 +451,8 @@ export class FacturXService {
           postalCode: document.clientPostalCode,
           country: document.clientCountry,
         }),
-        ...(document.clientType === 'BUSINESS' && buyerElectronicAddress
-          ? { electronic_address: buyerElectronicAddress }
+        ...(invoiceBuyerAddress
+          ? { electronic_address: invoiceBuyerAddress }
           : {}),
         ...(document.clientType === 'BUSINESS' && inferredBuyerSiren
           ? {

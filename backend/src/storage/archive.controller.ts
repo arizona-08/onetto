@@ -26,6 +26,7 @@ export class ArchiveController {
     const access = {
       companyId,
       company: {
+        status: 'ACTIVE' as const,
         OR: [
           { ownerId: req.user.id },
           { companyUsers: { some: { userId: req.user.id } } },

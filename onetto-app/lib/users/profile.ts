@@ -40,3 +40,12 @@ export function changeMyPassword(
     body: JSON.stringify(input),
   });
 }
+
+export function closeMyAccount(
+  password: string,
+): Promise<Result<{ closed: boolean }, ApiError>> {
+  return apiClient("api/account-closure", {
+    method: "POST",
+    body: JSON.stringify({ password }),
+  });
+}

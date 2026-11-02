@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import React from "react";
+import { useState } from "react";
 import { Check, CreditCard, ExternalLink, Sparkles } from "lucide-react";
 import {
   cancelPendingPlanChange,
@@ -11,11 +11,20 @@ import {
 import { STRIPE_PRODUCTS } from "@/shared/constants";
 import { formatCurrency } from "@/shared/utils";
 import { useToast } from "../context/ToastContext";
+import PendingFreePlanModal from "../molecules/PendingFreePlanModal";
 
 type SubscriptionPlansProps = {
   currentPlan: string;
   pendingPlan: string | null;
   pendingPlanEffectiveAt: string | null;
+  invitationOffer: {
+    subscriptionPlan:
+      | "STARTER_MONTHLY"
+      | "STARTER_YEARLY"
+      | "PRO_MONTHLY"
+      | "PRO_YEARLY";
+    discountPercent: number;
+  } | null;
 };
 
 function getProductPlan(productName: string) {
@@ -37,14 +46,28 @@ function SubscriptionPlans({
   currentPlan,
   pendingPlan,
   pendingPlanEffectiveAt,
+  invitationOffer,
 }: SubscriptionPlansProps) {
   const { showToast } = useToast();
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [isCancelingPendingFree, setIsCancelingPendingFree] = useState(false);
+  const invitationProduct = STRIPE_PRODUCTS.find((product) => {
+    if (!invitationOffer) {
+      return false;
+    }
 
-  async function purchaseSubscriptionPlan(
-    event: React.MouseEvent<HTMLButtonElement>,
-    planProductId: string,
-  ) {
-    event.preventDefault();
+    return invitationOffer.subscriptionPlan.startsWith(
+      product.name.toUpperCase(),
+    );
+  });
+  let invitationPriceId: string | null = null;
+  if (invitationOffer && invitationProduct) {
+    invitationPriceId = invitationOffer.subscriptionPlan.endsWith("YEARLY")
+      ? invitationProduct.prices.yearlyPrice.id
+      : invitationProduct.prices.monthlyPrice.id;
+  }
+
+  async function purchaseSubscriptionPlan(planProductId: string) {
     try {
       const responseUrl = await getCheckoutSession(planProductId);
       if (!responseUrl.ok) {
@@ -72,6 +95,15 @@ function SubscriptionPlans({
     }
   }
 
+  function selectSubscriptionPlan(planProductId: string, planLabel: string) {
+    if (pendingPlan === "FREE") {
+      setSelectedPlan(planLabel);
+      return;
+    }
+
+    void purchaseSubscriptionPlan(planProductId);
+  }
+
   async function scheduleFree() {
     const response = await scheduleFreePlan();
     if (!response.ok) {
@@ -85,17 +117,60 @@ function SubscriptionPlans({
   }
 
   async function keepCurrentPlan() {
-    const response = await cancelPendingPlanChange();
-    if (!response.ok) {
-      showToast("Impossible d’annuler le changement programmé.", "error");
+    if (isCancelingPendingFree) {
       return;
     }
-    window.location.reload();
+
+    setIsCancelingPendingFree(true);
+    try {
+      const response = await cancelPendingPlanChange();
+      if (!response.ok) {
+        showToast("Impossible d’annuler le changement programmé.", "error");
+        return;
+      }
+      window.location.reload();
+    } catch {
+      showToast("Impossible d’annuler le changement programmé.", "error");
+    } finally {
+      setIsCancelingPendingFree(false);
+    }
   }
 
   return (
     <>
       <section aria-labelledby="plans-heading">
+        {invitationOffer && invitationPriceId && (
+          <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                Votre invitation {invitationProduct?.name}
+              </p>
+              <h2 className="mt-1 font-title text-lg font-semibold text-zinc-900">
+                -{invitationOffer.discountPercent} % sur chaque facture
+              </h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                Offre {invitationProduct?.name}{" "}
+                {invitationOffer.subscriptionPlan.endsWith("YEARLY")
+                  ? "annuelle"
+                  : "mensuelle"}
+                . La remise sera appliquée automatiquement lors du paiement
+                Stripe.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                selectSubscriptionPlan(
+                  invitationPriceId,
+                  `${invitationProduct?.name} ${invitationOffer.subscriptionPlan.endsWith("YEARLY") ? "annuelle" : "mensuelle"}`,
+                )
+              }
+              className="shrink-0 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover"
+            >
+              Profiter de l’offre
+            </button>
+          </div>
+        )}
         {pendingPlan && (
           <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
             <p>
@@ -109,9 +184,12 @@ function SubscriptionPlans({
             <button
               type="button"
               onClick={() => void keepCurrentPlan()}
+              disabled={isCancelingPendingFree}
               className="shrink-0 rounded-xl border border-amber-400 bg-white px-4 py-2 font-semibold text-amber-900"
             >
-              Conserver {formatSubscriptionPlan(currentPlan)}
+              {pendingPlan === "FREE"
+                ? "Annuler le passage au gratuit"
+                : `Conserver ${formatSubscriptionPlan(currentPlan)}`}
             </button>
           </div>
         )}
@@ -226,10 +304,11 @@ function SubscriptionPlans({
                   ) : (
                     <>
                       <button
-                        onClick={(event) =>
-                          purchaseSubscriptionPlan(
-                            event,
+                        type="button"
+                        onClick={() =>
+                          selectSubscriptionPlan(
                             product.prices.monthlyPrice.id,
+                            `${product.name} mensuel`,
                           )
                         }
                         className="min-h-11 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800 transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20"
@@ -237,10 +316,11 @@ function SubscriptionPlans({
                         Choisir mensuel
                       </button>
                       <button
-                        onClick={(event) =>
-                          purchaseSubscriptionPlan(
-                            event,
+                        type="button"
+                        onClick={() =>
+                          selectSubscriptionPlan(
                             product.prices.yearlyPrice.id,
+                            `${product.name} annuel`,
                           )
                         }
                         className="min-h-11 w-full rounded-xl bg-primary px-4 text-sm font-semibold text-white transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary/20"
@@ -274,6 +354,15 @@ function SubscriptionPlans({
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
         </Link>
       </section>
+
+      {selectedPlan && (
+        <PendingFreePlanModal
+          selectedPlan={selectedPlan}
+          isCanceling={isCancelingPendingFree}
+          onClose={() => setSelectedPlan(null)}
+          onCancelPendingFree={() => void keepCurrentPlan()}
+        />
+      )}
     </>
   );
 }

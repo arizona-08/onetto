@@ -283,6 +283,11 @@ export class AutomaticRemindersService {
   private async isAutomaticReminderEnabled(
     companyId: string,
   ): Promise<boolean> {
+    const company = await this.prismaService.company.findUnique({
+      where: { id: companyId },
+      select: { status: true },
+    });
+    if (company?.status !== 'ACTIVE') return false;
     const access = await this.planAccessService.getCompanyAccess(companyId);
     return access.features.automaticReminders;
   }

@@ -40,6 +40,10 @@ const statusMatcher: Record<string, { label: string; dotClassName: string }> = {
     dotClassName: "bg-blue-500",
   },
   PAID: { label: "Payé", dotClassName: "bg-emerald-500" },
+  PARTIALLY_PAID: {
+    label: "Payée partiellement",
+    dotClassName: "bg-zinc-400",
+  },
   PAID_MANUALLY: {
     label: "Payée manuellement",
     dotClassName: "bg-emerald-500",

@@ -1,6 +1,6 @@
 import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { ReminderType } from '@prisma/client';
+import { ReminderType, SubscriptionPlan } from '@prisma/client';
 
 type Attachment = {
   filename: string;
@@ -72,6 +72,43 @@ type ReminderMailInput = {
   action?: { label: string; url: string };
   instalmentNumber?: number;
   instalmentAmount?: number;
+};
+
+type AdminCheckoutMailInput = {
+  firstname: string;
+  targetPlan: SubscriptionPlan;
+  checkoutUrl: string;
+};
+
+type AdminPlanChangeMailInput = {
+  firstname: string;
+  targetPlan: SubscriptionPlan;
+  effectiveAt: Date | null;
+};
+
+type AdminUpgradeSuccessMailInput = {
+  firstname: string;
+  previousPlan: SubscriptionPlan;
+  targetPlan: SubscriptionPlan;
+  invoiceNumber: string | null;
+  totalInCents: number;
+  currency: string;
+  invoicePdfUrl: string;
+};
+
+type AdminUserInvitationMailInput = {
+  email: string;
+  plan: SubscriptionPlan;
+  discountPercent: number;
+  invitationUrl: string;
+};
+
+const planLabels: Record<SubscriptionPlan, string> = {
+  FREE: 'Gratuit',
+  STARTER_MONTHLY: 'Starter — Mensuel',
+  STARTER_YEARLY: 'Starter — Annuel',
+  PRO_MONTHLY: 'Pro — Mensuel',
+  PRO_YEARLY: 'Pro — Annuel',
 };
 
 const formatAmount = (amount: number) => `${amount.toFixed(2)} €`;
@@ -155,6 +192,174 @@ export class MailService {
         expiry: 'Ce lien expire dans une heure.',
         notice:
           'Vous n’êtes pas à l’origine de cette demande ? Vous pouvez ignorer cet e-mail : votre mot de passe actuel reste inchangé.',
+      }),
+    };
+  }
+
+  createAdminCheckoutMail(
+    input: AdminCheckoutMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    const plan = planLabels[input.targetPlan];
+    const greeting = `Bonjour ${input.firstname},`;
+    return {
+      subject: `Finalisez votre abonnement ${plan} — Onetto`,
+      text: [
+        greeting,
+        '',
+        `L’équipe Onetto a préparé votre passage à l’offre ${plan}.`,
+        'Pour l’activer, finalisez votre paiement sécurisé sur Stripe :',
+        input.checkoutUrl,
+        '',
+        'Votre nouvelle offre ne sera active qu’après confirmation du paiement.',
+        'Si vous n’attendiez pas ce changement, contactez notre équipe.',
+      ].join('\n'),
+      html: this.createEmailLayout({
+        badge: 'ABONNEMENT ONETTO',
+        title: 'Votre nouvelle offre vous attend',
+        greeting: this.escapeHtml(greeting),
+        message: `L’équipe Onetto a préparé votre passage à l’offre <strong>${this.escapeHtml(plan)}</strong>. Finalisez votre paiement sécurisé pour l’activer.`,
+        details: this.createDetailsTable([
+          ['Nouvelle offre', this.escapeHtml(plan)],
+        ]),
+        action: {
+          label: 'Finaliser mon abonnement',
+          url: this.escapeHtml(input.checkoutUrl),
+        },
+        footer: 'Onetto · Votre espace professionnel',
+        note: 'Votre nouvelle offre sera activée après confirmation du paiement. Si vous n’attendiez pas ce changement, contactez notre équipe.',
+      }),
+    };
+  }
+
+  createAdminUserInvitationMail(
+    input: AdminUserInvitationMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    const plan = planLabels[input.plan];
+    const isFree = input.plan === 'FREE';
+    const discount = `${input.discountPercent} %`;
+    const details: Array<[string, string]> = [
+      ['Offre invitée', this.escapeHtml(plan)],
+    ];
+    if (!isFree) {
+      details.push(['Remise récurrente', this.escapeHtml(discount)]);
+    }
+    details.push(['Adresse invitée', this.escapeHtml(input.email)]);
+    return {
+      subject: isFree
+        ? 'Votre invitation Onetto — offre gratuite'
+        : `Votre invitation Onetto ${plan} — ${discount} de remise`,
+      text: [
+        'Bonjour,',
+        '',
+        `L’équipe Onetto vous invite à découvrir l’offre ${plan}.`,
+        isFree
+          ? 'Cette offre est gratuite et ne nécessite aucun paiement.'
+          : `Une remise de ${discount} s’appliquera à chaque facture de cet abonnement.`,
+        `Créez votre compte avec ${input.email} pour en profiter :`,
+        input.invitationUrl,
+        '',
+        isFree
+          ? 'Cette invitation est valable 30 jours.'
+          : 'Cette invitation est valable 30 jours. Votre abonnement ne sera activé qu’après votre paiement sécurisé sur Stripe.',
+        'Si vous n’attendiez pas cette invitation, vous pouvez ignorer ce message.',
+      ].join('\n'),
+      html: this.createEmailLayout({
+        badge: 'INVITATION ONETTO',
+        title: isFree
+          ? 'Votre accès gratuit vous attend'
+          : 'Votre offre à tarif réduit vous attend',
+        greeting: 'Bonjour,',
+        message: isFree
+          ? `L’équipe Onetto vous invite à découvrir <strong>${this.escapeHtml(plan)}</strong>. Créez votre compte pour commencer, sans paiement.`
+          : `L’équipe Onetto vous invite à découvrir <strong>${this.escapeHtml(plan)}</strong>. Profitez de <strong>${this.escapeHtml(discount)} de remise</strong> sur chaque facture de cet abonnement.`,
+        details: this.createDetailsTable(details),
+        action: {
+          label: 'Créer mon compte',
+          url: this.escapeHtml(input.invitationUrl),
+        },
+        footer: 'Onetto · Votre espace professionnel',
+        note: isFree
+          ? 'Invitation valable 30 jours. Aucun paiement n’est nécessaire. Si vous n’attendiez pas cette invitation, ignorez ce message.'
+          : 'Invitation valable 30 jours. Aucun abonnement payant ne sera activé avant votre paiement sécurisé sur Stripe. Si vous n’attendiez pas cette invitation, ignorez ce message.',
+      }),
+    };
+  }
+
+  createAdminPlanChangeMail(
+    input: AdminPlanChangeMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    const plan = planLabels[input.targetPlan];
+    const effectiveDate = input.effectiveAt
+      ? formatDate(input.effectiveAt)
+      : null;
+    const timing = effectiveDate
+      ? `Votre offre actuelle reste disponible jusqu’au ${effectiveDate}. La nouvelle offre prendra effet à cette date.`
+      : 'Cette offre est effective dès maintenant.';
+    return {
+      subject: `Modification de votre abonnement Onetto — ${plan}`,
+      text: [
+        `Bonjour ${input.firstname},`,
+        '',
+        `Votre abonnement Onetto évolue vers l’offre ${plan}.`,
+        timing,
+        '',
+        'Aucune action ni paiement immédiat n’est requis de votre part.',
+      ].join('\n'),
+      html: this.createEmailLayout({
+        badge: 'ÉVOLUTION DE VOTRE OFFRE',
+        title: effectiveDate
+          ? 'Votre changement d’offre est programmé'
+          : 'Votre offre a été mise à jour',
+        greeting: this.escapeHtml(`Bonjour ${input.firstname},`),
+        message: `Votre abonnement Onetto évolue vers l’offre <strong>${this.escapeHtml(plan)}</strong>. ${this.escapeHtml(timing)}`,
+        details: this.createDetailsTable([
+          ['Nouvelle offre', this.escapeHtml(plan)],
+          ['Date d’effet', effectiveDate ?? 'Dès maintenant'],
+        ]),
+        footer: 'Onetto · Votre espace professionnel',
+        note: 'Aucune action ni paiement immédiat n’est requis de votre part.',
+      }),
+    };
+  }
+
+  createAdminUpgradeSuccessMail(
+    input: AdminUpgradeSuccessMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    const previousPlan = planLabels[input.previousPlan];
+    const targetPlan = planLabels[input.targetPlan];
+    const amount = new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: input.currency.toUpperCase(),
+    }).format(input.totalInCents / 100);
+    const invoiceNumber = input.invoiceNumber ?? 'Stripe';
+    return {
+      subject: `Votre offre ${targetPlan} est active — facture Onetto`,
+      text: [
+        `Bonjour ${input.firstname},`,
+        '',
+        `Votre passage de ${previousPlan} à ${targetPlan} est confirmé.`,
+        `Montant réglé : ${amount}.`,
+        `Votre facture ${invoiceNumber}, détaillant le prorata, est jointe à ce message.`,
+        `Vous pouvez aussi la télécharger ici : ${input.invoicePdfUrl}`,
+        '',
+        'Merci pour votre confiance.',
+      ].join('\n'),
+      html: this.createEmailLayout({
+        badge: 'PAIEMENT CONFIRMÉ',
+        title: 'Votre nouvelle offre est active',
+        greeting: this.escapeHtml(`Bonjour ${input.firstname},`),
+        message: `Votre passage de <strong>${this.escapeHtml(previousPlan)}</strong> à <strong>${this.escapeHtml(targetPlan)}</strong> est confirmé. La facture détaillant le prorata est jointe à ce message.`,
+        details: this.createDetailsTable([
+          ['Nouvelle offre', this.escapeHtml(targetPlan)],
+          ['Montant réglé', this.escapeHtml(amount)],
+          ['Facture', this.escapeHtml(invoiceNumber)],
+        ]),
+        action: {
+          label: 'Télécharger ma facture',
+          url: this.escapeHtml(input.invoicePdfUrl),
+        },
+        footer: 'Onetto · Votre espace professionnel',
+        note: 'Merci pour votre confiance. Votre nouvelle offre est disponible dans votre espace Onetto.',
       }),
     };
   }

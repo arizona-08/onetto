@@ -2,6 +2,7 @@ import { ApiError, apiClient } from "../api";
 import { LoginDto } from "./dtos/login.dto";
 import { RegisterDto } from "./dtos/register.dto";
 import { LoginResponse } from "./responses/login.response";
+import { MeResponse } from "./responses/me.response";
 import { RegisterResponse } from "./responses/register.response";
 import { Result } from "../../shared/result";
 import { LogoutResponse } from "./responses/logout.response";

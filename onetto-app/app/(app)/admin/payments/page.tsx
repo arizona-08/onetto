@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { apiServer } from "@/lib/api-server";
+import AdminListControls, {
+  AdminSearchParams,
+  getAdminListState,
+} from "@/app/components/AdminListControls";
 
 type Payments = {
   items: Array<{
@@ -19,10 +23,23 @@ type Payments = {
       failureReason: string | null;
     }>;
   }>;
-  pagination: { total: number };
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 };
-export default async function AdminPaymentsPage() {
-  const response = await apiServer<Payments>("api/admin/payments");
+export default async function AdminPaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<AdminSearchParams>;
+}) {
+  const params = await searchParams;
+  const { query, page } = getAdminListState(params);
+  const response = await apiServer<Payments>(
+    `api/admin/payments?${new URLSearchParams({ q: query, page: String(page) })}`,
+  );
   if (!response.ok) return <p>Accès administrateur requis.</p>;
   return (
     <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
@@ -31,10 +48,17 @@ export default async function AdminPaymentsPage() {
           Paiements ({response.data.pagination.total})
         </h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Vue de diagnostic uniquement : les statuts ne sont jamais modifiés
-          manuellement.
+          Vue de diagnostic : les paiements et leur historique ne peuvent pas
+          être modifiés ou supprimés depuis cette liste.
         </p>
       </header>
+      <AdminListControls
+        path="/admin/payments"
+        searchParams={params}
+        pagination={response.data.pagination}
+        placeholder="Référence, facture ou entreprise"
+        label="Paiements"
+      />
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-zinc-50 text-zinc-500">
@@ -48,6 +72,13 @@ export default async function AdminPaymentsPage() {
             </tr>
           </thead>
           <tbody>
+            {response.data.items.length === 0 && (
+              <tr>
+                <td colSpan={6} className="p-5 text-center text-zinc-500">
+                  Aucun paiement trouvé.
+                </td>
+              </tr>
+            )}
             {response.data.items.map((payment) => (
               <tr key={payment.id} className="border-t border-zinc-100">
                 <td className="p-4">

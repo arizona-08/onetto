@@ -64,6 +64,13 @@ export class AuthService {
         throw new BadRequestException('Invalid email or password.');
       }
 
+      if (existingUser.closedAt) {
+        throw new UnauthorizedException('Ce compte est clôturé.');
+      }
+      if (existingUser.bannedAt) {
+        throw new UnauthorizedException('Ce compte est suspendu.');
+      }
+
       if (!existingUser.emailVerifiedAt) {
         throw new UnauthorizedException(
           'Veuillez confirmer votre adresse e-mail avant de vous connecter.',
@@ -118,8 +125,28 @@ export class AuthService {
         secret: process.env.JWT_REFRESH_SECRET,
       });
 
-      // 3. Si valide, créer un nouvel access token tout neuf
-      const newPayload = { sub: payload.sub, email: payload.email };
+      const user = await this.prismaService.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          email: true,
+          bannedAt: true,
+          closedAt: true,
+          passwordChangedAt: true,
+        },
+      });
+      if (
+        !user ||
+        user.bannedAt ||
+        user.closedAt ||
+        (user.passwordChangedAt &&
+          payload.iat &&
+          payload.iat * 1000 < user.passwordChangedAt.getTime())
+      ) {
+        throw new UnauthorizedException();
+      }
+
+      const newPayload = { sub: user.id, email: user.email };
       const newAccessToken = await this.jwtService.signAsync(newPayload, {
         secret: process.env.JWT_SECRET,
         expiresIn: '15m',
@@ -151,12 +178,12 @@ export class AuthService {
     const email = emailInput.trim().toLowerCase();
     const user = await this.prismaService.user.findUnique({
       where: { email },
-      select: { id: true, email: true },
+      select: { id: true, email: true, closedAt: true },
     });
     const message =
       'Si un compte correspond à cette adresse, un e-mail de réinitialisation a été envoyé.';
 
-    if (!user) {
+    if (!user || user.closedAt) {
       return { message };
     }
 
@@ -201,6 +228,7 @@ export class AuthService {
       where: {
         passwordResetTokenHash: this.hashToken(token),
         passwordResetExpiresAt: { gt: new Date() },
+        closedAt: null,
       },
       select: { id: true },
     });
