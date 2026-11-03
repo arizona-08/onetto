@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   HttpException,
@@ -72,6 +73,108 @@ export class GoCardlessReconciliationService {
       );
     }
     return this.reconcilePaymentPlan(plan.id);
+  }
+
+  async reconcileOneTimeInvoice(invoiceId: string, user: User) {
+    const invoice = await this.prisma.document.findUnique({
+      where: { id: invoiceId },
+      select: {
+        type: true,
+        invoiceStatus: true,
+        companyId: true,
+        invoicePaymentMode: { select: { paymentMode: true } },
+        company: {
+          select: {
+            ownerId: true,
+            status: true,
+            companyUsers: {
+              where: { userId: user.id, role: 'ADMIN', isHidden: false },
+              select: { id: true },
+            },
+          },
+        },
+        invoicePaymentLinks: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { provider: true },
+        },
+        payByBankPayments: {
+          where: { provider: 'GOCARDLESS' },
+          select: {
+            id: true,
+            amountInCents: true,
+            payByBankPaymentAttempts: {
+              select: {
+                id: true,
+                providerPaymentId: true,
+                paymentStatus: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!invoice || invoice.type !== 'INVOICE') {
+      throw new NotFoundException('Facture introuvable.');
+    }
+    if (
+      invoice.company.status !== 'ACTIVE' ||
+      (invoice.company.ownerId !== user.id &&
+        invoice.company.companyUsers.length === 0)
+    ) {
+      throw new ForbiddenException(
+        'Vous ne pouvez pas actualiser cette facture.',
+      );
+    }
+    if (
+      invoice.invoicePaymentMode?.paymentMode === 'INSTALMENTS' ||
+      invoice.invoiceStatus === 'DRAFT' ||
+      invoice.invoiceStatus === 'PAID_MANUALLY' ||
+      invoice.invoicePaymentLinks[0]?.provider !== 'GOCARDLESS'
+    ) {
+      throw new BadRequestException(
+        'Aucun paiement unique GoCardless à actualiser pour cette facture.',
+      );
+    }
+    if (
+      invoice.payByBankPayments.length === 0 ||
+      invoice.payByBankPayments.every((payment) =>
+        payment.payByBankPaymentAttempts.every(
+          (attempt) => !attempt.providerPaymentId,
+        ),
+      )
+    ) {
+      return {
+        message:
+          'Aucun prélèvement bancaire n’a encore été créé pour cette facture.',
+      };
+    }
+
+    const client = await this.oauth.getClientForCompany(invoice.companyId);
+    for (const payment of invoice.payByBankPayments) {
+      for (const attempt of payment.payByBankPaymentAttempts) {
+        if (!attempt.providerPaymentId) continue;
+        const providerPayment = await client.payments.find(
+          attempt.providerPaymentId,
+        );
+        if (
+          !providerPayment ||
+          providerPayment.links?.instalment_schedule ||
+          Number(providerPayment.amount) !== payment.amountInCents
+        ) {
+          throw new ConflictException('Correspondance bancaire incohérente.');
+        }
+        await this.paymentHandler.syncKnownPaymentAttemptStatus(
+          { ...attempt, payByBankPaymentId: payment.id },
+          providerPayment.status as string,
+        );
+      }
+      await this.invoiceStatus.refreshFromPaymentAttempt(payment.id, false);
+    }
+    return {
+      message:
+        'Les informations du paiement ont été actualisées avec GoCardless.',
+    };
   }
 
   async reconcilePaymentPlan(planId: string) {

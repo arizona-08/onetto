@@ -39,6 +39,7 @@ describe('GoCardlessPaymentWebhookHandler', () => {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
       upsert: jest.fn(),
     },
     payByBankPayment: { findUnique: jest.fn() },
@@ -61,6 +62,7 @@ describe('GoCardlessPaymentWebhookHandler', () => {
     });
     matcher.matchPaymentAttemptStatus.mockReturnValue('SUCCESS');
     prisma.invoicePaymentInstalment.updateMany.mockResolvedValue({ count: 1 });
+    prisma.payByBankPaymentAttempt.updateMany.mockResolvedValue({ count: 1 });
     handler = new GoCardlessPaymentWebhookHandler(
       oauth as never,
       matcher as never,
@@ -78,14 +80,27 @@ describe('GoCardlessPaymentWebhookHandler', () => {
 
     await handler.handleWebhook(event);
 
-    expect(prisma.payByBankPaymentAttempt.update).toHaveBeenCalledWith({
-      where: { id: 'attempt-1' },
+    expect(prisma.payByBankPaymentAttempt.updateMany).toHaveBeenCalledWith({
+      where: { id: 'attempt-1', paymentStatus: 'PENDING' },
       data: { paymentStatus: 'SUCCESS' },
     });
     expect(invoiceStatus.refreshFromPaymentAttempt).toHaveBeenCalledWith(
       'pbb-1',
       true,
     );
+  });
+
+  it('n’envoie pas deux reçus si une autre synchronisation a déjà gagné', async () => {
+    prisma.payByBankPaymentAttempt.findFirst.mockResolvedValue({
+      id: 'attempt-1',
+      payByBankPaymentId: 'pbb-1',
+      paymentStatus: 'PENDING',
+    });
+    prisma.payByBankPaymentAttempt.updateMany.mockResolvedValue({ count: 0 });
+
+    await handler.handleWebhook(event);
+
+    expect(invoiceStatus.refreshFromPaymentAttempt).not.toHaveBeenCalled();
   });
 
   it('notifie le client lorsque le prélèvement est soumis à sa banque', async () => {

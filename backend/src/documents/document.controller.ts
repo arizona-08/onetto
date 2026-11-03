@@ -291,6 +291,18 @@ export class DocumentController {
     );
   }
 
+  @Post(':documentId/payment/reconcile')
+  async reconcileOneTimePayment(
+    @Param('documentId') documentId: string,
+    @Req() req: ExtendedRequest,
+  ) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.gocardlessReconciliationService.reconcileOneTimeInvoice(
+      documentId,
+      req.user,
+    );
+  }
+
   @Post(':documentId/create-version')
   async createDocumentVersion(
     @Param('documentId') documentId: string,

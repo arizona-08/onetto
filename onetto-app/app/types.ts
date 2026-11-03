@@ -82,6 +82,7 @@ export type Document = {
     numberOfInstalments: number | null;
     firstDueDate?: string | null;
   } | null;
+  invoicePaymentLinks?: Array<{ provider: "GOCARDLESS" | "BRIDGE" }>;
   invoiceInstalmentPlan?: {
     startDate: string;
     numberOfInstalments: number;

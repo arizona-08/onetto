@@ -35,6 +35,7 @@ describe('GoCardlessReconciliationService', () => {
     payments: { find: jest.fn() },
   };
   const prisma = {
+    document: { findUnique: jest.fn() },
     invoiceInstalmentPlan: {
       updateMany: jest.fn(),
       findUniqueOrThrow: jest.fn(),
@@ -49,8 +50,14 @@ describe('GoCardlessReconciliationService', () => {
     },
   };
   const oauth = { getClientForCompany: jest.fn() };
-  const handler = { syncInstalmentStatus: jest.fn() };
-  const invoiceStatus = { refreshFromInstalment: jest.fn() };
+  const handler = {
+    syncInstalmentStatus: jest.fn(),
+    syncKnownPaymentAttemptStatus: jest.fn(),
+  };
+  const invoiceStatus = {
+    refreshFromInstalment: jest.fn(),
+    refreshFromPaymentAttempt: jest.fn(),
+  };
   let service: GoCardlessReconciliationService;
 
   beforeEach(() => {
@@ -264,5 +271,83 @@ describe('GoCardlessReconciliationService', () => {
       });
     await service.reconcileDuePlans();
     expect(reconcile).toHaveBeenCalledTimes(2);
+  });
+
+  it('actualise le paiement unique GoCardless connu sans créer de prélèvement', async () => {
+    client.payments.find.mockResolvedValue({
+      id: 'PM1',
+      amount: 5000,
+      status: 'confirmed',
+      links: { mandate: 'MD1' },
+    });
+    prisma.document.findUnique.mockResolvedValue({
+      type: 'INVOICE',
+      invoiceStatus: 'PAYMENT_IN_PROGRESS',
+      companyId: 'company-1',
+      invoicePaymentMode: { paymentMode: 'ONE_TIME' },
+      company: { ownerId: 'user-1', status: 'ACTIVE', companyUsers: [] },
+      invoicePaymentLinks: [{ provider: 'GOCARDLESS' }],
+      payByBankPayments: [
+        {
+          id: 'payment-1',
+          amountInCents: 5000,
+          payByBankPaymentAttempts: [
+            {
+              id: 'attempt-1',
+              providerPaymentId: 'PM1',
+              paymentStatus: 'PAYMENT_IN_PROGRESS',
+            },
+          ],
+        },
+      ],
+    });
+    const result = await service.reconcileOneTimeInvoice('invoice-1', {
+      id: 'user-1',
+    } as never);
+    expect(handler.syncKnownPaymentAttemptStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'attempt-1',
+        payByBankPaymentId: 'payment-1',
+      }),
+      'confirmed',
+    );
+    expect(invoiceStatus.refreshFromPaymentAttempt).toHaveBeenCalledWith(
+      'payment-1',
+      false,
+    );
+    expect(result.message).toContain('actualisées');
+    expect(client.payments).not.toHaveProperty('create');
+  });
+
+  it('ne propose aucune lecture bancaire mensongère pour Bridge', async () => {
+    prisma.document.findUnique.mockResolvedValue({
+      type: 'INVOICE',
+      invoiceStatus: 'PENDING',
+      companyId: 'company-1',
+      invoicePaymentMode: { paymentMode: 'ONE_TIME' },
+      company: { ownerId: 'user-1', status: 'ACTIVE', companyUsers: [] },
+      invoicePaymentLinks: [{ provider: 'BRIDGE' }],
+      payByBankPayments: [],
+    });
+    await expect(
+      service.reconcileOneTimeInvoice('invoice-1', { id: 'user-1' } as never),
+    ).rejects.toThrow('GoCardless');
+    expect(client.payments.find).not.toHaveBeenCalled();
+  });
+
+  it('refuse la réconciliation du paiement unique à un collaborateur sans droit', async () => {
+    prisma.document.findUnique.mockResolvedValue({
+      type: 'INVOICE',
+      invoiceStatus: 'PENDING',
+      companyId: 'company-1',
+      invoicePaymentMode: { paymentMode: 'ONE_TIME' },
+      company: { ownerId: 'other-user', status: 'ACTIVE', companyUsers: [] },
+      invoicePaymentLinks: [{ provider: 'GOCARDLESS' }],
+      payByBankPayments: [],
+    });
+    await expect(
+      service.reconcileOneTimeInvoice('invoice-1', { id: 'user-1' } as never),
+    ).rejects.toThrow('ne pouvez pas');
+    expect(oauth.getClientForCompany).not.toHaveBeenCalled();
   });
 });

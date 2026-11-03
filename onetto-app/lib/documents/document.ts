@@ -183,6 +183,13 @@ export async function reconcileInstalmentPayments(documentId: string) {
   );
 }
 
+export async function reconcileOneTimePayment(documentId: string) {
+  return apiClient<{ message: string }>(
+    `api/documents/${documentId}/payment/reconcile`,
+    { method: "POST" },
+  );
+}
+
 export async function resendInstalmentMandateAuthorisation(documentId: string) {
   return apiClient<{ success: true; message: string }>(
     `api/documents/${documentId}/resend-instalment-mandate-authorisation`,

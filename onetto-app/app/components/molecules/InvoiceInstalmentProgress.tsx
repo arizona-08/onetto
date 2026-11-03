@@ -3,7 +3,6 @@
 import type { Document } from "@/app/types";
 import {
   getInstalmentRetryCapability,
-  reconcileInstalmentPayments,
   retryInstalmentPayment,
   type InstalmentRetryCapability,
 } from "@/lib/documents/document";
@@ -31,7 +30,6 @@ export default function InvoiceInstalmentProgress({
     Record<number, InstalmentRetryCapability>
   >({});
   const [retryingNumber, setRetryingNumber] = useState<number | null>(null);
-  const [reconciling, setReconciling] = useState(false);
   const [confirmNumber, setConfirmNumber] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<{
     kind: "success" | "error";
@@ -116,51 +114,10 @@ export default function InvoiceInstalmentProgress({
     }
   }
 
-  async function handleReconcile() {
-    if (reconciling) return;
-    setReconciling(true);
-    setFeedback(null);
-    try {
-      const response = await reconcileInstalmentPayments(document.id);
-      if (response.ok) {
-        setFeedback({
-          kind: "success",
-          message: response.data.requiresPaymentReview
-            ? "Les paiements ont été actualisés. Une échéance nécessite une vérification."
-            : response.data.message,
-        });
-        router.refresh();
-      } else {
-        setFeedback({
-          kind: "error",
-          message: "Impossible d’actualiser les paiements pour le moment. Veuillez réessayer ultérieurement.",
-        });
-      }
-    } catch {
-      setFeedback({
-        kind: "error",
-        message: "Impossible d’actualiser les paiements pour le moment. Veuillez réessayer ultérieurement.",
-      });
-    } finally {
-      setReconciling(false);
-    }
-  }
-
   if (!instalments?.length) return null;
 
   return (
     <div className={className}>
-      <div className="mb-3 flex justify-end">
-        <button
-          type="button"
-          onClick={() => void handleReconcile()}
-          disabled={reconciling}
-          className="inline-flex items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {reconciling ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-          {reconciling ? "Actualisation…" : "Actualiser les paiements"}
-        </button>
-      </div>
       <div className="mx-auto w-fit text-center md:hidden">
         <p className="mb-2 text-xs font-semibold text-zinc-600">
           {paidInstalments}/{instalments.length} échéance

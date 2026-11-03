@@ -388,7 +388,7 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
     );
   }
 
-  private async syncKnownPaymentAttemptStatus(
+  async syncKnownPaymentAttemptStatus(
     attempt: {
       id: string;
       payByBankPaymentId: string;
@@ -407,10 +407,13 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       );
     if (!this.canUpdateStatus(attempt.paymentStatus, mappedStatus)) return;
 
-    await this.prismaService.payByBankPaymentAttempt.update({
-      where: { id: attempt.id },
-      data: { paymentStatus: mappedStatus },
-    });
+    const updated = await this.prismaService.payByBankPaymentAttempt.updateMany(
+      {
+        where: { id: attempt.id, paymentStatus: attempt.paymentStatus },
+        data: { paymentStatus: mappedStatus },
+      },
+    );
+    if (updated.count !== 1) return;
     await this.invoicePaymentStatusService.refreshFromPaymentAttempt(
       attempt.payByBankPaymentId,
       mappedStatus === 'SUCCESS',
