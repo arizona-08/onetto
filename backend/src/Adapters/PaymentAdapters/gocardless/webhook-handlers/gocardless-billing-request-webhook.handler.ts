@@ -77,6 +77,12 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
 
     if (existingInstalmentPlan) {
       if (billingRequest.status === 'fulfilled') {
+        if (
+          existingInstalmentPlan.providerScheduledId ||
+          existingInstalmentPlan.authorizationFailureReason
+        ) {
+          return;
+        }
         const remainingInstalments =
           existingInstalmentPlan.invoicePaymentInstalments.filter(
             (instalment) => instalment.instalmentStatus !== 'SUCCESS',
@@ -152,14 +158,41 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
           "L'échéancier Onetto contient des montants invalides pour GoCardless.",
         );
       }
+      const mandate = await client.mandates.find(input.mandateId);
+      const nextChargeDate = mandate.next_possible_charge_date;
+      if (!nextChargeDate) {
+        throw new InternalServerErrorException(
+          'GoCardless ne fournit pas encore la première date possible de prélèvement.',
+        );
+      }
+      if (
+        input.startDate < nextChargeDate ||
+        input.startDate <= new Date().toISOString().slice(0, 10)
+      ) {
+        await this.prismaService.invoicePaymentLink.updateMany({
+          where: { providerReference: billingRequestId },
+          data: { linkStatus: 'FAILED' },
+        });
+        await this.prismaService.invoiceInstalmentPlan.update({
+          where: { providerReference: billingRequestId },
+          data: {
+            authorizationFailureReason:
+              'Les dates de prélèvement prévues ne sont plus réalisables. Contactez l’entreprise pour convenir d’un nouvel échéancier.',
+          },
+        });
+        // Do not silently shift the dates: the invoice owner must issue a new schedule.
+        return;
+      }
       const payload = {
         name: input.name,
-        currency: 'EUR' as 'EUR',
+        currency: 'EUR' as const,
         total_amount: input.totalAmountInCents.toString(),
         instalments: {
           start_date: input.startDate,
           interval_unit: input.intervalUnit.toLocaleLowerCase() as
-            'weekly' | 'monthly' | 'yearly',
+            | 'weekly'
+            | 'monthly'
+            | 'yearly',
           interval: input.interval,
           amounts: input.amountsInCents.map(String),
         },
@@ -169,7 +202,10 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       };
 
       const createdSchedule =
-        await client.instalmentSchedules.createWithSchedule(payload);
+        await client.instalmentSchedules.createWithSchedule(
+          payload,
+          `instalment-schedule-${billingRequestId}`,
+        );
       if (!createdSchedule) {
         throw new InternalServerErrorException(
           'Failed to create instalment schedule with GoCardless',
@@ -260,11 +296,6 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
     }
   }
 
-  async syncPayByBankPaymentStatus(
-    providerReference: string,
-    providerStatus: $Enums.InvoicePaymentStatus,
-  ) {}
-
   async syncLinkStatus(
     billingRequestId: string,
     billingRequestStatus: $Enums.InvoicePaymentLinkStatus,
@@ -281,13 +312,6 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
         `No invoice payment link found for billing request ID ${billingRequestId}`,
       );
     }
-
-    await this.prismaService.processedWebhookEvents.create({
-      data: {
-        provider: 'GOCARDLESS',
-        providerEventId: billingRequestId,
-      },
-    });
 
     const existingStatus = invoicePaymentLink.linkStatus;
 

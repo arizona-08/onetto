@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Send,
   Trash,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { Document, InvoiceStatus } from "@/app/types";
@@ -17,14 +18,21 @@ import { formatDate } from "@/shared/utils";
 import DocumentSelector from "../molecules/DcumentSelector";
 import DocumentSorter from "../molecules/DocumentSorter";
 import InvoiceInstalmentProgress from "../molecules/InvoiceInstalmentProgress";
+import InvoiceActionsMenu, {
+  type InvoiceMenuAction,
+} from "../molecules/InvoiceActionsMenu";
 import {
   convertEstimateToInvoice,
+  deleteDraftDocument,
   getDocumentsPage,
   markInvoiceAsPaidManually,
   markInvoiceAsPendingManually,
   massDeleteDocuments,
+  reconcileInstalmentPayments,
+  reconcileOneTimePayment,
   retryInvoicePayment,
   resendInstalmentMandateAuthorisation,
+  sendDocumentToClient,
 } from "@/lib/documents/document";
 import { useToast } from "@/app/components/context/ToastContext";
 import { useRouter } from "next/navigation";
@@ -136,6 +144,9 @@ function DocumentsTable({
   const [checkedDocuments, setCheckedDocuments] = React.useState<string[]>([]);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [draftToDelete, setDraftToDelete] = React.useState<Document | null>(null);
+  const [sendingDocumentIds, setSendingDocumentIds] = React.useState<string[]>([]);
+  const [reconcilingDocumentIds, setReconcilingDocumentIds] = React.useState<string[]>([]);
   const [retryingDocumentIds, setRetryingDocumentIds] = React.useState<
     string[]
   >([]);
@@ -174,9 +185,11 @@ function DocumentsTable({
   const allChecked =
     checkedDocuments.length === masterDocumentsList.length &&
     masterDocumentsList.length > 0;
-  const documentsToDelete = masterDocumentsList.filter((document) =>
-    checkedDocuments.includes(document.id),
-  );
+  const documentsToDelete = draftToDelete
+    ? [draftToDelete]
+    : masterDocumentsList.filter((document) =>
+        checkedDocuments.includes(document.id),
+      );
 
   function handleCheckedDocumentByID(documentId: string) {
     setCheckedDocuments((prevCheckedDocuments) => {
@@ -202,30 +215,92 @@ function DocumentsTable({
 
   async function handleDeleteCheckedDocuments(checked: string[]) {
     setIsDeleting(true);
-    const response = await massDeleteDocuments(checked);
-    setIsDeleting(false);
+    try {
+      const response = draftToDelete
+        ? await deleteDraftDocument(draftToDelete.id)
+        : await massDeleteDocuments(checked);
 
-    if (!response.ok) {
-      const message =
-        typeof response.error.message === "string"
-          ? response.error.message
-          : "Impossible de supprimer les documents sélectionnés.";
-      showToast(message, "error");
-      return;
+      if (!response.ok) {
+        const message =
+          typeof response.error.message === "string"
+            ? response.error.message
+            : "Impossible de supprimer les documents sélectionnés.";
+        showToast(message, "error");
+        return;
+      }
+
+      setIsDeleteModalOpen(false);
+      setDraftToDelete(null);
+
+      const nextTotal = Math.max(0, totalDocuments - checked.length);
+      const nextTotalPages = Math.max(1, Math.ceil(nextTotal / 5));
+      const nextPage = Math.min(currentPage, nextTotalPages);
+
+      setCheckedDocuments([]);
+      setTotalDocuments(nextTotal);
+      setTotalPages(nextTotalPages);
+      await loadDocumentsPage(nextPage);
+
+      showToast(response.data.message, "success");
+    } catch {
+      showToast("Impossible de supprimer le document.", "error");
+    } finally {
+      setIsDeleting(false);
     }
+  }
 
-    setIsDeleteModalOpen(false);
+  async function handleSendDraftInvoice(document: Document) {
+    if (sendingDocumentIds.includes(document.id)) return;
+    setSendingDocumentIds((ids) => [...ids, document.id]);
+    try {
+      const response = await sendDocumentToClient(document.id);
+      if (!response.ok) {
+        showToast("Impossible d'envoyer cette facture.", "error");
+        return;
+      }
+      await loadDocumentsPage(currentPage);
+      router.refresh();
+      showToast("Facture validée et envoyée au client.", "success");
+    } catch {
+      showToast("Impossible d'envoyer cette facture.", "error");
+    } finally {
+      setSendingDocumentIds((ids) => ids.filter((id) => id !== document.id));
+    }
+  }
 
-    const nextTotal = Math.max(0, totalDocuments - checked.length);
-    const nextTotalPages = Math.max(1, Math.ceil(nextTotal / 5));
-    const nextPage = Math.min(currentPage, nextTotalPages);
-
-    setCheckedDocuments([]);
-    setTotalDocuments(nextTotal);
-    setTotalPages(nextTotalPages);
-    await loadDocumentsPage(nextPage);
-
-    showToast(response.data.message, "success");
+  async function handleReconcileInvoice(document: Document) {
+    if (reconcilingDocumentIds.includes(document.id)) return;
+    setReconcilingDocumentIds((ids) => [...ids, document.id]);
+    try {
+      const response =
+        document.invoicePaymentMode?.paymentMode === "INSTALMENTS"
+          ? await reconcileInstalmentPayments(document.id)
+          : await reconcileOneTimePayment(document.id);
+      if (!response.ok) {
+        showToast(
+          typeof response.error.message === "string"
+            ? response.error.message
+            : "Impossible d'actualiser les paiements.",
+          "error",
+        );
+        return;
+      }
+      await loadDocumentsPage(currentPage);
+      router.refresh();
+      showToast(
+        "requiresPaymentReview" in response.data &&
+          response.data.requiresPaymentReview
+          ? "Paiements actualisés. Une échéance nécessite une vérification."
+          : response.data.message,
+        "success",
+      );
+    } catch {
+      showToast("Impossible d'actualiser les paiements.", "error");
+    } finally {
+      setReconcilingDocumentIds((ids) =>
+        ids.filter((id) => id !== document.id),
+      );
+    }
   }
 
   function openManualPaymentModal(document: Document) {
@@ -257,7 +332,11 @@ function DocumentsTable({
     const dueDate = new Date(paymentDueAt);
     const renderedDate = new Date(currentDate);
 
-    if (renderedDate > dueDate && invoiceStatus !== "PAID") {
+    if (
+      renderedDate > dueDate &&
+      invoiceStatus !== "PAID" &&
+      invoiceStatus !== "PAID_MANUALLY"
+    ) {
       const daysOverdue = Math.floor(
         (renderedDate.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24),
       );
@@ -268,29 +347,33 @@ function DocumentsTable({
 
   async function handleRetryInvoicePayment(documentId: string) {
     setRetryingDocumentIds((ids) => [...ids, documentId]);
-    const response = await retryInvoicePayment(documentId);
-    setRetryingDocumentIds((ids) => ids.filter((id) => id !== documentId));
-
-    if (!response.ok) {
-      if (isGoCardlessAccessTokenInactive(response.error)) {
-        const document = masterDocumentsList.find(
-          (item) => item.id === documentId,
-        );
-        if (document) setGoCardlessReconnectCompanyId(document.companyId);
+    try {
+      const response = await retryInvoicePayment(documentId);
+      if (!response.ok) {
+        if (isGoCardlessAccessTokenInactive(response.error)) {
+          const document = masterDocumentsList.find(
+            (item) => item.id === documentId,
+          );
+          if (document) setGoCardlessReconnectCompanyId(document.companyId);
+          return;
+        }
+        showToast("Impossible de générer un nouveau lien de paiement.", "error");
         return;
       }
-      showToast("Impossible de générer un nouveau lien de paiement.", "error");
-      return;
-    }
 
-    setMasterDocumentsList((documents) =>
-      documents.map((document) =>
-        document.id === documentId
-          ? { ...document, invoiceStatus: "PENDING" }
-          : document,
-      ),
-    );
-    showToast("Un nouveau lien de paiement a été envoyé au client.", "success");
+      setMasterDocumentsList((documents) =>
+        documents.map((document) =>
+          document.id === documentId
+            ? { ...document, invoiceStatus: "PENDING" }
+            : document,
+        ),
+      );
+      showToast("Un nouveau lien de paiement a été envoyé au client.", "success");
+    } catch {
+      showToast("Impossible de générer un nouveau lien de paiement.", "error");
+    } finally {
+      setRetryingDocumentIds((ids) => ids.filter((id) => id !== documentId));
+    }
   }
 
   async function handleManualPaymentStatus(
@@ -300,97 +383,56 @@ function DocumentsTable({
     const nextStatus: InvoiceStatus = isPending ? "PAID_MANUALLY" : "PENDING";
 
     setUpdatingManualPaymentIds((ids) => [...ids, document.id]);
+    const errorMessage = isPending
+      ? "Impossible de marquer cette facture comme payée manuellement."
+      : "Impossible de remettre cette facture en attente.";
+    try {
+      const response = isPending
+        ? await markInvoiceAsPaidManually(document.id)
+        : await markInvoiceAsPendingManually(document.id);
+      if (!response.ok) {
+        showToast(errorMessage, "error");
+        return false;
+      }
 
-    const response = isPending
-      ? await markInvoiceAsPaidManually(document.id)
-      : await markInvoiceAsPendingManually(document.id);
-
-    setUpdatingManualPaymentIds((ids) =>
-      ids.filter((id) => id !== document.id),
-    );
-
-    if (!response.ok) {
-      const message = isPending
-        ? "Impossible de marquer cette facture comme payée manuellement."
-        : "Impossible de remettre cette facture en attente.";
-      showToast(message, "error");
+      setMasterDocumentsList((documents) =>
+        documents.map((item) =>
+          item.id === document.id ? { ...item, invoiceStatus: nextStatus } : item,
+        ),
+      );
+      showToast(response.data.message, "success");
+      return true;
+    } catch {
+      showToast(errorMessage, "error");
       return false;
+    } finally {
+      setUpdatingManualPaymentIds((ids) =>
+        ids.filter((id) => id !== document.id),
+      );
     }
-
-    setMasterDocumentsList((documents) =>
-      documents.map((item) =>
-        item.id === document.id ? { ...item, invoiceStatus: nextStatus } : item,
-      ),
-    );
-    showToast(response.data.message, "success");
-    return true;
   }
 
   async function handleResendMandateAuthorisation(documentId: string) {
     setResendingMandateDocumentIds((ids) => [...ids, documentId]);
-    const response = await resendInstalmentMandateAuthorisation(documentId);
-    setResendingMandateDocumentIds((ids) =>
-      ids.filter((id) => id !== documentId),
-    );
-
-    if (!response.ok) {
-      showToast(
-        typeof response.error.message === "string"
-          ? response.error.message
-          : "Impossible d'envoyer une nouvelle autorisation de prélèvement.",
-        "error",
+    try {
+      const response = await resendInstalmentMandateAuthorisation(documentId);
+      if (!response.ok) {
+        showToast(
+          typeof response.error.message === "string"
+            ? response.error.message
+            : "Impossible d'envoyer une nouvelle autorisation de prélèvement.",
+          "error",
+        );
+        return;
+      }
+      showToast(response.data.message, "success");
+    } catch {
+      showToast("Impossible d'envoyer une nouvelle autorisation de prélèvement.", "error");
+    } finally {
+      setResendingMandateDocumentIds((ids) =>
+        ids.filter((id) => id !== documentId),
       );
-      return;
     }
-    showToast(response.data.message, "success");
-  }
-
-  function canUpdateManualPaymentStatus(document: Document): boolean {
-    return (
-      isInvoiceType &&
-      (document.invoiceStatus === "PENDING" ||
-        document.invoiceStatus === "PAID_MANUALLY")
-    );
-  }
-
-  function renderManualPaymentStatusButton(document: Document) {
-    if (!canUpdateManualPaymentStatus(document)) {
-      return null;
-    }
-
-    const isPending = document.invoiceStatus === "PENDING";
-    const isUpdating = updatingManualPaymentIds.includes(document.id);
-    const title = isPending
-      ? "Marquer comme payée manuellement"
-      : "Remettre la facture en attente";
-
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          if (isPending) {
-            openManualPaymentModal(document);
-            return;
-          }
-
-          void handleManualPaymentStatus(document);
-        }}
-        disabled={isUpdating}
-        className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-          isPending
-            ? "bg-emerald-600 hover:bg-emerald-700"
-            : "bg-orange-400 hover:bg-orange-500"
-        }`}
-        title={title}
-        aria-label={title}
-      >
-        {isPending ? (
-          <Check className="h-4 w-4" aria-hidden="true" />
-        ) : (
-          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-        )}
-      </button>
-    );
   }
 
   function hasUnpaidFailedInstalment(document: Document) {
@@ -405,61 +447,120 @@ function DocumentsTable({
   }
 
   function renderDocumentActions(document: Document) {
-    const isRetrying = retryingDocumentIds.includes(document.id);
-    const isResendingMandate = resendingMandateDocumentIds.includes(
-      document.id,
-    );
-    const isOneTimeRejected =
-      isInvoiceType &&
-      document.invoiceStatus === "REJECTED" &&
-      document.invoicePaymentMode?.paymentMode !== "INSTALMENTS";
+    if (!isInvoiceType) {
+      return canConvertEstimate(document) ? (
+        <button
+          type="button"
+          onClick={() => void handleConvertEstimateToInvoice(document.id)}
+          disabled={convertingDocumentIds.includes(document.id)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          title="Transformer en facture"
+          aria-label="Transformer en facture"
+        >
+          <FileChartColumnIncreasing className="h-4 w-4" aria-hidden="true" />
+        </button>
+      ) : (
+        <span className="px-2 text-xs text-zinc-400">—</span>
+      );
+    }
 
-    return (
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {isOneTimeRejected && (
-          <button
-            type="button"
-            onClick={() => void handleRetryInvoicePayment(document.id)}
-            disabled={isRetrying}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-            title="Envoyer un nouveau lien de paiement sécurisé"
-          >
-            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-            {isRetrying ? "Envoi…" : "Nouveau lien"}
-          </button>
-        )}
-        {isInvoiceType && hasUnpaidFailedInstalment(document) && (
-          <button
-            type="button"
-            onClick={() => void handleResendMandateAuthorisation(document.id)}
-            disabled={isResendingMandate}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-            title="Envoyer une nouvelle autorisation de mandat si le mandat est expiré"
-          >
-            <Send className="h-3.5 w-3.5" aria-hidden="true" />
-            {isResendingMandate ? "Envoi…" : "Autorisation"}
-          </button>
-        )}
-        {renderManualPaymentStatusButton(document)}
-        {canConvertEstimate(document) && (
-          <button
-            type="button"
-            onClick={() => void handleConvertEstimateToInvoice(document.id)}
-            disabled={convertingDocumentIds.includes(document.id)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-            title="Transformer en facture"
-            aria-label="Transformer en facture"
-          >
-            <FileChartColumnIncreasing className="h-4 w-4" aria-hidden="true" />
-          </button>
-        )}
-        {!isOneTimeRejected &&
-          !hasUnpaidFailedInstalment(document) &&
-          !canUpdateManualPaymentStatus(document) &&
-          !canConvertEstimate(document) && (
-            <span className="px-2 text-xs text-zinc-400">—</span>
-          )}
-      </div>
+    const isInstalments =
+      document.invoicePaymentMode?.paymentMode === "INSTALMENTS";
+    const isDraft = document.invoiceStatus === "DRAFT";
+    const isOneTimePending =
+      !isInstalments && document.invoiceStatus === "PENDING";
+    const hasUnsettledInstalment =
+      isInstalments &&
+      document.invoiceInstalmentPlan?.invoicePaymentInstalments.some(
+        (instalment) => instalment.instalmentStatus !== "SUCCESS",
+      );
+    const canRefreshInstalments =
+      isInstalments &&
+      Boolean(document.invoiceInstalmentPlan) &&
+      !isDraft &&
+      document.invoiceStatus !== "PAID_MANUALLY" &&
+      (hasUnsettledInstalment ||
+        ["PENDING", "PAYMENT_IN_PROGRESS", "PARTIALLY_PAID", "PAID"].includes(
+          document.invoiceStatus,
+        ));
+    const canRefreshOneTime =
+      !isInstalments &&
+      ["PENDING", "PAYMENT_IN_PROGRESS", "PAID"].includes(
+        document.invoiceStatus,
+      ) &&
+      document.invoicePaymentLinks?.[0]?.provider === "GOCARDLESS";
+    const actions: InvoiceMenuAction[] = [];
+
+    if (isDraft) {
+      actions.push(
+        {
+          label: "Valider et envoyer",
+          icon: Send,
+          onSelect: () => void handleSendDraftInvoice(document),
+        },
+        {
+          label: "Supprimer le brouillon",
+          icon: Trash,
+          danger: true,
+          onSelect: () => {
+            setDraftToDelete(document);
+            setIsDeleteModalOpen(true);
+          },
+        },
+      );
+    }
+    if (canRefreshInstalments || canRefreshOneTime) {
+      actions.push({
+        label: isInstalments
+          ? "Actualiser les échéances"
+          : "Actualiser le paiement",
+        icon: RefreshCw,
+        onSelect: () => void handleReconcileInvoice(document),
+      });
+    }
+    if (isOneTimePending) {
+      actions.push({
+        label: "Marquer comme payée manuellement",
+        icon: Check,
+        onSelect: () => openManualPaymentModal(document),
+      });
+    }
+    if (!isInstalments && document.invoiceStatus === "PAID_MANUALLY") {
+      actions.push({
+        label: "Repasser en attente",
+        icon: RotateCcw,
+        onSelect: () => void handleManualPaymentStatus(document),
+      });
+    }
+    if (!isInstalments && document.invoiceStatus === "REJECTED") {
+      actions.push({
+        label: "Envoyer un nouveau lien",
+        icon: RotateCcw,
+        onSelect: () => void handleRetryInvoicePayment(document.id),
+      });
+    }
+    if (hasUnpaidFailedInstalment(document)) {
+      actions.push({
+        label: "Renvoyer l’autorisation bancaire",
+        icon: Send,
+        onSelect: () => void handleResendMandateAuthorisation(document.id),
+      });
+    }
+
+    const isBusy =
+      sendingDocumentIds.includes(document.id) ||
+      reconcilingDocumentIds.includes(document.id) ||
+      retryingDocumentIds.includes(document.id) ||
+      resendingMandateDocumentIds.includes(document.id) ||
+      updatingManualPaymentIds.includes(document.id);
+    return actions.length ? (
+      <InvoiceActionsMenu
+        documentNumber={document.documentNumber}
+        actions={actions}
+        busy={isBusy}
+      />
+    ) : (
+      <span className="px-2 text-xs text-zinc-400">—</span>
     );
   }
 
@@ -608,7 +709,10 @@ function DocumentsTable({
             {hasCheckedDocuments && (
               <button
                 className="flex items-center gap-3 bg-red-500 text-white px-3 py-2 rounded-md text-sm"
-                onClick={() => setIsDeleteModalOpen(true)}
+                onClick={() => {
+                  setDraftToDelete(null);
+                  setIsDeleteModalOpen(true);
+                }}
               >
                 <span className="block md:hidden xl:block">
                   Supprimer les documents
@@ -826,45 +930,12 @@ function DocumentsTable({
                           />
                         )}
                       </div>
-                      {/* Actions are rendered in the dedicated final column. */}
-                      {false &&
-                        isInvoiceType &&
-                        document.invoiceStatus === "REJECTED" && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void handleRetryInvoicePayment(document.id)
-                            }
-                            disabled={retryingDocumentIds.includes(document.id)}
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                            title="Générer et envoyer un nouveau lien de paiement"
-                            aria-label="Relancer le paiement"
-                          >
-                            <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                          </button>
-                        )}
-                      {false && renderManualPaymentStatusButton(document)}
-                      {false && canConvertEstimate(document) && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleConvertEstimateToInvoice(document.id)
-                          }
-                          disabled={convertingDocumentIds.includes(document.id)}
-                          className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-primary text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                          title="Transformer en facture"
-                          aria-label="Transformer en facture"
-                        >
-                          <FileChartColumnIncreasing
-                            className="h-4 w-4"
-                            aria-hidden="true"
-                          />
-                        </button>
-                      )}
                     </div>
                   </td>
                   <td className="px-5 py-5 align-center">
-                    {renderDocumentActions(document)}
+                    <div className="flex justify-end">
+                      {renderDocumentActions(document)}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -980,7 +1051,9 @@ function DocumentsTable({
               id="delete-documents-title"
               className="font-title text-xl font-semibold text-zinc-900"
             >
-              Supprimer les documents sélectionnés ?
+              {draftToDelete
+                ? "Supprimer ce brouillon ?"
+                : "Supprimer les documents sélectionnés ?"}
             </h2>
             <p className="mt-3 text-sm text-zinc-600">
               Cette action est irréversible. Les documents suivants seront
@@ -995,7 +1068,10 @@ function DocumentsTable({
               <button
                 type="button"
                 disabled={isDeleting}
-                onClick={() => setIsDeleteModalOpen(false)}
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setDraftToDelete(null);
+                }}
                 className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Annuler
@@ -1004,7 +1080,9 @@ function DocumentsTable({
                 type="button"
                 disabled={isDeleting}
                 onClick={() =>
-                  void handleDeleteCheckedDocuments(checkedDocuments)
+                  void handleDeleteCheckedDocuments(
+                    draftToDelete ? [draftToDelete.id] : checkedDocuments,
+                  )
                 }
                 className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >

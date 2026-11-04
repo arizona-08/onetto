@@ -9,7 +9,7 @@ import {
 
 interface ServiceLineItemsProps {
   hydratedLineItems?: ServiceLineItem[];
-  hydratedDocumentDates?: DocumentDates;
+  hydratedDocumentDates: DocumentDates;
   onLineItemsChange: (lineItems: ServiceLineItem[]) => void;
   onDocumentDatesChange: (dates: DocumentDates) => void;
   documentDateErrors?: DocumentDateError;
@@ -39,35 +39,11 @@ function ServiceLineItems({
     }
   }, [hydratedLineItems]);
 
-  useEffect(() => {
-    if (hydratedDocumentDates) {
-      setDocumentDates({
-        dueDate: hydratedDocumentDates.dueDate.slice(0, 10), // slice retire l'heure et le fuseau horaire pour laisser que la date
-      });
-    }
-  }, [hydratedDocumentDates]);
-
   const [isModalVisible, setIsModalVisible] = React.useState(false);
-
-  const [documentDates, setDocumentDates] = React.useState<DocumentDates>(
-    () => {
-      const d = new Date();
-      // set to one month ahead, handling month overflow
-      const month = d.getMonth();
-      const year = d.getFullYear();
-      const day = d.getDate();
-      const nextMonth = month + 1;
-      const dueDate = new Date(year, nextMonth, day);
-      return {
-        dueDate: dueDate.toISOString().split("T")[0], // split sépare la date et l'heure et prend que la date quise trouve avant le T -> 2026-08-06T00:00:00.000Z
-      };
-    },
-  );
 
   function handleDocumentDatesChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
-    setDocumentDates({ ...documentDates, [name]: value });
-    onDocumentDatesChange({ ...documentDates, [name]: value });
+    onDocumentDatesChange({ ...hydratedDocumentDates, [name]: value });
   }
 
   const [lineItemToModify, setLineItemToModify] = React.useState<{
@@ -224,7 +200,7 @@ function ServiceLineItems({
                 type="date"
                 name="dueDate"
                 id=""
-                value={documentDates.dueDate}
+                value={hydratedDocumentDates.dueDate.slice(0, 10)}
                 onChange={handleDocumentDatesChange}
                 className="bg-primary/20 rounded-md p-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50"
               />

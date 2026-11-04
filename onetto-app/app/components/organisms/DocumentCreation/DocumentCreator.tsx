@@ -77,6 +77,9 @@ function DocumentCreator({
   const [documentDates, setDocumentDates] = React.useState<DocumentDates>(
     () => {
       const d = new Date();
+      if (documentType === "INVOICE" || document?.type === "INVOICE") {
+        return { dueDate: addCalendarWeeks(toDateInputValue(d), 1) };
+      }
       // set to one month ahead, handling month overflow
       const month = d.getMonth();
       const year = d.getFullYear();

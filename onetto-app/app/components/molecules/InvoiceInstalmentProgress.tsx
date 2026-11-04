@@ -7,9 +7,14 @@ import {
   type InstalmentRetryCapability,
 } from "@/lib/documents/document";
 import { formatCurrency, formatDate } from "@/shared/utils";
-import { AlertTriangle, CalendarClock, RotateCcw } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  LoaderCircle,
+  RotateCcw,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface InvoiceInstalmentProgressProps {
   document: Document;
@@ -25,31 +30,26 @@ export default function InvoiceInstalmentProgress({
     Record<number, InstalmentRetryCapability>
   >({});
   const [retryingNumber, setRetryingNumber] = useState<number | null>(null);
-  if (
-    document.invoicePaymentMode?.paymentMode !== "INSTALMENTS" ||
-    !document.invoiceInstalmentPlan
-  ) {
-    return null;
-  }
+  const [confirmNumber, setConfirmNumber] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<{
+    kind: "success" | "error";
+    message: string;
+  } | null>(null);
+  const instalments =
+    document.invoicePaymentMode?.paymentMode === "INSTALMENTS"
+      ? document.invoiceInstalmentPlan?.invoicePaymentInstalments
+      : undefined;
 
-  const instalments = document.invoiceInstalmentPlan.invoicePaymentInstalments;
-
-  if (instalments.length === 0) {
-    return null;
-  }
-
-  const paidInstalments = instalments.filter(
+  const paidInstalments = (instalments ?? []).filter(
     (instalment) => instalment.instalmentStatus === "SUCCESS",
   ).length;
-  const retryableInstalments = instalments.filter((instalment) =>
-    ["FAILED", "OVERDUE"].includes(instalment.instalmentStatus),
+  const retryableInstalments = useMemo(
+    () =>
+      (instalments ?? []).filter((instalment) =>
+        ["FAILED", "OVERDUE"].includes(instalment.instalmentStatus),
+      ),
+    [instalments],
   );
-  const retryableInstalmentKey = retryableInstalments
-    .map(
-      (instalment) =>
-        `${instalment.instalmentNumber}:${instalment.instalmentStatus}`,
-    )
-    .join(",");
 
   useEffect(() => {
     let isActive = true;
@@ -77,10 +77,13 @@ export default function InvoiceInstalmentProgress({
     return () => {
       isActive = false;
     };
-  }, [document.id, retryableInstalmentKey]);
+  }, [document.id, retryableInstalments]);
 
   async function handleRetry(instalmentNumber: number) {
+    if (retryingNumber !== null) return;
+    setConfirmNumber(null);
     setRetryingNumber(instalmentNumber);
+    setFeedback(null);
     try {
       const response = await retryInstalmentPayment(
         document.id,
@@ -91,12 +94,27 @@ export default function InvoiceInstalmentProgress({
           ...current,
           [instalmentNumber]: response.data,
         }));
+        setFeedback({ kind: "success", message: response.data.message });
         router.refresh();
+      } else {
+        const message = response.error.message;
+        setFeedback({
+          kind: "error",
+          message: Array.isArray(message) ? message.join(" ") : message,
+        });
       }
+    } catch {
+      setFeedback({
+        kind: "error",
+        message:
+          "Impossible de joindre le service de paiement. Vérifiez le statut avant toute nouvelle demande.",
+      });
     } finally {
       setRetryingNumber(null);
     }
   }
+
+  if (!instalments?.length) return null;
 
   return (
     <div className={className}>
@@ -156,9 +174,20 @@ export default function InvoiceInstalmentProgress({
           </span>
         ))}
       </div>
+      {feedback && (
+        <p
+          role="status"
+          className={`mt-3 rounded-lg p-3 text-sm ${
+            feedback.kind === "success"
+              ? "bg-emerald-50 text-emerald-900"
+              : "bg-red-50 text-red-900"
+          }`}
+        >
+          {feedback.message}
+        </p>
+      )}
       {retryableInstalments.map((instalment) => {
         const capability = capabilities[instalment.instalmentNumber];
-        if (!capability) return null;
 
         return (
           <div
@@ -169,7 +198,27 @@ export default function InvoiceInstalmentProgress({
               Échéance {instalment.instalmentNumber} —{" "}
               {formatCurrency(instalment.amountInCents / 100)}
             </p>
-            {capability.automaticRetryScheduled ? (
+            <p className="mt-1 text-zinc-600">
+              Prévue le {formatDate(instalment.dueDate)} ·{" "}
+              {instalment.instalmentStatus === "FAILED"
+                ? "Échouée"
+                : "En retard"}
+            </p>
+            {capability?.failureReason && (
+              <p className="mt-1 text-zinc-600">
+                Motif : {capability.failureReason}
+              </p>
+            )}
+            {capability?.lastAttemptAt && (
+              <p className="mt-1 text-zinc-600">
+                Dernier essai : {formatDate(capability.lastAttemptAt)}
+              </p>
+            )}
+            {!capability ? (
+              <p className="mt-1.5 text-zinc-600">
+                Vérification de la possibilité de relancer le prélèvement indisponible.
+              </p>
+            ) : capability.automaticRetryScheduled ? (
               <p className="mt-1.5 flex gap-2 text-primary">
                 <CalendarClock className="h-4 w-4 shrink-0" />
                 {capability.message}
@@ -197,14 +246,18 @@ export default function InvoiceInstalmentProgress({
                 <span>{capability.message}</span>
                 <button
                   type="button"
-                  onClick={() => void handleRetry(instalment.instalmentNumber)}
-                  disabled={retryingNumber === instalment.instalmentNumber}
+                  onClick={() => setConfirmNumber(instalment.instalmentNumber)}
+                  disabled={retryingNumber !== null}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <RotateCcw className="h-3.5 w-3.5" />
+                  {retryingNumber === instalment.instalmentNumber ? (
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  )}
                   {retryingNumber === instalment.instalmentNumber
                     ? "Réessai…"
-                    : "Réessayer le prélèvement"}
+                    : "Retenter le prélèvement"}
                 </button>
               </div>
             ) : (
@@ -213,6 +266,45 @@ export default function InvoiceInstalmentProgress({
           </div>
         );
       })}
+      {confirmNumber !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-instalment-retry-title"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+          >
+            <h2
+              id="confirm-instalment-retry-title"
+              className="font-title text-lg font-semibold text-zinc-900"
+            >
+              Retenter le prélèvement ?
+            </h2>
+            <p className="mt-3 text-sm text-zinc-700">
+              Une nouvelle tentative de prélèvement de l’échéance{" "}
+              {confirmNumber} sera demandée sur le compte bancaire du client.
+              Elle ne signifie pas que le paiement est déjà encaissé.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmNumber(null)}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRetry(confirmNumber)}
+                disabled={retryingNumber !== null}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                Confirmer la tentative
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

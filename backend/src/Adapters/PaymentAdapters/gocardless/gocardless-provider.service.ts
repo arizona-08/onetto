@@ -360,6 +360,20 @@ export class GoCardlessProviderService
         },
       );
 
+      const flowExpiry = new Date(
+        createdBillingRequestFlow.expires_at as string,
+      );
+      if (
+        !createdBillingRequestFlow.id ||
+        !createdBillingRequestFlow.authorisation_url ||
+        !Number.isFinite(flowExpiry.getTime()) ||
+        flowExpiry <= new Date()
+      ) {
+        throw new InternalServerErrorException(
+          'GoCardless n’a pas fourni de lien d’autorisation valide.',
+        );
+      }
+
       const persistedPaymentLink =
         await this.prismaService.invoicePaymentLink.create({
           data: {
@@ -367,6 +381,8 @@ export class GoCardlessProviderService
             url: createdBillingRequestFlow.authorisation_url as string,
             provider: 'GOCARDLESS',
             providerReference: billingRequestId,
+            providerFlowId: createdBillingRequestFlow.id,
+            providerFlowExpiresAt: flowExpiry,
           },
         });
 
@@ -375,12 +391,12 @@ export class GoCardlessProviderService
         create: {
           accessToken: paymentAccessToken,
           invoiceId: input.invoiceId,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           invoicePaymentLinkId: persistedPaymentLink.id,
         },
         update: {
           accessToken: paymentAccessToken,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           invoicePaymentLinkId: persistedPaymentLink.id,
         },
       });
@@ -402,6 +418,226 @@ export class GoCardlessProviderService
         error as Error,
       );
     }
+  }
+
+  async getCurrentInstalmentFlow(
+    invoiceId: string,
+    accessToken: string,
+  ): Promise<{
+    url: string | null;
+    message?: string;
+  }> {
+    // The access row lock serialises clicks and token rotation across instances. A stable
+    // idempotency key also makes a retry safe if GoCardless responds but the
+    // transaction cannot commit.
+    return this.prismaService.$transaction(
+      async (prisma) => {
+        const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "InvoicePublicAccess"
+        WHERE "invoiceId" = ${invoiceId}
+        FOR UPDATE
+      `;
+        if (!rows.length) {
+          throw new BadRequestException('Ce lien de paiement est introuvable.');
+        }
+        const access = await prisma.invoicePublicAccess.findUnique({
+          where: { invoiceId },
+          include: {
+            invoicePaymentLink: true,
+            invoice: {
+              include: {
+                invoiceInstalmentPlan: {
+                  include: {
+                    invoicePaymentInstalments: {
+                      select: { instalmentStatus: true },
+                    },
+                  },
+                },
+                company: { select: { status: true } },
+              },
+            },
+          },
+        });
+        if (
+          !access ||
+          access.accessToken !== accessToken ||
+          access.expiresAt <= new Date() ||
+          access.invoice.type !== 'INVOICE' ||
+          !access.invoice.sentAt
+        ) {
+          throw new BadRequestException(
+            'Ce lien de paiement est invalide ou expiré.',
+          );
+        }
+        const { invoicePaymentLink: link, invoice } = access;
+        const plan = invoice.invoiceInstalmentPlan;
+        if (
+          !plan ||
+          link.provider !== 'GOCARDLESS' ||
+          invoice.company.status !== 'ACTIVE'
+        ) {
+          return { url: null };
+        }
+        const initialAuthorisation =
+          link.providerReference === plan.providerReference;
+        if (initialAuthorisation && plan.authorizationFailureReason) {
+          return { url: null, message: plan.authorizationFailureReason };
+        }
+        if (
+          (initialAuthorisation &&
+            (plan.providerMandateId || plan.providerScheduledId)) ||
+          invoice.invoiceStatus === 'PAID'
+        ) {
+          return {
+            url: null,
+            message: 'Le mandat de cette facture a déjà été autorisé.',
+          };
+        }
+        if (initialAuthorisation && new Date() >= plan.authorizationDeadline) {
+          return {
+            url: null,
+            message:
+              'Les dates de prélèvement prévues ne permettent plus d’autoriser ce mandat. Contactez l’entreprise pour convenir d’un nouvel échéancier.',
+          };
+        }
+        if (
+          !initialAuthorisation &&
+          !plan.invoicePaymentInstalments.some((instalment) =>
+            ['FAILED', 'OVERDUE'].includes(instalment.instalmentStatus),
+          )
+        ) {
+          return {
+            url: null,
+            message: 'Aucune nouvelle autorisation de mandat n’est nécessaire.',
+          };
+        }
+        if (link.linkStatus !== 'VALID') {
+          return {
+            url: null,
+            message:
+              'Cette demande de paiement ne peut plus être autorisée. Contactez l’entreprise.',
+          };
+        }
+
+        const client = await this.gocardlessOAuthService.getClientForCompany(
+          invoice.companyId,
+        );
+        let billingRequest: { status?: string };
+        try {
+          billingRequest = await client.billingRequests.find(
+            link.providerReference,
+          );
+        } catch (error) {
+          const providerError = error as {
+            statusCode?: number;
+            response?: { statusCode?: number };
+          };
+          if (
+            providerError.statusCode === 404 ||
+            providerError.response?.statusCode === 404
+          ) {
+            return {
+              url: null,
+              message:
+                'Cette demande d’autorisation n’existe plus chez GoCardless. Contactez l’entreprise pour recevoir un nouveau lien.',
+            };
+          }
+          throw error;
+        }
+        if (
+          billingRequest.status === 'fulfilled' ||
+          billingRequest.status === 'fulfilling' ||
+          billingRequest.status === 'ready_to_fulfil'
+        ) {
+          return {
+            url: null,
+            message:
+              'Le mandat a déjà été autorisé et son traitement est en cours.',
+          };
+        }
+        if (billingRequest.status === 'cancelled') {
+          return {
+            url: null,
+            message:
+              'Cette demande d’autorisation a été annulée. Contactez l’entreprise pour recevoir un nouveau lien.',
+          };
+        }
+        if (billingRequest.status !== 'pending') {
+          return {
+            url: null,
+            message:
+              'Cette demande d’autorisation n’est pas disponible. Contactez l’entreprise.',
+          };
+        }
+        if (
+          link.providerFlowExpiresAt &&
+          link.providerFlowExpiresAt > new Date() &&
+          link.url
+        ) {
+          return { url: link.url };
+        }
+
+        const redirectUri =
+          this.configService.get<string>('GOCARDLESS_REDIRECT_URI') || '';
+        const flow = await client.billingRequestFlows.create(
+          {
+            redirect_uri: redirectUri,
+            exit_uri: redirectUri,
+            prefilled_customer: this.buildPrefilledCustomer({
+              email: invoice.clientEmail,
+              ...this.customerFromInvoice(invoice),
+            }),
+            links: { billing_request: link.providerReference },
+          },
+          `instalment-flow-${link.id}-${link.providerFlowId ?? 'initial'}`,
+        );
+        const expiry = new Date(flow.expires_at ?? '');
+        if (
+          !flow.authorisation_url ||
+          !flow.id ||
+          !Number.isFinite(expiry.getTime()) ||
+          expiry <= new Date()
+        ) {
+          throw new InternalServerErrorException(
+            'GoCardless n’a pas fourni de lien d’autorisation valide.',
+          );
+        }
+        await prisma.invoicePaymentLink.update({
+          where: { id: link.id },
+          data: {
+            url: flow.authorisation_url,
+            providerFlowId: flow.id,
+            providerFlowExpiresAt: expiry,
+          },
+        });
+        return { url: flow.authorisation_url };
+      },
+      { timeout: 30000 },
+    );
+  }
+
+  private customerFromInvoice(invoice: {
+    clientName: string;
+    clientAddress: string;
+    clientCity: string;
+    clientPostalCode: string;
+    clientCountry: string;
+  }) {
+    const parts = invoice.clientName.trim().split(/\s+/);
+    const country = invoice.clientCountry.trim().toUpperCase();
+    return {
+      firstName: parts[0] || undefined,
+      lastName: parts.slice(1).join(' ') || undefined,
+      addressLine1: invoice.clientAddress || undefined,
+      city: invoice.clientCity || undefined,
+      postalCode: invoice.clientPostalCode || undefined,
+      countryCode:
+        country === 'FRANCE'
+          ? 'FR'
+          : /^[A-Z]{2}$/.test(country)
+            ? country
+            : undefined,
+    };
   }
 
   async createRecurringPaymentLink(

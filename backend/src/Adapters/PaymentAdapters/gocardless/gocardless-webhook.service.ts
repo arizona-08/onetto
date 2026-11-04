@@ -7,6 +7,7 @@ import { GoCardlessBillingRequestWebhookHandler } from './webhook-handlers/gocar
 import { PrismaService } from 'src/prisma/prisma.service';
 import { $Enums } from '@prisma/client';
 import { GoCardlessOAuthService } from './gocardless-oauth.service';
+import { ServiceUnavailableException } from '@nestjs/common';
 
 @Injectable()
 export class GoCardlessWebhookService {
@@ -30,13 +31,15 @@ export class GoCardlessWebhookService {
     // Implement the logic to redirect the webhook to the correct handler based on the event type
 
     const events = webhook.events;
+    let failed = false;
     for (const event of events) {
       try {
-        const claimed = await this.claimEvent(event.id);
-        if (!claimed) {
-          console.log(
-            `Webhook event with ID ${event.id} has already been processed. Skipping.`,
-          );
+        const claim = await this.claimEvent(event.id);
+        if (claim.state === 'completed') {
+          continue;
+        }
+        if (claim.state === 'pending') {
+          failed = true;
           continue;
         }
 
@@ -56,18 +59,32 @@ export class GoCardlessWebhookService {
               await this.instalmentSchedulesHandler.handleWebhook(event);
               break;
           }
-        } catch (error) {
-          await this.prismaService.processedWebhookEvents.delete({
-            where: {
-              provider_providerEventId: {
+          const completed =
+            await this.prismaService.processedWebhookEvents.updateMany({
+              where: {
                 provider: $Enums.PaymentProvider.GOCARDLESS,
                 providerEventId: event.id,
+                claimedAt: claim.claimedAt,
+                completedAt: null,
               },
+              data: { completedAt: new Date() },
+            });
+          if (completed.count !== 1) {
+            throw new Error(`Webhook ${event.id}: réservation expirée.`);
+          }
+        } catch (error) {
+          await this.prismaService.processedWebhookEvents.deleteMany({
+            where: {
+              provider: $Enums.PaymentProvider.GOCARDLESS,
+              providerEventId: event.id,
+              claimedAt: claim.claimedAt,
+              completedAt: null,
             },
           });
           throw error;
         }
       } catch (error) {
+        failed = true;
         const tokenWasRevoked = await Promise.resolve(
           this.gocardlessOAuthService.markProviderAccountDisconnectedIfTokenInactive(
             event.organisation_id,
@@ -85,6 +102,11 @@ export class GoCardlessWebhookService {
         );
       }
     }
+    if (failed) {
+      throw new ServiceUnavailableException(
+        'Certains événements GoCardless n’ont pas pu être traités.',
+      );
+    }
   }
 
   async isAlreadyProcessed(
@@ -100,26 +122,59 @@ export class GoCardlessWebhookService {
           },
         },
       });
-    return !!existingEvent;
+    return !!existingEvent?.completedAt;
   }
 
-  private async claimEvent(eventId: string): Promise<boolean> {
+  private async claimEvent(
+    eventId: string,
+  ): Promise<
+    | { state: 'claimed'; claimedAt: Date }
+    | { state: 'completed' }
+    | { state: 'pending' }
+  > {
+    const claimedAt = new Date();
     try {
       await this.prismaService.processedWebhookEvents.create({
         data: {
           provider: $Enums.PaymentProvider.GOCARDLESS,
           providerEventId: eventId,
+          claimedAt,
         },
       });
-      return true;
+      return { state: 'claimed', claimedAt };
     } catch (error) {
-      if (
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        error.code === 'P2002'
-      ) {
-        return false;
+      const prismaError = error as { code?: unknown } | null;
+      if (prismaError?.code === 'P2002') {
+        const current =
+          await this.prismaService.processedWebhookEvents.findUnique({
+            where: {
+              provider_providerEventId: {
+                provider: $Enums.PaymentProvider.GOCARDLESS,
+                providerEventId: eventId,
+              },
+            },
+            select: { completedAt: true, claimedAt: true },
+          });
+        if (current?.completedAt) return { state: 'completed' };
+        if (
+          !current ||
+          current.claimedAt > new Date(Date.now() - 15 * 60_000)
+        ) {
+          return { state: 'pending' };
+        }
+        const recovered =
+          await this.prismaService.processedWebhookEvents.updateMany({
+            where: {
+              provider: $Enums.PaymentProvider.GOCARDLESS,
+              providerEventId: eventId,
+              claimedAt: current.claimedAt,
+              completedAt: null,
+            },
+            data: { claimedAt },
+          });
+        return recovered.count === 1
+          ? { state: 'claimed', claimedAt }
+          : { state: 'pending' };
       }
       throw error;
     }

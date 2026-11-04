@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { WebhookHandlerInterface } from '../../Interfaces/WebhookHandler.interface';
 import { GoCardlessEventDto } from './dtos/event.dto';
 import { GoCardlessOAuthService } from '../gocardless-oauth.service';
@@ -41,9 +41,7 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       return;
     }
 
-    const instalmentScheduleId = (
-      payment.links as { instalment_schedule?: string } | undefined
-    )?.instalment_schedule;
+    const instalmentScheduleId = payment.links?.instalment_schedule;
     if (instalmentScheduleId) {
       const instalment =
         await this.prismaService.invoicePaymentInstalment.findUnique({
@@ -53,15 +51,29 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
             amountInCents: true,
             instalmentStatus: true,
             automaticRetryScheduled: true,
-            invoiceInstalmentPlan: { select: { invoiceId: true } },
+            manualRetryRequestedAt: true,
+            lastProviderEventAt: true,
+            invoiceInstalmentPlan: {
+              select: { invoiceId: true, providerScheduledId: true },
+            },
           },
         });
       if (instalment) {
+        if (
+          instalment.invoiceInstalmentPlan.providerScheduledId &&
+          instalment.invoiceInstalmentPlan.providerScheduledId !==
+            instalmentScheduleId
+        ) {
+          throw new ConflictException(
+            'Payment GoCardless associé à un autre échéancier.',
+          );
+        }
         await this.syncInstalmentStatus(
           instalment,
           payment.status as string,
           webhookEvent.action,
           webhookEvent.details.will_attempt_retry === true,
+          webhookEvent.created_at,
         );
       } else {
         await this.syncUnmappedInstalmentPayment(
@@ -69,6 +81,12 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
           instalmentScheduleId,
           paymentId,
           payment.status as string,
+          webhookEvent.action,
+          webhookEvent.details.will_attempt_retry === true,
+          webhookEvent.created_at,
+          Number(payment.amount),
+          payment.charge_date ?? null,
+          payment.links?.mandate ?? null,
         );
       }
       return;
@@ -119,6 +137,7 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       'paid_out',
       'failed',
       'resubmission_requested',
+      'charged_back',
     ];
 
     return relevantActions.includes(action);
@@ -136,7 +155,7 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
     nextStatus: 'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED',
   ): boolean {
     if (existingStatus === nextStatus) return false;
-    if (existingStatus === 'SUCCESS') return false;
+    if (existingStatus === 'SUCCESS') return nextStatus === 'FAILED';
     if (nextStatus === 'SUCCESS' || nextStatus === 'PAYMENT_IN_PROGRESS')
       return true;
     return !(
@@ -144,48 +163,110 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
     );
   }
 
-  private async syncInstalmentStatus(
+  async syncInstalmentStatus(
     instalment: {
       id: string;
       amountInCents: number;
       instalmentStatus:
-        'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | 'OVERDUE';
+        | 'PENDING'
+        | 'PAYMENT_IN_PROGRESS'
+        | 'SUCCESS'
+        | 'FAILED'
+        | 'OVERDUE';
       automaticRetryScheduled: boolean;
-      invoiceInstalmentPlan: { invoiceId: string };
+      manualRetryRequestedAt: Date | null;
+      lastProviderEventAt: Date | null;
+      invoiceInstalmentPlan: {
+        invoiceId: string;
+        providerScheduledId?: string | null;
+      };
     },
     paymentStatus: string,
     eventAction?: string,
     willAttemptRetry = false,
+    eventCreatedAt?: string,
   ): Promise<void> {
+    const eventAt = eventCreatedAt ? new Date(eventCreatedAt) : null;
+    const staleEvent =
+      !!eventAt &&
+      !!instalment.lastProviderEventAt &&
+      eventAt < instalment.lastProviderEventAt;
     const mappedStatus =
-      eventAction === 'resubmission_requested'
+      eventAction === 'resubmission_requested' &&
+      ['pending_submission', 'pending_customer_approval'].includes(
+        paymentStatus,
+      )
         ? 'PAYMENT_IN_PROGRESS'
         : this.gocardlessStatusMatcherService.matchPaymentAttemptStatus(
             paymentStatus,
           );
     const automaticRetryScheduled =
-      eventAction === 'failed' && willAttemptRetry
-        ? true
-        : eventAction === 'resubmission_requested'
-          ? false
-          : instalment.automaticRetryScheduled;
+      paymentStatus !== 'failed'
+        ? false
+        : staleEvent
+          ? instalment.automaticRetryScheduled
+          : eventAction === 'failed'
+            ? willAttemptRetry
+            : eventAction === 'resubmission_requested'
+              ? false
+              : instalment.automaticRetryScheduled;
+    const releaseManualRetry =
+      !!instalment.manualRetryRequestedAt &&
+      !!eventCreatedAt &&
+      eventAt !== null &&
+      eventAt >= instalment.manualRetryRequestedAt &&
+      (paymentStatus !== 'failed' || eventAction === 'failed') &&
+      [
+        'resubmission_requested',
+        'submitted',
+        'confirmed',
+        'paid_out',
+        'failed',
+        'charged_back',
+      ].includes(eventAction ?? '');
     const canUpdateStatus = this.canUpdateStatus(
       instalment.instalmentStatus,
       mappedStatus,
     );
     if (
       !canUpdateStatus &&
-      instalment.automaticRetryScheduled === automaticRetryScheduled
+      instalment.automaticRetryScheduled === automaticRetryScheduled &&
+      (staleEvent ||
+        !eventAt ||
+        (instalment.lastProviderEventAt !== null &&
+          eventAt <= instalment.lastProviderEventAt)) &&
+      !releaseManualRetry
     ) {
+      // The previous webhook may have persisted the instalment but failed
+      // before the invoice could be recalculated. Reconcile it on delivery.
+      await this.invoicePaymentStatusService.refreshFromInstalment(
+        instalment.invoiceInstalmentPlan.invoiceId,
+      );
       return;
     }
 
     await this.prismaService.invoicePaymentInstalment.update({
-      where: { id: instalment.id },
+      // Two distinct webhook events may read the same previous state. Only
+      // the first may commit the transition and trigger its receipt/notice.
+      where: {
+        id: instalment.id,
+        instalmentStatus: instalment.instalmentStatus,
+        manualRetryRequestedAt: instalment.manualRetryRequestedAt,
+        lastProviderEventAt: instalment.lastProviderEventAt,
+      },
       data: {
         ...(canUpdateStatus ? { instalmentStatus: mappedStatus } : {}),
         automaticRetryScheduled,
-        ...(mappedStatus === 'SUCCESS' ? { paidAt: new Date() } : {}),
+        ...(!staleEvent && eventAt ? { lastProviderEventAt: eventAt } : {}),
+        ...(releaseManualRetry ? { manualRetryRequestedAt: null } : {}),
+        ...(canUpdateStatus && mappedStatus === 'SUCCESS'
+          ? { paidAt: new Date() }
+          : {}),
+        ...(canUpdateStatus &&
+        instalment.instalmentStatus === 'SUCCESS' &&
+        mappedStatus === 'FAILED'
+          ? { paidAt: null }
+          : {}),
       },
     });
     await this.invoicePaymentStatusService.refreshFromInstalment(
@@ -194,7 +275,11 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
         ? instalment.amountInCents
         : undefined,
     );
-    if (canUpdateStatus && mappedStatus === 'PAYMENT_IN_PROGRESS') {
+    if (
+      canUpdateStatus &&
+      mappedStatus === 'PAYMENT_IN_PROGRESS' &&
+      eventAction === 'submitted'
+    ) {
       await this.invoicePaymentStatusService.notifyPaymentSubmittedForInstalment(
         instalment.invoiceInstalmentPlan.invoiceId,
         instalment.amountInCents,
@@ -202,11 +287,7 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
     }
   }
 
-  /**
-   * The schedule can be created before GoCardless exposes links.payments. When
-   * its payment webhook arrives, fetch the schedule and associate IDs by their
-   * documented order in links.payments.
-   */
+  /** Bind an unknown Payment only when its amount and charge date identify one instalment. */
   private async syncUnmappedInstalmentPayment(
     client: Awaited<
       ReturnType<GoCardlessOAuthService['getClientForProviderAccount']>
@@ -214,14 +295,29 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
     instalmentScheduleId: string,
     paymentId: string,
     paymentStatus: string,
+    eventAction?: string,
+    willAttemptRetry = false,
+    eventCreatedAt?: string,
+    paymentAmount?: number,
+    chargeDate?: string | null,
+    mandateId?: string | null,
   ): Promise<void> {
     const plan = await this.prismaService.invoiceInstalmentPlan.findFirst({
       where: { providerScheduledId: instalmentScheduleId },
       select: {
         invoiceId: true,
+        providerMandateId: true,
         invoicePaymentInstalments: {
-          orderBy: { instalmentNumber: 'asc' },
-          select: { id: true, amountInCents: true, instalmentStatus: true },
+          select: {
+            id: true,
+            amountInCents: true,
+            dueDate: true,
+            providerPaymentId: true,
+            instalmentStatus: true,
+            automaticRetryScheduled: true,
+            manualRetryRequestedAt: true,
+            lastProviderEventAt: true,
+          },
         },
       },
     });
@@ -234,35 +330,74 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
 
     const schedule =
       await client.instalmentSchedules.find(instalmentScheduleId);
-    const paymentIndex = schedule?.links?.payments?.indexOf(paymentId) ?? -1;
-    const instalment = plan.invoicePaymentInstalments[paymentIndex];
-    if (!instalment) {
+    const ids = schedule?.links?.payments ?? [];
+    if (
+      !ids.includes(paymentId) ||
+      !chargeDate ||
+      !Number.isInteger(paymentAmount) ||
+      (plan.providerMandateId && plan.providerMandateId !== mandateId)
+    ) {
       this.logger.warn(
-        `Payment ${paymentId} absent des Payments du schedule ${instalmentScheduleId}.`,
+        `Payment ${paymentId} ne peut pas être relié à l'échéancier ${instalmentScheduleId}.`,
       );
       return;
     }
-
-    await this.prismaService.invoicePaymentInstalment.update({
-      where: { id: instalment.id },
+    const matches = plan.invoicePaymentInstalments.filter(
+      (item) =>
+        !item.providerPaymentId &&
+        item.amountInCents === paymentAmount &&
+        item.dueDate.toISOString().slice(0, 10) === chargeDate,
+    );
+    const competing = await Promise.all(
+      ids
+        .filter((id) => id !== paymentId)
+        .map((id) => client.payments.find(id)),
+    );
+    if (
+      matches.length !== 1 ||
+      competing.some(
+        (other) =>
+          other &&
+          !plan.invoicePaymentInstalments.some(
+            (item) => item.providerPaymentId === other.id,
+          ) &&
+          Number(other.amount) === paymentAmount &&
+          other.charge_date === chargeDate,
+      )
+    ) {
+      this.logger.warn(
+        `Payment ${paymentId}: association à une échéance ambiguë.`,
+      );
+      return;
+    }
+    const instalment = matches[0];
+    const bound = await this.prismaService.invoicePaymentInstalment.updateMany({
+      where: { id: instalment.id, providerPaymentId: null },
       data: { providerPaymentId: paymentId },
     });
+    if (bound.count !== 1) return;
     await this.syncInstalmentStatus(
       {
         ...instalment,
-        automaticRetryScheduled: false,
         invoiceInstalmentPlan: { invoiceId: plan.invoiceId },
       },
       paymentStatus,
+      eventAction,
+      willAttemptRetry,
+      eventCreatedAt,
     );
   }
 
-  private async syncKnownPaymentAttemptStatus(
+  async syncKnownPaymentAttemptStatus(
     attempt: {
       id: string;
       payByBankPaymentId: string;
       paymentStatus:
-        'PENDING' | 'PAYMENT_IN_PROGRESS' | 'SUCCESS' | 'FAILED' | null;
+        | 'PENDING'
+        | 'PAYMENT_IN_PROGRESS'
+        | 'SUCCESS'
+        | 'FAILED'
+        | null;
     },
     paymentStatus: string,
   ): Promise<void> {
@@ -272,10 +407,13 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       );
     if (!this.canUpdateStatus(attempt.paymentStatus, mappedStatus)) return;
 
-    await this.prismaService.payByBankPaymentAttempt.update({
-      where: { id: attempt.id },
-      data: { paymentStatus: mappedStatus },
-    });
+    const updated = await this.prismaService.payByBankPaymentAttempt.updateMany(
+      {
+        where: { id: attempt.id, paymentStatus: attempt.paymentStatus },
+        data: { paymentStatus: mappedStatus },
+      },
+    );
+    if (updated.count !== 1) return;
     await this.invoicePaymentStatusService.refreshFromPaymentAttempt(
       attempt.payByBankPaymentId,
       mappedStatus === 'SUCCESS',

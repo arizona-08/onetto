@@ -7,8 +7,10 @@ import InstalmentSchedule from "../components/molecules/InstalmentSchedule";
 
 export default function PaymentSummary({
   payment,
+  token,
 }: {
   payment: PublicPayment;
+  token: string;
 }) {
   const { document } = payment;
   const instalments =
@@ -87,7 +89,9 @@ export default function PaymentSummary({
             <InstalmentSchedule instalments={instalments} className="mt-7" />
             {payment.paymentLink ? (
               <a
-                href={payment.paymentLink}
+                href={document.invoicePaymentMode?.paymentMode === 'INSTALMENTS'
+                  ? `/payment/authorize?token=${encodeURIComponent(token)}`
+                  : payment.paymentLink}
                 className="mt-8 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-primary hover:text-white"
               >
                 <CreditCard className="h-4 w-4" />
@@ -95,7 +99,7 @@ export default function PaymentSummary({
               </a>
             ) : (
               <p className="mt-8 rounded-lg bg-zinc-100 px-4 py-3 text-sm text-zinc-700">
-                Le paiement en ligne de cette facture n’est plus disponible.
+                {payment.paymentMessage ?? "Le paiement en ligne de cette facture n’est plus disponible."}
               </p>
             )}
           </div>

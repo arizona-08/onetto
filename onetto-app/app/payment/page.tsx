@@ -22,7 +22,7 @@ export default async function PaymentPage({
     );
   }
 
-  return <PaymentSummary payment={response.data} />;
+  return <PaymentSummary payment={response.data} token={token} />;
 }
 
 function PaymentError({ message }: { message: string }) {
