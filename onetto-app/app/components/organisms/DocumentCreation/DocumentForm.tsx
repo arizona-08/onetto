@@ -12,7 +12,7 @@ import {
 interface DocumentFormProps {
   client?: Client | null;
   lineItems?: ServiceLineItem[];
-  documentDates?: DocumentDates;
+  documentDates: DocumentDates;
   onClientChange: (client: Client | null) => void;
   onLineItemsChange: (lineItems: ServiceLineItem[]) => void;
   onDocumentDatesChange: (dates: DocumentDates) => void;
