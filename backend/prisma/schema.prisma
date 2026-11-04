@@ -524,6 +524,8 @@ model InvoicePaymentLink {
   invoice   Document @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   url String
+  providerFlowId        String?
+  providerFlowExpiresAt DateTime?
 
   provider          PaymentProvider @default(BRIDGE)
   providerReference String          @unique
@@ -623,6 +625,7 @@ model InvoiceInstalmentPlan {
   providerReference          String   @unique
   providerScheduledId        String?
   providerMandateId          String?
+  authorizationFailureReason String?
   isCompleted                Boolean  @default(false)
   lastReconciledAt           DateTime?
   nextReconciliationAt       DateTime?

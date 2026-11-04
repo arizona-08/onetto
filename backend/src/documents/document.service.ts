@@ -26,6 +26,7 @@ import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ere
 import { SuperPdpB2bService } from 'src/electronic-invoicing/superpdp-b2b.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { S3StorageService } from 'src/storage/s3-storage.service';
+import { GoCardlessProviderService } from 'src/Adapters/PaymentAdapters/gocardless/gocardless-provider.service';
 
 @Injectable()
 export class DocumentService {
@@ -44,6 +45,7 @@ export class DocumentService {
     private readonly superPdpB2bService: SuperPdpB2bService,
     private readonly notifications: NotificationsService,
     private readonly storage: S3StorageService,
+    private readonly gocardlessProvider: GoCardlessProviderService,
   ) {
     this.callbackUrl =
       this.configService.get<string>('BRIDGE_CALLBACK_URL') || '';
@@ -2242,12 +2244,24 @@ export class DocumentService {
       );
     }
 
+    const instalmentFlow =
+      publicAccess.invoice.invoicePaymentMode?.paymentMode === 'INSTALMENTS' &&
+      publicAccess.invoice.company.status === 'ACTIVE' &&
+      publicAccess.invoicePaymentLink.provider === 'GOCARDLESS'
+        ? await this.gocardlessProvider.getCurrentInstalmentFlow(
+            publicAccess.invoice.id,
+            accessToken,
+          )
+        : null;
+
     return {
-      paymentLink:
-        publicAccess.invoice.company.status === 'ACTIVE' &&
-        publicAccess.invoicePaymentLink.linkStatus === 'VALID'
+      paymentLink: instalmentFlow
+        ? instalmentFlow.url
+        : publicAccess.invoice.company.status === 'ACTIVE' &&
+            publicAccess.invoicePaymentLink.linkStatus === 'VALID'
           ? publicAccess.invoicePaymentLink.url
           : null,
+      paymentMessage: instalmentFlow?.message,
       expiresAt: publicAccess.expiresAt,
       document: publicAccess.invoice,
     };

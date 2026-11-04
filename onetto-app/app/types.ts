@@ -139,6 +139,7 @@ export type DocumentService = {
 
 export type PublicPayment = {
   paymentLink: string | null;
+  paymentMessage?: string;
   expiresAt: string;
   document: Pick<
     Document,
