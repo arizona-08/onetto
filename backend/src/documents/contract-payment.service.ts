@@ -375,10 +375,14 @@ export class ContractPaymentService {
     if (!changed) throw new ConflictException('Ce règlement a déjà été enregistré.');
     try {
       await this.reporting.syncCollectedPaymentsForInvoice(stage.invoice.id);
+    } catch (error) {
+      console.error(`E-reporting du règlement manuel ${stage.invoice.id} à vérifier :`, error);
+    }
+    try {
       await this.b2b.reportContractStagePayment(stage.invoice.id);
     } catch (error) {
       // The settlement remains recorded; documentary reporting is reconciled separately.
-      console.error(`Déclaration du règlement manuel ${stage.invoice.id} à vérifier :`, error);
+      console.error(`Déclaration B2B du règlement manuel ${stage.invoice.id} à vérifier :`, error);
     }
     return { settledAt };
   }

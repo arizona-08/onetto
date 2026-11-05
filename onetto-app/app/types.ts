@@ -124,6 +124,7 @@ export type Document = {
     kind: "DEPOSIT" | "BALANCE";
     sequence: number;
     percentage: number;
+    plan?: { stages: Array<{ kind: "DEPOSIT" | "BALANCE" }> };
   } | null;
   invoicePaymentLinks?: Array<{ provider: "GOCARDLESS" | "BRIDGE" }>;
   invoiceInstalmentPlan?: {

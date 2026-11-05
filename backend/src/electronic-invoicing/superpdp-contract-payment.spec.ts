@@ -12,7 +12,7 @@ describe('SuperPDP contract payment declaration', () => {
   };
   const prisma = {
     document: { findUnique: jest.fn() },
-    electronicInvoiceEvent: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
+    electronicInvoiceEvent: { findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn(), update: jest.fn() },
   };
   const oauth = { getAccessToken: jest.fn() };
   const service = new SuperPdpB2bService(prisma as never, oauth as never, {} as never);
@@ -38,6 +38,7 @@ describe('SuperPDP contract payment declaration', () => {
     const body = JSON.parse((request.mock.calls[0][1] as RequestInit).body as string);
     expect(body).toMatchObject({ invoice_id: 123, status_code: 'fr:212' });
     expect(body.details[0].reported_data[0].amount).toBe('30.00');
+    expect(body.details[0].reported_data[0].date).toBe('2026-11-05');
     expect(prisma.electronicInvoiceEvent.update).toHaveBeenCalledWith({
       where: { id: 'reservation-1' },
       data: expect.objectContaining({ providerEventId: '456', providerStatus: 'fr:212' }),
@@ -49,5 +50,26 @@ describe('SuperPDP contract payment declaration', () => {
     prisma.electronicInvoiceEvent.findUnique.mockResolvedValue({ id: 'existing' });
     await service.reportContractStagePayment('invoice-1');
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it('reconciles an uncertain report by reading provider events without sending it again', async () => {
+    prisma.electronicInvoiceEvent.findMany.mockResolvedValue([{
+      id: 'reservation-1', sourceReference: 'contract:payment-1',
+      transmission: { providerInvoiceId: '123', document: { companyId: 'company-1' } },
+    }]);
+    const request = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true, json: async () => ({
+        data: [{ id: 456, status_code: 'fr:212', details: [{ reported_data: [{ id: 'contract:payment-1' }] }] }],
+        has_after: false,
+      }),
+    } as never);
+    const result = await service.reconcileContractPaymentReports();
+    expect(result).toEqual({ checked: 1, confirmed: 1, failed: 0 });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect((request.mock.calls[0][1] as RequestInit)?.method).toBeUndefined();
+    expect(prisma.electronicInvoiceEvent.update).toHaveBeenCalledWith({
+      where: { id: 'reservation-1' },
+      data: expect.objectContaining({ providerStatus: 'fr:212' }),
+    });
   });
 });

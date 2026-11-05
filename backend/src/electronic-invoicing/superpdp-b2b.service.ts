@@ -17,6 +17,7 @@ type ProviderEvent = {
   status_code?: string;
   status_text?: string;
   created_at?: string;
+  details?: Array<{ reported_data?: Array<{ id?: string }> }>;
   [key: string]: unknown;
 };
 
@@ -60,23 +61,25 @@ export class SuperPdpB2bService {
           type: 'fr:212',
           providerStatus: 'PENDING',
           source: 'PAYMENT',
-          occurredAt: payment?.status === 'SUCCESS' ? payment.updatedAt : new Date(),
+          occurredAt: payment?.manualSettlementAt ?? payment?.updatedAt ?? new Date(),
         },
       });
-    } catch {
+    } catch (error) {
       // A concurrent webhook or reconciliation reserved the same report.
-      return;
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return;
+      throw error;
     }
     try {
       const token = await this.oauth.getAccessToken(document.companyId);
       const amount = Number(document.totalPrice).toFixed(2);
+      const collectionDate = payment?.manualSettlementAt ?? payment?.updatedAt ?? new Date();
       const response = await fetch('https://api.superpdp.tech/v1.beta/invoice_events', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           invoice_id: Number(transmission.providerInvoiceId),
           status_code: 'fr:212',
-          details: [{ reported_data: [{ amount, currency_code: document.currencyCode, date: new Date().toISOString().slice(0, 10), id: sourceReference }] }],
+          details: [{ reported_data: [{ amount, currency_code: document.currencyCode, date: collectionDate.toISOString().slice(0, 10), id: sourceReference }] }],
         }),
       });
       if (!response.ok) throw new Error(`SuperPDP a refusé la déclaration d’encaissement (${response.status}).`);
@@ -336,6 +339,45 @@ export class SuperPdpB2bService {
       checked: transmissions.length,
       synchronized: results.filter((result) => result.status === 'fulfilled')
         .length,
+      failed: results.filter((result) => result.status === 'rejected').length,
+    };
+  }
+
+  /** Checks uncertain declarations at the provider without ever posting them again. */
+  async reconcileContractPaymentReports() {
+    const reports = await this.prisma.electronicInvoiceEvent.findMany({
+      where: {
+        source: 'PAYMENT',
+        providerStatus: { in: ['PENDING', 'UNCERTAIN'] },
+        receivedAt: { lt: new Date(Date.now() - 10 * 60_000) },
+        transmission: { provider: 'SUPER_PDP', providerInvoiceId: { not: null } },
+      },
+      include: { transmission: { include: { document: { select: { companyId: true } } } } },
+      orderBy: { receivedAt: 'asc' },
+      take: 100,
+    });
+    const results = await Promise.allSettled(reports.map(async (report) => {
+      const providerInvoiceId = report.transmission.providerInvoiceId;
+      if (!providerInvoiceId || !report.sourceReference) return false;
+      const token = await this.oauth.getAccessToken(report.transmission.document.companyId);
+      const events = await this.listAllProviderEvents(providerInvoiceId, { Authorization: `Bearer ${token}` });
+      const matching = events.find((event) => event.status_code === 'fr:212' &&
+        event.details?.some((detail) => detail.reported_data?.some((item) => item.id === report.sourceReference)));
+      if (!matching?.id) return false;
+      // A regular transmission poll may already have stored this provider event.
+      // Keep the original reservation so its sourceReference stays unique.
+      await this.prisma.electronicInvoiceEvent.update({
+        where: { id: report.id },
+        data: {
+          providerStatus: 'fr:212',
+          payload: matching as Prisma.InputJsonValue,
+        },
+      });
+      return true;
+    }));
+    return {
+      checked: reports.length,
+      confirmed: results.filter((result) => result.status === 'fulfilled' && result.value).length,
       failed: results.filter((result) => result.status === 'rejected').length,
     };
   }

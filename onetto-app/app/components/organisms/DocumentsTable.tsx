@@ -81,6 +81,14 @@ function getDocumentIssueLabel(document: Document) {
   }).format(new Date(issuedAt))}`;
 }
 
+function getContractInvoiceLabel(document: Document) {
+  const stage = document.contractStageInvoice;
+  if (!stage) return null;
+  if (stage.kind === "BALANCE") return "Facture finale";
+  const depositCount = stage.plan?.stages.filter((item) => item.kind === "DEPOSIT").length;
+  return depositCount ? `Acompte ${stage.sequence}/${depositCount}` : `Acompte ${stage.sequence}`;
+}
+
 const invoiceStatusFilterMatcher: Partial<Record<InvoiceSelectStatus, string>> =
   {
     "En attente": "PENDING",
@@ -467,8 +475,19 @@ function DocumentsTable({
     const isInstalments =
       document.invoicePaymentMode?.paymentMode === "INSTALMENTS";
     const isDraft = document.invoiceStatus === "DRAFT";
+    if (document.contractStageInvoice && !isDraft) {
+      return <InvoiceActionsMenu
+        documentNumber={document.documentNumber}
+        actions={[{
+          label: "Gérer les acomptes",
+          icon: FileChartColumnIncreasing,
+          onSelect: () => router.push(`/documents/${document.sourceDocumentId ?? document.id}`),
+        }]}
+        busy={false}
+      />;
+    }
     const isOneTimePending =
-      !isInstalments && document.invoiceStatus === "PENDING";
+      !isInstalments && !document.contractStageInvoice && document.invoiceStatus === "PENDING";
     const hasUnsettledInstalment =
       isInstalments &&
       document.invoiceInstalmentPlan?.invoicePaymentInstalments.some(
@@ -525,14 +544,14 @@ function DocumentsTable({
         onSelect: () => openManualPaymentModal(document),
       });
     }
-    if (!isInstalments && document.invoiceStatus === "PAID_MANUALLY") {
+    if (!isInstalments && !document.contractStageInvoice && document.invoiceStatus === "PAID_MANUALLY") {
       actions.push({
         label: "Repasser en attente",
         icon: RotateCcw,
         onSelect: () => void handleManualPaymentStatus(document),
       });
     }
-    if (!isInstalments && document.invoiceStatus === "REJECTED") {
+    if (!isInstalments && !document.contractStageInvoice && document.invoiceStatus === "REJECTED") {
       actions.push({
         label: "Envoyer un nouveau lien",
         icon: RotateCcw,
@@ -649,6 +668,7 @@ function DocumentsTable({
     return (
       !isInvoiceType &&
       document.estimateStatus === "ACCEPTED" &&
+      !document.contractPaymentPlan &&
       !document.convertedDocuments?.length
     );
   }
@@ -768,6 +788,9 @@ function DocumentsTable({
                     <p className="text-xs text-zinc-500">
                       {getDocumentIssueLabel(document)}
                     </p>
+                    {getContractInvoiceLabel(document) && (
+                      <p className="text-xs font-medium text-primary">{getContractInvoiceLabel(document)}</p>
+                    )}
                   </div>
 
                   <div className="shrink-0 text-right">
@@ -865,6 +888,9 @@ function DocumentsTable({
                     <p className="mt-1 text-xs text-zinc-500">
                       {getDocumentIssueLabel(document)}
                     </p>
+                    {getContractInvoiceLabel(document) && (
+                      <p className="mt-1 text-xs font-medium text-primary">{getContractInvoiceLabel(document)}</p>
+                    )}
                   </td>
                   <td className="px-5 py-5 align-center">
                     <div className="flex items-center gap-3">

@@ -4,6 +4,9 @@ import { DocumentService } from './document.service';
 jest.mock('src/Adapters/PaymentAdapters/payment.service', () => ({
   PaymentService: class {},
 }));
+jest.mock('src/Adapters/PaymentAdapters/gocardless/gocardless-provider.service', () => ({
+  GoCardlessProviderService: class {},
+}));
 jest.mock(
   'src/Adapters/PaymentAdapters/gocardless/gocardless-instalment-retry.service',
   () => ({ GoCardlessInstalmentRetryService: class {} }),

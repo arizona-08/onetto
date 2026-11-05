@@ -43,6 +43,7 @@ describe('ContractPaymentService mandate authorisation', () => {
   };
   const prisma = {
     $transaction: jest.fn((work: (value: typeof tx) => Promise<unknown>) => work(tx)),
+    contractPaymentPlan: { findUnique: jest.fn() },
     contractStagePayment: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     document: { update: jest.fn() },
   };
@@ -57,6 +58,7 @@ describe('ContractPaymentService mandate authorisation', () => {
     tx.contractPaymentPlan.update.mockResolvedValue({ ...plan });
     oauth.getClientForCompany.mockResolvedValue(client);
     client.billingRequests.find.mockResolvedValue({ status: 'pending' });
+    client.mandates.find.mockResolvedValue({ status: 'active' });
     client.payments.create.mockResolvedValue({ id: 'PM1', amount: '3000', charge_date: '2099-01-10', links: { mandate: 'MD1' } });
     prisma.contractStagePayment.create.mockResolvedValue({ id: 'payment-1' });
     prisma.contractStagePayment.update.mockResolvedValue({ id: 'payment-1' });
@@ -90,7 +92,8 @@ describe('ContractPaymentService mandate authorisation', () => {
   it('does not create another flow once a mandate exists', async () => {
     tx.contractPaymentPlan.findUnique.mockResolvedValue({ ...plan, providerMandateId: 'MD1', mandateStatus: 'ACTIVE' });
     await expect(service.getMandateAuthorisation('token')).resolves.toMatchObject({ url: null });
-    expect(oauth.getClientForCompany).not.toHaveBeenCalled();
+    expect(client.mandates.find).toHaveBeenCalledWith('MD1');
+    expect(client.billingRequestFlows.create).not.toHaveBeenCalled();
   });
 
   describe('manual stage payments', () => {

@@ -696,6 +696,11 @@ export class DocumentService {
                 },
               },
             },
+            contractStageInvoice: {
+              select: { kind: true, sequence: true, percentage: true,
+                plan: { select: { stages: { select: { kind: true } } } } },
+            },
+            contractPaymentPlan: { select: { id: true } },
             convertedDocuments: {
               where: { type: 'INVOICE' },
               select: { id: true },
@@ -738,6 +743,11 @@ export class DocumentService {
               },
             },
           },
+          contractStageInvoice: {
+            select: { kind: true, sequence: true, percentage: true,
+              plan: { select: { stages: { select: { kind: true } } } } },
+          },
+          contractPaymentPlan: { select: { id: true } },
           convertedDocuments: {
             where: { type: 'INVOICE' },
             select: { id: true },

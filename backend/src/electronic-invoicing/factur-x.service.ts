@@ -445,18 +445,6 @@ export class FacturXService {
       document.clientType === 'BUSINESS'
         ? buyerElectronicAddress
         : individualBuyerAddress;
-    console.log('[Factur-X] B2B addressing data', {
-      documentId: document.id,
-      operationNature: document.operationNature,
-      businessProcessType: this.getBusinessProcessType(
-        document.operationNature,
-      ),
-      sellerElectronicAddress: document.company.electronicAddress,
-      sellerElectronicAddressScheme: electronicScheme,
-      buyerElectronicAddress,
-      buyerSiren: inferredBuyerSiren,
-      peppolRoutingIdentifier,
-    });
     return {
       number: compliantInvoiceNumber,
       issue_date: issueDate,
@@ -476,7 +464,7 @@ export class FacturXService {
         business_process_type:
           profile === 'peppol'
             ? 'urn:fdc:peppol.eu:2017:poacc:billing:01:1.0'
-            : stage?.kind === 'DEPOSIT'
+            : isFinal
               ? document.operationNature === 'GOODS' ? 'B4' : document.operationNature === 'MIXED' ? 'M4' : 'S4'
               : this.getBusinessProcessType(document.operationNature),
       },
@@ -578,11 +566,9 @@ export class FacturXService {
     };
   }
 
-  private getBusinessProcessType(operationNature: string | null): 'B1' | 'S1' {
+  private getBusinessProcessType(operationNature: string | null): 'B1' | 'S1' | 'M1' {
     if (operationNature === 'GOODS') return 'B1';
-    // Factur-X's French conversion requires one code. The Peppol UBL transport
-    // uses its own profile; a mixed document is therefore archived with the
-    // generic service process while its B2C reporting is split per line type.
+    if (operationNature === 'MIXED') return 'M1';
     return 'S1';
   }
 }
