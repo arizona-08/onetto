@@ -82,4 +82,43 @@ describe('FacturXService buyer address', () => {
       scheme: '0002',
     });
   });
+
+  it('marks a contract deposit as type 386 with the deposit process', () => {
+    const result = service['toEn16931']({
+      ...invoice,
+      contractStageInvoice: {
+        kind: 'DEPOSIT', sequence: 1, percentage: 25,
+        plan: { estimate: { documentNumber: '#DEV-2026-0001' } },
+      },
+    });
+    expect(result.type_code).toBe(386);
+    expect(result.process_control.business_process_type).toBe('S4');
+    expect(result.sales_order_reference).toBe('DEV-2026-0001');
+  });
+
+  it('deducts paid deposits and references their issued invoices on the final invoice', () => {
+    const deposit = {
+      documentNumber: '#FACT-2026-0001', totalPrice: 30,
+      invoiceStatus: 'PAID', sentAt: new Date('2026-10-25'), createdAt: new Date('2026-10-24'),
+    };
+    const result = service['toEn16931']({
+      ...invoice,
+      documentNumber: '#FACT-2026-0002',
+      totalPrice: 90,
+      totalPriceExcludingTax: 75,
+      contractStageInvoice: {
+        kind: 'BALANCE', sequence: 2, percentage: 75,
+        plan: {
+          totalAmountInCents: 12000,
+          estimate: { documentNumber: '#DEV-2026-0001', totalPriceExcludingTax: 100, services: invoice.services },
+          stages: [{ kind: 'DEPOSIT', invoice: deposit }, { kind: 'BALANCE', invoice: null }],
+        },
+      },
+    });
+    expect(result.type_code).toBe(380);
+    expect(result.totals).toMatchObject({ total_with_vat: '120.00', paid_amount: '30.00', amount_due_for_payment: '90.00' });
+    expect(result.preceding_invoice_references).toEqual([{
+      reference: 'FACT-2026-0001', issue_date: '2026-10-25', preceding_invoice_type_code: 386,
+    }]);
+  });
 });

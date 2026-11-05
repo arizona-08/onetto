@@ -27,6 +27,8 @@ import { SuperPdpB2bService } from 'src/electronic-invoicing/superpdp-b2b.servic
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { S3StorageService } from 'src/storage/s3-storage.service';
 import { GoCardlessProviderService } from 'src/Adapters/PaymentAdapters/gocardless/gocardless-provider.service';
+import { buildContractStages } from './contract-payment-plan';
+import type { DepositPlanDto } from './dtos/create-document.dto';
 
 @Injectable()
 export class DocumentService {
@@ -60,6 +62,9 @@ export class DocumentService {
           companyId,
           'instalments',
         );
+      }
+      if (data.depositPlan && (type !== 'ESTIMATE' || data.instalmentsDetails)) {
+        throw new BadRequestException('Le plan d’acomptes est réservé aux devis.');
       }
       const documentNumber = await this.createDocumentNumber(type, companyId);
 
@@ -140,6 +145,14 @@ export class DocumentService {
             data.instalmentsDetails,
           );
         }
+        if (type === 'ESTIMATE' && data.depositPlan) {
+          await this.syncContractPaymentPlan(
+            prisma,
+            createdDocument.id,
+            totalDocumentPrice,
+            data.depositPlan,
+          );
+        }
 
         return createdDocument;
       });
@@ -186,6 +199,12 @@ export class DocumentService {
         throw new BadRequestException(
           'Un échéancier ne peut être défini que pour une facture.',
         );
+      }
+      if (data.depositPlan && document.type !== 'ESTIMATE') {
+        throw new BadRequestException('Le plan d’acomptes est réservé aux devis.');
+      }
+      if (document.type === 'ESTIMATE' && document.estimateStatus !== 'DRAFT') {
+        throw new BadRequestException('Un devis déjà envoyé ne peut plus être modifié.');
       }
 
       if (document.type === 'INVOICE' && document.isFromEstimate !== false) {
@@ -329,6 +348,14 @@ export class DocumentService {
               data.instalmentsDetails,
             );
           }
+          if (updatedDocument.type === 'ESTIMATE') {
+            await this.syncContractPaymentPlan(
+              prisma,
+              updatedDocument.id,
+              totalDocumentPrice,
+              data.depositPlan,
+            );
+          }
 
           return updatedDocument;
         },
@@ -427,6 +454,54 @@ export class DocumentService {
     });
   }
 
+  private async syncContractPaymentPlan(
+    prisma: Prisma.TransactionClient,
+    estimateId: string,
+    totalPrice: number,
+    input?: DepositPlanDto,
+  ) {
+    const existing = await prisma.contractPaymentPlan.findUnique({
+      where: { estimateId },
+      select: { id: true, acceptedAt: true },
+    });
+    if (existing?.acceptedAt) {
+      throw new BadRequestException('Le plan accepté ne peut plus être modifié.');
+    }
+    if (!input) {
+      if (existing) {
+        await prisma.contractPaymentStage.deleteMany({ where: { planId: existing.id } });
+        await prisma.contractPaymentPlan.delete({ where: { id: existing.id } });
+      }
+      return;
+    }
+    const totalAmountInCents = new Prisma.Decimal(totalPrice)
+      .times(100)
+      .toDecimalPlaces(0)
+      .toNumber();
+    const stages = buildContractStages(
+      totalAmountInCents,
+      input.deposits,
+      input.balanceCondition,
+    );
+    const plan = existing
+      ? await prisma.contractPaymentPlan.update({
+          where: { id: existing.id },
+          data: { totalAmountInCents },
+        })
+      : await prisma.contractPaymentPlan.create({
+          data: { estimateId, totalAmountInCents },
+        });
+    if (existing) {
+      await prisma.contractPaymentStage.deleteMany({ where: { planId: plan.id } });
+    }
+    await prisma.contractPaymentStage.createMany({
+      data: stages.map((stage) => ({
+        ...stage,
+        planId: plan.id,
+      })),
+    });
+  }
+
   async convertEstimateToInvoice(documentId: string, user: User) {
     try {
       const companyId = await this.getActiveCompanyId(user, true);
@@ -439,6 +514,7 @@ export class DocumentService {
         },
         include: {
           services: true,
+          contractPaymentPlan: { select: { id: true } },
           convertedDocuments: {
             where: { type: 'INVOICE' },
             select: { id: true },
@@ -449,6 +525,12 @@ export class DocumentService {
       if (!document) {
         throw new BadRequestException(
           'Seul un devis accepté peut être transformé en facture.',
+        );
+      }
+
+      if (document.contractPaymentPlan) {
+        throw new BadRequestException(
+          'Ce devis possède un plan d’acomptes. Utilisez les factures de jalon.',
         );
       }
 
@@ -1228,6 +1310,12 @@ export class DocumentService {
         include: {
           services: withServices,
           invoicePaymentMode: true,
+          contractPaymentPlan: {
+            include: { stages: { include: { payment: true, invoice: { select: { id: true, documentNumber: true, invoiceStatus: true, totalPrice: true } } }, orderBy: { sequence: 'asc' } } },
+          },
+          contractStageInvoice: {
+            include: { plan: { include: { estimate: { include: { services: true } }, stages: { include: { invoice: true } } } } },
+          },
           invoiceInstalmentPlan: {
             include: {
               invoicePaymentInstalments: {
@@ -1334,6 +1422,7 @@ export class DocumentService {
           id: true,
           message: true,
           proposedTotalPrice: true,
+          proposedPaymentStages: true,
           status: true,
           document: {
             select: {
@@ -1363,6 +1452,9 @@ export class DocumentService {
                   wtPrice: true,
                   totalPrice: true,
                 },
+              },
+              contractPaymentPlan: {
+                include: { stages: { orderBy: { sequence: 'asc' } } },
               },
               company: {
                 select: {
@@ -1399,15 +1491,20 @@ export class DocumentService {
     };
   }
 
-  async renegociateByToken(negociationToken: string, message: string) {
+  async renegociateByToken(
+    negociationToken: string,
+    message: string,
+    proposedDeposits?: DepositPlanDto['deposits'],
+    proposedBalanceCondition?: string,
+  ) {
     const pendingNegociation =
       await this.prismaService.estimateNegociation.findFirst({
         where: {
           negociationToken,
           status: 'PENDING',
-          document: { type: 'ESTIMATE', company: { status: 'ACTIVE' } },
+          document: { type: 'ESTIMATE', estimateStatus: 'SENT', isLastVersion: true, company: { status: 'ACTIVE' } },
         },
-        select: { document: { select: { companyId: true } } },
+        select: { document: { select: { companyId: true, totalPrice: true, contractPaymentPlan: { select: { id: true } } } } },
       });
     if (!pendingNegociation) return null;
 
@@ -1415,6 +1512,16 @@ export class DocumentService {
       pendingNegociation.document.companyId,
       'negotiation',
     );
+    if (proposedDeposits && !pendingNegociation.document.contractPaymentPlan) {
+      throw new BadRequestException('Ce devis ne comporte pas de plan d’acomptes.');
+    }
+    const proposedPaymentStages = proposedDeposits
+      ? buildContractStages(
+          new Prisma.Decimal(pendingNegociation.document.totalPrice).times(100).toDecimalPlaces(0).toNumber(),
+          proposedDeposits,
+          proposedBalanceCondition,
+        )
+      : null;
 
     const result = await this.prismaService.$transaction(async (prisma) => {
       const negociation = await prisma.estimateNegociation.findFirst({
@@ -1432,7 +1539,11 @@ export class DocumentService {
 
       await prisma.estimateNegociation.update({
         where: { id: negociation.id },
-        data: { message, status: 'RENEGOCIATED' },
+        data: {
+          message,
+          status: 'RENEGOCIATED',
+          proposedPaymentStages: proposedPaymentStages ?? Prisma.DbNull,
+        },
       });
       await prisma.document.update({
         where: { id: negociation.documentId },
@@ -1462,7 +1573,7 @@ export class DocumentService {
         where: {
           negociationToken,
           status: 'PENDING',
-          document: { type: 'ESTIMATE', company: { status: 'ACTIVE' } },
+          document: { type: 'ESTIMATE', estimateStatus: 'SENT', isLastVersion: true, company: { status: 'ACTIVE' } },
         },
         select: { id: true, documentId: true },
       });
@@ -1480,6 +1591,15 @@ export class DocumentService {
         await prisma.document.update({
           where: { id: negociation.documentId },
           data: { estimateStatus: status },
+        });
+      }
+      if (status === 'ACCEPTED') {
+        await prisma.contractPaymentPlan.updateMany({
+          where: { estimateId: negociation.documentId, acceptedAt: null },
+          data: {
+            acceptedAt: new Date(),
+            authorizationExpiresAt: new Date(Date.now() + 30 * 86_400_000),
+          },
         });
       }
 
@@ -1570,7 +1690,12 @@ export class DocumentService {
         estimateStatus: 'SUPERSEDED',
         isLastVersion: true,
       },
-      include: { services: true },
+      include: {
+        services: true,
+        contractPaymentPlan: {
+          include: { stages: { orderBy: { sequence: 'asc' } } },
+        },
+      },
     });
 
     if (!sourceDocument || !sourceDocument.documentNumber) {
@@ -1646,6 +1771,38 @@ export class DocumentService {
         })),
       });
 
+      if (sourceDocument.contractPaymentPlan) {
+        const negotiation = await prisma.estimateNegociation.findFirst({
+          where: { documentId: sourceDocument.id, status: 'RENEGOCIATED' },
+          orderBy: { createdAt: 'desc' },
+          select: { proposedPaymentStages: true },
+        });
+        const proposed = negotiation?.proposedPaymentStages;
+        const proposedStages = Array.isArray(proposed)
+          ? proposed as Array<{ kind: string; percentage: number; triggerCondition: string }>
+          : null;
+        const stages = proposedStages
+          ? buildContractStages(
+              sourceDocument.contractPaymentPlan.totalAmountInCents,
+              proposedStages.filter((stage) => stage.kind === 'DEPOSIT'),
+              proposedStages.find((stage) => stage.kind === 'BALANCE')?.triggerCondition,
+            )
+          : sourceDocument.contractPaymentPlan.stages.map((stage) => ({
+              sequence: stage.sequence,
+              kind: stage.kind,
+              percentage: stage.percentage,
+              amountInCents: stage.amountInCents,
+              triggerCondition: stage.triggerCondition,
+            }));
+        await prisma.contractPaymentPlan.create({
+          data: {
+            estimateId: document.id,
+            totalAmountInCents: sourceDocument.contractPaymentPlan.totalAmountInCents,
+            stages: { create: stages },
+          },
+        });
+      }
+
       return { document };
     });
   }
@@ -1699,6 +1856,19 @@ export class DocumentService {
   async massDeleteDocuments(documentIds: string[], user: User) {
     try {
       const companyId = await this.getActiveCompanyId(user);
+      const protectedDocuments = await this.prismaService.document.count({
+        where: {
+          id: { in: documentIds },
+          companyId,
+          OR: [
+            { contractPaymentPlan: { isNot: null } },
+            { contractStageInvoice: { isNot: null } },
+          ],
+        },
+      });
+      if (protectedDocuments) {
+        throw new BadRequestException('Les devis à acomptes et leurs factures ne peuvent pas être supprimés en masse.');
+      }
       const deleteResult = await this.prismaService.document.deleteMany({
         where: {
           id: { in: documentIds },
@@ -1730,15 +1900,25 @@ export class DocumentService {
   async deleteDraftDocument(documentId: string, user: User) {
     try {
       const companyId = await this.getActiveCompanyId(user);
-      const deleteResult = await this.prismaService.document.deleteMany({
-        where: {
-          id: documentId,
-          companyId,
-          OR: [
-            { type: 'ESTIMATE', estimateStatus: 'DRAFT' },
-            { type: 'INVOICE', invoiceStatus: 'DRAFT' },
-          ],
-        },
+      const deleteResult = await this.prismaService.$transaction(async (tx) => {
+        const draft = await tx.document.findFirst({
+          where: {
+            id: documentId, companyId,
+            OR: [
+              { type: 'ESTIMATE', estimateStatus: 'DRAFT' },
+              { type: 'INVOICE', invoiceStatus: 'DRAFT' },
+            ],
+          },
+          include: { contractStageInvoice: true },
+        });
+        if (!draft || (draft.contractStageInvoice && draft.sentAt)) return { count: 0 };
+        if (draft.contractStageInvoice) {
+          await tx.contractPaymentStage.update({
+            where: { id: draft.contractStageInvoice.id },
+            data: { invoiceId: null },
+          });
+        }
+        return tx.document.deleteMany({ where: { id: documentId, companyId } });
       });
 
       if (deleteResult.count === 0) {
@@ -1789,6 +1969,15 @@ export class DocumentService {
       await this.assertCompanyCanSendDocuments(document.companyId);
 
       const isInvoice = document.type === 'INVOICE';
+      const contractStage = document.contractStageInvoice;
+      if (contractStage?.plan.cancelledAt || contractStage?.cancelledAt) {
+        throw new BadRequestException('Ce contrat est annulé. Aucune nouvelle facture de jalon ne peut être émise.');
+      }
+      if (contractStage?.kind === 'BALANCE' && contractStage.plan.stages.some((stage) =>
+        stage.kind === 'DEPOSIT' && (!stage.invoice || !['PAID', 'PAID_MANUALLY'].includes(stage.invoice.invoiceStatus))
+      )) {
+        throw new BadRequestException('Les factures d’acompte doivent être encaissées avant l’émission de la facture finale.');
+      }
       const negociation = !isInvoice
         ? await this.prismaService.estimateNegociation.create({
             data: {
@@ -1807,10 +1996,10 @@ export class DocumentService {
         ? await this.getInvoiceCompany(document.companyId)
         : null;
 
-      const paymentDetails = isInvoice
+      const paymentDetails = isInvoice && !contractStage
         ? await this.getPaymentModeDetails(document.id)
         : null;
-      const paymentLink = isInvoice
+      const paymentLink = isInvoice && !contractStage
         ? await this.createInvoicePaymentLink(
             paymentDetails!.paymentMode,
             document,
@@ -1820,10 +2009,18 @@ export class DocumentService {
           )
         : undefined;
 
+      const issuedAt = contractStage
+        ? document.sentAt ?? (await this.prismaService.document.update({
+            where: { id: document.id },
+            data: { sentAt: new Date() },
+            select: { sentAt: true },
+          })).sentAt
+        : null;
+
       const invoicePdf = isInvoice
         ? await this.pdfService.generate({
             ...document,
-            sentAt: new Date(),
+            sentAt: issuedAt ?? new Date(),
             company: company!,
           })
         : null;
@@ -1837,7 +2034,20 @@ export class DocumentService {
         );
       }
 
-      const mailContent = isInvoice
+      const mailContent = contractStage
+        ? {
+            subject: `${contractStage.kind === 'DEPOSIT' ? 'Facture d’acompte' : 'Facture finale'} ${document.documentNumber}`,
+            text: [
+              `Bonjour ${document.clientName},`,
+              '',
+              `Veuillez trouver ci-joint la ${contractStage.kind === 'DEPOSIT' ? 'facture d’acompte' : 'facture finale'} ${document.documentNumber} relative au devis ${contractStage.plan.estimate.documentNumber}.`,
+              `Montant à régler : ${document.totalPrice.toFixed(2)} EUR.`,
+              'Aucun prélèvement n’est déclenché par cet envoi. Vous serez informé avant tout prélèvement SEPA.',
+              '',
+              `${company!.name}`,
+            ].join('\n'),
+          }
+        : isInvoice
         ? this.mailService.createInvoiceMail({
             clientName: document.clientName,
             documentNumber: document.documentNumber,
@@ -1871,7 +2081,7 @@ export class DocumentService {
       });
 
       if (isInvoice) {
-        await this.markInvoiceAsDelivered(document.id, document.totalPrice);
+        await this.markInvoiceAsDelivered(document.id, document.totalPrice, issuedAt ?? undefined);
       } else {
         await this.markDocumentAsDelivered(document.id, false);
       }
@@ -1933,6 +2143,9 @@ export class DocumentService {
   async retryInvoicePayment(documentId: string, user: User) {
     try {
       const document = await this.getDocumentById(documentId, user, true);
+      if (document?.contractStageInvoice) {
+        throw new BadRequestException('Relancez le prélèvement du jalon depuis le devis contractuel.');
+      }
 
       if (
         document.type !== 'INVOICE' ||
@@ -2351,7 +2564,7 @@ export class DocumentService {
     });
   }
 
-  private async markInvoiceAsDelivered(documentId: string, totalPrice: number) {
+  private async markInvoiceAsDelivered(documentId: string, totalPrice: number, issuedAt?: Date) {
     await this.prismaService.$transaction(async (prisma) => {
       const paymentMode = await prisma.invoicePaymentMode.findUnique({
         where: { invoiceId: documentId },
@@ -2424,7 +2637,7 @@ export class DocumentService {
 
       await prisma.document.update({
         where: { id: documentId },
-        data: { invoiceStatus: 'PENDING', sentAt: new Date() },
+        data: { invoiceStatus: 'PENDING', sentAt: issuedAt ?? new Date() },
       });
     });
   }
@@ -2447,6 +2660,7 @@ export class DocumentService {
           invoiceStatus: true,
           invoicePaymentMode: { select: { paymentMode: true } },
           invoiceInstalmentPlan: { select: { id: true } },
+          contractStageInvoice: { include: { payment: true } },
         },
       });
 
@@ -2462,6 +2676,10 @@ export class DocumentService {
         throw new BadRequestException(
           'Le paiement manuel de la facture est réservé aux paiements uniques.',
         );
+      }
+
+      if (document.contractStageInvoice?.payment) {
+        throw new BadRequestException('Un prélèvement GoCardless est déjà associé à cette facture. Vérifiez-le avant un règlement manuel.');
       }
 
       const canBeMarkedAsPaid = document.invoiceStatus === 'PENDING';

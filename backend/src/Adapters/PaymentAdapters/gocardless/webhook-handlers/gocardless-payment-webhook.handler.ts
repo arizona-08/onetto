@@ -41,6 +41,87 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       return;
     }
 
+    const contractStageId = payment.metadata?.contract_stage_id;
+    const contractPayment = await this.prismaService.contractStagePayment.findFirst({
+      where: {
+        OR: [
+          { providerPaymentId: paymentId },
+          ...(contractStageId ? [{ stageId: contractStageId }] : []),
+        ],
+      },
+      include: {
+        stage: {
+          include: {
+            invoice: true,
+            plan: { include: { estimate: { select: { companyId: true } } } },
+          },
+        },
+      },
+    });
+    if (contractPayment) {
+      if (contractPayment.manualSettlementAt) {
+        if (['confirmed', 'paid_out'].includes(payment.status as string)) {
+          await this.prismaService.contractStagePayment.update({
+            where: { id: contractPayment.id },
+            data: { needsAccountingReview: true },
+          });
+          throw new ConflictException('Ce prélèvement est encaissé chez GoCardless alors que la facture est réglée manuellement. Vérification nécessaire.');
+        }
+        return;
+      }
+      if (contractPayment.status === 'UNCERTAIN' && payment.status === 'failed') return;
+      const plan = contractPayment.stage.plan;
+      const account = await this.prismaService.companyPaymentAccount.findFirst({
+        where: {
+          companyId: plan.estimate.companyId,
+          provider: 'GOCARDLESS',
+          providerAccountId: webhookEvent.organisation_id,
+        },
+      });
+      if (!account || !plan.providerMandateId || payment.links?.mandate !== plan.providerMandateId ||
+        Number(payment.amount) !== contractPayment.amountInCents ||
+        (contractPayment.providerPaymentId && contractPayment.providerPaymentId !== paymentId)) {
+        throw new ConflictException('Paiement contractuel GoCardless incohérent.');
+      }
+      const status = ['confirmed', 'paid_out'].includes(payment.status as string)
+        ? 'SUCCESS' as const
+        : ['failed', 'charged_back'].includes(payment.status as string)
+          ? 'FAILED' as const
+          : payment.status === 'cancelled' ? 'CANCELLED' as const
+            : payment.status === 'submitted' ? 'IN_PROGRESS' as const : 'PENDING' as const;
+      const invoiceStatus = status === 'SUCCESS' ? 'PAID' as const
+        : status === 'FAILED' || status === 'CANCELLED' ? 'REJECTED' as const
+          : 'PAYMENT_IN_PROGRESS' as const;
+      await this.prismaService.$transaction(async (tx) => {
+        await tx.contractStagePayment.update({
+          where: { id: contractPayment.id },
+          data: {
+            providerPaymentId: paymentId,
+            status,
+            chargeDate: payment.charge_date ? new Date(`${payment.charge_date}T12:00:00Z`) : null,
+            failureReason: status === 'FAILED' ? String(webhookEvent.details?.description ?? 'Prélèvement échoué').slice(0, 500) : null,
+            ...(webhookEvent.action === 'failed' ? { automaticRetryScheduled: webhookEvent.details?.will_attempt_retry === true } :
+              status !== 'FAILED' ? { automaticRetryScheduled: false } : {}),
+            manualRetryRequestedAt: null,
+            ...(contractPayment.status === 'SUCCESS' && (status === 'FAILED' || status === 'CANCELLED')
+              ? { needsAccountingReview: true } : {}),
+          },
+        });
+        if (contractPayment.stage.invoice) {
+          await tx.document.update({ where: { id: contractPayment.stage.invoice.id }, data: { invoiceStatus } });
+        }
+      });
+      if (contractPayment.stage.invoice) {
+        await this.invoicePaymentStatusService.syncContractPaymentResult(
+          contractPayment.stage.invoice.id,
+          contractPayment.status,
+          status,
+          paymentId,
+        );
+      }
+      return;
+    }
+
     const instalmentScheduleId = payment.links?.instalment_schedule;
     if (instalmentScheduleId) {
       const instalment =
@@ -138,6 +219,7 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       'failed',
       'resubmission_requested',
       'charged_back',
+      'cancelled',
     ];
 
     return relevantActions.includes(action);

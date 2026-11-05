@@ -29,6 +29,10 @@ describe('GoCardlessPaymentWebhookHandler', () => {
     matchPaymentAttemptStatus: jest.fn().mockReturnValue('SUCCESS'),
   };
   const prisma = {
+    contractStagePayment: { findFirst: jest.fn(), update: jest.fn() },
+    companyPaymentAccount: { findFirst: jest.fn() },
+    document: { update: jest.fn() },
+    $transaction: jest.fn(),
     invoiceInstalmentPlan: { findFirst: jest.fn() },
     invoicePaymentInstalment: {
       findUnique: jest.fn(),
@@ -45,6 +49,7 @@ describe('GoCardlessPaymentWebhookHandler', () => {
     payByBankPayment: { findUnique: jest.fn() },
   };
   const invoiceStatus = {
+    syncContractPaymentResult: jest.fn(),
     refreshFromInstalment: jest.fn(),
     refreshFromPaymentAttempt: jest.fn(),
     notifyPaymentSubmittedForInstalment: jest.fn(),
@@ -61,6 +66,8 @@ describe('GoCardlessPaymentWebhookHandler', () => {
       links: {},
     });
     matcher.matchPaymentAttemptStatus.mockReturnValue('SUCCESS');
+    prisma.contractStagePayment.findFirst.mockResolvedValue(null);
+    prisma.$transaction.mockImplementation(async (work: (tx: unknown) => Promise<unknown>) => work(prisma));
     prisma.invoicePaymentInstalment.updateMany.mockResolvedValue({ count: 1 });
     prisma.payByBankPaymentAttempt.updateMany.mockResolvedValue({ count: 1 });
     handler = new GoCardlessPaymentWebhookHandler(
@@ -88,6 +95,27 @@ describe('GoCardlessPaymentWebhookHandler', () => {
       'pbb-1',
       true,
     );
+  });
+
+  it('met à jour le paiement et la facture d’un acompte confirmé', async () => {
+    client.payments.find.mockResolvedValue({
+      id: 'PM1', status: 'confirmed', amount: '3000', charge_date: '2026-11-20',
+      links: { mandate: 'MD1' }, metadata: { contract_stage_id: 'stage-1' },
+    });
+    prisma.contractStagePayment.findFirst.mockResolvedValue({
+      id: 'stage-payment-1', amountInCents: 3000, providerPaymentId: 'PM1',
+      stage: {
+        invoice: { id: 'invoice-1' },
+        plan: { providerMandateId: 'MD1', estimate: { companyId: 'company-1' } },
+      },
+    });
+    prisma.companyPaymentAccount.findFirst.mockResolvedValue({ id: 'account-1' });
+    await handler.handleWebhook(event);
+    expect(prisma.contractStagePayment.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'stage-payment-1' },
+      data: expect.objectContaining({ status: 'SUCCESS' }),
+    }));
+    expect(prisma.document.update).toHaveBeenCalledWith({ where: { id: 'invoice-1' }, data: { invoiceStatus: 'PAID' } });
   });
 
   it('n’envoie pas deux reçus si une autre synchronisation a déjà gagné', async () => {

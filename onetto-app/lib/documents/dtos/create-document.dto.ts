@@ -1,4 +1,4 @@
-import { Client, DocumentDates, ServiceLineItem } from "@/app/types";
+import { Client, DepositPlanInput, DocumentDates, ServiceLineItem } from "@/app/types";
 
 export interface CreateDocumentDto {
   type?: "ESTIMATE" | "INVOICE";
@@ -10,4 +10,5 @@ export interface CreateDocumentDto {
     numberOfInstalments: 2 | 3;
     firstDueDate: string;
   };
+  depositPlan?: DepositPlanInput;
 }

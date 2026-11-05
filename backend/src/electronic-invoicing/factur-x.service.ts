@@ -32,12 +32,27 @@ export class FacturXService {
           ],
         },
       },
-      include: { company: true, services: true },
+      include: {
+        company: true,
+        services: true,
+        contractStageInvoice: {
+          include: {
+            plan: {
+              include: {
+                estimate: { include: { services: true } },
+                stages: { include: { invoice: true } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!document)
       throw new NotFoundException('Facture introuvable ou accès non autorisé.');
     if (!document.documentNumber)
       throw new BadRequestException('La facture doit avoir un numéro.');
+    if (document.contractStageInvoice && !document.sentAt)
+      throw new BadRequestException('La facture de jalon doit être émise avant la génération du Factur-X.');
     if (document.facturXArchiveKey) {
       return this.storage.getArchivedFacturX(
         document.facturXArchiveKey,
@@ -119,12 +134,19 @@ export class FacturXService {
           ],
         },
       },
-      include: { company: true, services: true },
+      include: {
+        company: true, services: true,
+        contractStageInvoice: {
+          include: { plan: { include: { estimate: { include: { services: true } }, stages: { include: { invoice: true } } } } },
+        },
+      },
     });
     if (!document)
       throw new NotFoundException('Facture introuvable ou accès non autorisé.');
     if (!document.documentNumber)
       throw new BadRequestException('La facture doit avoir un numéro.');
+    if (document.contractStageInvoice && !document.sentAt)
+      throw new BadRequestException('La facture de jalon doit être émise avant la génération du Factur-X.');
     let response: Response;
     try {
       response = await fetch(
@@ -184,12 +206,19 @@ export class FacturXService {
           ],
         },
       },
-      include: { company: true, services: true },
+      include: {
+        company: true, services: true,
+        contractStageInvoice: {
+          include: { plan: { include: { estimate: { include: { services: true } }, stages: { include: { invoice: true } } } } },
+        },
+      },
     });
     if (!document)
       throw new NotFoundException('Facture introuvable ou accès non autorisé.');
     if (!document.documentNumber)
       throw new BadRequestException('La facture doit avoir un numéro.');
+    if (document.contractStageInvoice && !document.sentAt)
+      throw new BadRequestException('La facture de jalon doit être émise avant la génération du Factur-X.');
     const enInvoice = this.toEn16931(document);
     const pdf = await this.pdf.generate({
       ...document,
@@ -305,6 +334,27 @@ export class FacturXService {
     document: any,
     profile: 'factur-x' | 'peppol' = 'factur-x',
   ) {
+    const stage = document.contractStageInvoice;
+    const isFinal = stage?.kind === 'BALANCE';
+    const estimate = stage?.plan?.estimate;
+    const priorInvoices = isFinal
+      ? stage.plan.stages.filter((item: any) => item.kind === 'DEPOSIT').map((item: any) => item.invoice)
+      : [];
+    if (isFinal && (
+      priorInvoices.some((invoice: any) => !invoice || !['PAID', 'PAID_MANUALLY'].includes(invoice.invoiceStatus)) ||
+      priorInvoices.reduce((sum: number, invoice: any) => sum + Math.round(invoice.totalPrice * 100), 0) + Math.round(document.totalPrice * 100) !== stage.plan.totalAmountInCents
+    )) {
+      throw new BadRequestException('La facture finale exige des acomptes encaissés et un solde exact.');
+    }
+    const amountDue = document.totalPrice;
+    if (isFinal) {
+      document = {
+        ...document,
+        services: estimate.services,
+        totalPrice: stage.plan.totalAmountInCents / 100,
+        totalPriceExcludingTax: estimate.totalPriceExcludingTax,
+      };
+    }
     const money = (value: number) => Number(value).toFixed(2);
     // `#` is useful in the Onetto display number but is forbidden by the
     // French Factur-X identifier rules used by SuperPDP.
@@ -410,7 +460,7 @@ export class FacturXService {
     return {
       number: compliantInvoiceNumber,
       issue_date: issueDate,
-      type_code: 380,
+      type_code: stage?.kind === 'DEPOSIT' ? 386 : 380,
       currency_code: document.currencyCode ?? 'EUR',
       // Peppol requires a buyer-side routing reference (BT-10) or a buyer
       // purchase order (BT-13). Onetto has no dedicated BT-10 field yet, so
@@ -426,7 +476,9 @@ export class FacturXService {
         business_process_type:
           profile === 'peppol'
             ? 'urn:fdc:peppol.eu:2017:poacc:billing:01:1.0'
-            : this.getBusinessProcessType(document.operationNature),
+            : stage?.kind === 'DEPOSIT'
+              ? document.operationNature === 'GOODS' ? 'B4' : document.operationNature === 'MIXED' ? 'M4' : 'S4'
+              : this.getBusinessProcessType(document.operationNature),
       },
       seller: {
         name: document.company.name,
@@ -478,7 +530,8 @@ export class FacturXService {
         sum_invoice_lines_amount: money(document.totalPriceExcludingTax),
         total_without_vat: money(document.totalPriceExcludingTax),
         total_with_vat: money(document.totalPrice),
-        amount_due_for_payment: money(document.totalPrice),
+        amount_due_for_payment: money(amountDue),
+        ...(isFinal ? { paid_amount: money(document.totalPrice - amountDue) } : {}),
         total_vat_amount: {
           value: money(totalVat),
           currency_code: document.currencyCode ?? 'EUR',
@@ -491,6 +544,14 @@ export class FacturXService {
         vat_category_tax_amount: money(item.tax),
       })),
       lines,
+      ...(stage ? { sales_order_reference: String(estimate.documentNumber ?? '').replace(/[^A-Za-z0-9+\-./]/gu, '') } : {}),
+      ...(isFinal ? {
+        preceding_invoice_references: priorInvoices.map((invoice: any) => ({
+          reference: String(invoice.documentNumber ?? '').replace(/[^A-Za-z0-9+\-./]/gu, ''),
+          issue_date: (invoice.sentAt ?? invoice.createdAt).toISOString().slice(0, 10),
+          preceding_invoice_type_code: 386,
+        })),
+      } : {}),
       notes:
         profile === 'peppol'
           ? [

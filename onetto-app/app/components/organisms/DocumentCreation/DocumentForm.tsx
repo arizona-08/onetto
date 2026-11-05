@@ -2,7 +2,8 @@ import React from "react";
 import { Info } from "lucide-react";
 import CustomerDetails from "../../molecules/DocumentFormComponents/CustomerDetails";
 import ServiceLineItems from "../../molecules/DocumentFormComponents/ServiceLineItems";
-import { Client, DocumentDates, ServiceLineItem } from "@/app/types";
+import { Client, DepositPlanInput, DocumentDates, ServiceLineItem } from "@/app/types";
+import DepositPlanEditor from "../../molecules/DepositPlanEditor";
 import {
   DocumentClientError,
   DocumentDateError,
@@ -36,6 +37,10 @@ interface DocumentFormProps {
   onPaymentModeChange?: (paymentMode: "ONE_TIME" | "INSTALMENTS") => void;
   onNumberOfInstalmentsChange?: (numberOfInstalments: 2 | 3) => void;
   onFirstDueDateChange?: (firstDueDate: string) => void;
+  showDepositPlan?: boolean;
+  depositPlan?: DepositPlanInput | null;
+  onDepositPlanChange?: (plan: DepositPlanInput | null) => void;
+  totalAmountInCents?: number;
 }
 
 function DocumentForm({
@@ -57,6 +62,10 @@ function DocumentForm({
   onPaymentModeChange,
   onNumberOfInstalmentsChange,
   onFirstDueDateChange,
+  showDepositPlan = false,
+  depositPlan = null,
+  onDepositPlanChange,
+  totalAmountInCents = 0,
 }: DocumentFormProps) {
   const paymentLimitInformation =
     paymentMode === "INSTALMENTS"
@@ -80,6 +89,25 @@ function DocumentForm({
         documentLineItemsErrors={errors?.documentLineItemsErrors}
         disabled={lockInvoiceContent}
       />
+      {showDepositPlan && (
+        <section className="mx-auto mt-8 w-full max-w-2xl rounded-lg border border-zinc-200 p-5">
+          <h2 className="text-lg font-semibold text-zinc-900">Mode de paiement du devis</h2>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-4 py-3">
+              <input type="radio" name="estimatePaymentMode" checked={!depositPlan} onChange={() => onDepositPlanChange?.(null)} />
+              <span>Unique</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-4 py-3">
+              <input type="radio" name="estimatePaymentMode" checked={Boolean(depositPlan)} onChange={() => onDepositPlanChange?.({
+                deposits: [{ percentage: 30, triggerCondition: "À l’acceptation du devis" }],
+                balanceCondition: "À la livraison",
+              })} />
+              <span>Acomptes et solde</span>
+            </label>
+          </div>
+          {depositPlan && <DepositPlanEditor value={depositPlan} onChange={(value) => onDepositPlanChange?.(value)} totalAmountInCents={totalAmountInCents} />}
+        </section>
+      )}
       {showPaymentMode && (
         <section className="mx-auto mt-8 w-full max-w-2xl rounded-lg border border-zinc-200 p-5">
           <div className="flex items-center gap-2">

@@ -217,6 +217,7 @@ enum AppNotificationType {
   ESTIMATE_ACCEPTED
   ESTIMATE_RENEGOTIATED
   ESTIMATE_REJECTED
+  CONTRACT_MANDATE_ACTIVE
 }
 
 model AppNotification {
@@ -405,6 +406,8 @@ model Document {
   processedReminders             ProcessedReminders[]
   electronicInvoiceTransmissions ElectronicInvoiceTransmission[]
   electronicReportingSubmissions ElectronicReportingSubmission[]
+  contractPaymentPlan           ContractPaymentPlan?          @relation("EstimateContractPlan")
+  contractStageInvoice          ContractPaymentStage?         @relation("ContractStageInvoice")
 
   @@unique([companyId, documentNumber, versionNumber])
 }
@@ -465,8 +468,93 @@ model EstimateNegociation {
   createdAt          DateTime                  @default(now())
   negociationToken   String                    @unique
   status             EstimateNegociationStatus @default(PENDING)
+  proposedPaymentStages Json?
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+}
+
+model ContractPaymentPlan {
+  id                      String                    @id @default(uuid())
+  estimateId              String                    @unique
+  estimate                Document                  @relation("EstimateContractPlan", fields: [estimateId], references: [id], onDelete: Cascade)
+  totalAmountInCents      Int
+  acceptedAt              DateTime?
+  authorizationToken      String                    @unique @default(uuid())
+  authorizationExpiresAt  DateTime?
+  providerBillingRequestId String?                  @unique
+  providerFlowId          String?
+  providerFlowUrl         String?
+  providerFlowExpiresAt   DateTime?
+  providerMandateId       String?                   @unique
+  mandateStatus           ContractMandateStatus     @default(NOT_REQUESTED)
+  cancelledAt             DateTime?
+  stages                  ContractPaymentStage[]
+
+  @@index([providerBillingRequestId])
+}
+
+enum ContractMandateStatus {
+  NOT_REQUESTED
+  PENDING
+  ACTIVE
+  FAILED
+  REVOKED
+}
+
+model ContractPaymentStage {
+  id               String                 @id @default(uuid())
+  planId           String
+  plan             ContractPaymentPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  sequence         Int
+  kind             ContractStageKind
+  percentage       Int
+  amountInCents    Int
+  triggerCondition String
+  invoiceId        String?                @unique
+  invoice          Document?              @relation("ContractStageInvoice", fields: [invoiceId], references: [id], onDelete: Restrict)
+  cancelledAt      DateTime?
+  payment          ContractStagePayment?
+
+  @@unique([planId, sequence])
+}
+
+enum ContractStageKind {
+  DEPOSIT
+  BALANCE
+}
+
+model ContractStagePayment {
+  id                String                    @id @default(uuid())
+  stageId           String                    @unique
+  stage             ContractPaymentStage      @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  idempotencyKey    String                    @unique
+  providerPaymentId String?                   @unique
+  status            ContractStagePaymentStatus @default(RESERVED)
+  amountInCents     Int
+  chargeDate        DateTime?
+  failureReason     String?
+  requestedByUserId String?
+  lastReconciledAt  DateTime?
+  automaticRetryScheduled Boolean @default(false)
+  manualRetryRequestedAt DateTime?
+  manualSettlementAt DateTime?
+  manualSettlementByUserId String?
+  needsAccountingReview Boolean @default(false)
+  requestedAt       DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  @@index([status, requestedAt])
+}
+
+enum ContractStagePaymentStatus {
+  RESERVED
+  CREATING
+  UNCERTAIN
+  PENDING
+  IN_PROGRESS
+  SUCCESS
+  FAILED
+  CANCELLED
 }
 
 enum EstimateNegociationStatus {
@@ -868,6 +956,7 @@ model ElectronicInvoiceEvent {
   providerEventId String
   type            String
   providerStatus  String
+  sourceReference String?
   source          ElectronicInvoiceEventSource
   occurredAt      DateTime
   receivedAt      DateTime                     @default(now())
@@ -876,6 +965,7 @@ model ElectronicInvoiceEvent {
   transmission ElectronicInvoiceTransmission @relation(fields: [transmissionId], references: [id], onDelete: Cascade)
 
   @@unique([transmissionId, providerEventId])
+  @@unique([transmissionId, sourceReference])
   @@index([transmissionId, occurredAt])
 }
 

@@ -37,6 +37,11 @@ export type DocumentDates = {
   dueDate: string;
 };
 
+export type DepositPlanInput = {
+  deposits: Array<{ percentage: number; triggerCondition: string }>;
+  balanceCondition: string;
+};
+
 export type Document = {
   id: string;
   companyId: string;
@@ -81,6 +86,44 @@ export type Document = {
     paymentMode: "ONE_TIME" | "INSTALMENTS";
     numberOfInstalments: number | null;
     firstDueDate?: string | null;
+  } | null;
+  contractPaymentPlan?: {
+    id: string;
+    authorizationToken?: string;
+    totalAmountInCents: number;
+    acceptedAt?: string | null;
+    cancelledAt?: string | null;
+    mandateStatus: string;
+    stages: Array<{
+      id: string;
+      sequence: number;
+      kind: "DEPOSIT" | "BALANCE";
+      percentage: number;
+      amountInCents: number;
+      triggerCondition: string;
+      invoiceId?: string | null;
+      invoice?: {
+        id: string;
+        documentNumber: string | null;
+        invoiceStatus: string;
+        totalPrice: number;
+      } | null;
+      payment?: {
+        status: string;
+        providerPaymentId: string | null;
+        chargeDate: string | null;
+        failureReason: string | null;
+        automaticRetryScheduled?: boolean;
+        manualRetryRequestedAt?: string | null;
+        manualSettlementAt?: string | null;
+        needsAccountingReview?: boolean;
+      } | null;
+    }>;
+  } | null;
+  contractStageInvoice?: {
+    kind: "DEPOSIT" | "BALANCE";
+    sequence: number;
+    percentage: number;
   } | null;
   invoicePaymentLinks?: Array<{ provider: "GOCARDLESS" | "BRIDGE" }>;
   invoiceInstalmentPlan?: {
@@ -169,6 +212,13 @@ export type PublicNegociation = {
   proposedTotalPrice: number;
   status: "PENDING" | "ACCEPTED" | "RENEGOCIATED" | "REJECTED";
   canNegotiate: boolean;
+  proposedPaymentStages?: Array<{
+    sequence: number;
+    kind: "DEPOSIT" | "BALANCE";
+    percentage: number;
+    amountInCents: number;
+    triggerCondition: string;
+  }> | null;
   document: Pick<
     Document,
     | "id"
@@ -184,6 +234,7 @@ export type PublicNegociation = {
     | "createdAt"
     | "sentAt"
     | "paymentDueAt"
+    | "contractPaymentPlan"
   > & {
     totalPriceExcludingTax: number;
     services: DocumentService[];

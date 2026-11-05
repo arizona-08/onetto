@@ -19,6 +19,7 @@ import { GoCardlessInstalmentRetryService } from './gocardless-instalment-retry.
 import { GoCardlessConnectionHealthService } from './gocardless-connection-health.service';
 import { UserModule } from 'src/user/user.module';
 import { GoCardlessReconciliationService } from './gocardless-reconciliation.service';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { GoCardlessReconciliationService } from './gocardless-reconciliation.ser
     InvoicePaymentStatusModule,
     PlanAccessModule,
     UserModule,
+    NotificationsModule,
   ],
   controllers: [GoCardlessWebhookController, GoCardlessOAuthController],
   providers: [
@@ -48,6 +50,7 @@ import { GoCardlessReconciliationService } from './gocardless-reconciliation.ser
     GoCardlessProviderService,
     GoCardlessInstalmentRetryService,
     GoCardlessReconciliationService,
+    GoCardlessOAuthService,
   ],
 })
 export class GoCardlessModule {}

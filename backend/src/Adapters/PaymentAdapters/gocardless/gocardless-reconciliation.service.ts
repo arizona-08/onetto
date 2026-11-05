@@ -75,6 +75,37 @@ export class GoCardlessReconciliationService {
     return this.reconcilePaymentPlan(plan.id);
   }
 
+  async reconcileContractStage(stageId: string, user: User) {
+    const stage = await this.prisma.contractPaymentStage.findUnique({
+      where: { id: stageId },
+      include: {
+        payment: true,
+        plan: { include: { estimate: { include: { company: { include: { companyUsers: { where: { userId: user.id, role: 'ADMIN', isHidden: false } }, companyPaymentAccount: true } } } } } },
+      },
+    });
+    if (!stage?.payment?.providerPaymentId) throw new NotFoundException('Aucun prélèvement GoCardless connu pour ce jalon.');
+    const company = stage.plan.estimate.company;
+    if (company.status !== 'ACTIVE' || (company.ownerId !== user.id && company.companyUsers.length === 0)) {
+      throw new ForbiddenException('Vous ne pouvez pas actualiser ce prélèvement.');
+    }
+    if (stage.payment.lastReconciledAt && stage.payment.lastReconciledAt.getTime() > Date.now() - 5 * 60_000) {
+      throw new HttpException('Ce prélèvement a déjà été actualisé récemment.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+    const organisationId = company.companyPaymentAccount?.providerAccountId;
+    if (!organisationId) throw new BadRequestException('Le compte GoCardless est introuvable.');
+    await this.paymentHandler.handleWebhook({
+      id: `manual-reconcile-${stage.payment.id}`,
+      created_at: new Date().toISOString(),
+      resource_type: 'payments',
+      action: 'created',
+      organisation_id: organisationId,
+      links: { payment: stage.payment.providerPaymentId },
+      details: {}, metadata: {}, resource_metadata: {},
+    });
+    await this.prisma.contractStagePayment.update({ where: { id: stage.payment.id }, data: { lastReconciledAt: new Date() } });
+    return this.prisma.contractStagePayment.findUnique({ where: { id: stage.payment.id } });
+  }
+
   async reconcileOneTimeInvoice(invoiceId: string, user: User) {
     const invoice = await this.prisma.document.findUnique({
       where: { id: invoiceId },
@@ -483,6 +514,47 @@ export class GoCardlessReconciliationService {
         this.logger.warn(
           `Réconciliation échouée pour l'échéancier ${plan.id}: ${error instanceof Error ? error.name : 'erreur inconnue'}`,
         );
+      }
+    }
+  }
+
+  @Cron('0 15 */6 * * *', { timeZone: 'Europe/Paris' })
+  async reconcileContractStagePayments(): Promise<void> {
+    const due = await this.prisma.contractStagePayment.findMany({
+      where: {
+        providerPaymentId: { not: null },
+        OR: [
+          { lastReconciledAt: null },
+          { lastReconciledAt: { lt: new Date(Date.now() - 6 * HOUR) } },
+        ],
+      },
+      include: {
+        stage: { include: { plan: { include: { estimate: { include: { company: { include: { companyPaymentAccount: true } } } } } } } },
+      },
+      orderBy: { lastReconciledAt: 'asc' },
+      take: 50,
+    });
+    for (const entry of due) {
+      const organisationId = entry.stage.plan.estimate.company.companyPaymentAccount?.providerAccountId;
+      if (!organisationId || !entry.providerPaymentId) continue;
+      try {
+        await this.paymentHandler.handleWebhook({
+          id: `reconcile-${entry.id}`,
+          created_at: new Date().toISOString(),
+          resource_type: 'payments',
+          action: 'created',
+          organisation_id: organisationId,
+          links: { payment: entry.providerPaymentId },
+          details: {},
+          metadata: {},
+          resource_metadata: {},
+        });
+        await this.prisma.contractStagePayment.update({
+          where: { id: entry.id },
+          data: { lastReconciledAt: new Date() },
+        });
+      } catch (error) {
+        this.logger.warn(`Réconciliation du prélèvement contractuel ${entry.id} impossible : ${error instanceof Error ? error.message : 'erreur inconnue'}`);
       }
     }
   }

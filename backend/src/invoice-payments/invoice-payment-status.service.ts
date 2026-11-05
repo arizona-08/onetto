@@ -4,6 +4,7 @@ import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ereporting.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { SuperPdpB2bService } from 'src/electronic-invoicing/superpdp-b2b.service';
 
 @Injectable()
 export class InvoicePaymentStatusService {
@@ -12,7 +13,36 @@ export class InvoicePaymentStatusService {
     private readonly mailService: MailService,
     private readonly superPdpEreportingService: SuperPdpEreportingService,
     private readonly notifications: NotificationsService,
+    private readonly superPdpB2bService: SuperPdpB2bService,
   ) {}
+
+  async syncContractPaymentResult(
+    invoiceId: string,
+    previousStatus: string,
+    status: string,
+    paymentId: string,
+  ): Promise<void> {
+    if (status === 'SUCCESS') {
+      if (previousStatus !== 'SUCCESS') {
+        await this.sendPaymentReceipt(invoiceId);
+        await this.sendInvoicePaidConfirmation(invoiceId);
+        await this.notifyPayment(
+          invoiceId, 'PAYMENT_SUCCEEDED', 'Règlement reçu',
+          'Le prélèvement de la facture a été confirmé.', `contract:${paymentId}:success`,
+        );
+      }
+      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(invoiceId);
+      await this.superPdpB2bService.reportContractStagePayment(invoiceId);
+    } else if ((status === 'FAILED' || status === 'CANCELLED') && previousStatus !== status) {
+      await this.notifyPayment(
+        invoiceId, 'PAYMENT_FAILED', 'Prélèvement échoué',
+        previousStatus === 'SUCCESS'
+          ? 'Un prélèvement précédemment confirmé a échoué tardivement. Vérifiez les déclarations de paiement.'
+          : 'Le prélèvement de la facture a échoué.',
+        `contract:${paymentId}:${status.toLowerCase()}`,
+      );
+    }
+  }
 
   /**
    * Recalcule le statut d'une facture après la mise à jour d'une tentative de
@@ -378,7 +408,7 @@ export class InvoicePaymentStatusService {
 
   private async notifyPayment(
     documentId: string,
-    type: 'PAYMENT_SUBMITTED' | 'PAYMENT_SUCCEEDED',
+    type: 'PAYMENT_SUBMITTED' | 'PAYMENT_SUCCEEDED' | 'PAYMENT_FAILED',
     title: string,
     message: string,
     key: string,

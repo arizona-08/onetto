@@ -25,6 +25,7 @@ describe('InvoicePaymentStatusService', () => {
       mail as never,
       { syncCollectedPaymentsForInvoice: jest.fn() } as never,
       {} as never,
+      {} as never,
     );
 
     await service.refreshFromInstalment('invoice-1');
@@ -83,6 +84,8 @@ describe('InvoicePaymentStatusService', () => {
       prisma as never,
       mail as never,
       ereporting as never,
+      {} as never,
+      {} as never,
     );
 
     await service.refreshFromInstalment('invoice-1', 5000);
@@ -158,6 +161,7 @@ describe('InvoicePaymentStatusService', () => {
       mail as never,
       { syncCollectedPaymentsForInvoice: jest.fn() } as never,
       notifications as never,
+      {} as never,
     );
 
     await Promise.all([

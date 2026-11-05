@@ -6,13 +6,26 @@ import {
   Param,
   Put,
 } from '@nestjs/common';
-import { IsIn, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsIn, IsNumber, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { DocumentService } from './document.service';
+import { DepositStageDto } from './dtos/create-document.dto';
 
 class UpdateNegociationMessageDto {
   @IsString()
   @MaxLength(5000)
   message: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DepositStageDto)
+  proposedDeposits?: DepositStageDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  proposedBalanceCondition?: string;
 }
 
 class NegociationDecisionDto {
@@ -45,6 +58,8 @@ export class NegociationController {
     const negociation = await this.documentService.renegociateByToken(
       token,
       body.message,
+      body.proposedDeposits,
+      body.proposedBalanceCondition,
     );
 
     if (!negociation) {

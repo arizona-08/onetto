@@ -1,6 +1,7 @@
 "use client";
 
-import { PublicNegociation } from "@/app/types";
+import { DepositPlanInput, PublicNegociation } from "@/app/types";
+import DepositPlanEditor from "@/app/components/molecules/DepositPlanEditor";
 import { apiClient } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/shared/utils";
 import {
@@ -24,8 +25,17 @@ export default function NegociationView({
   const [status, setStatus] = useState<NegociationStatus>(negociation.status);
   const [showChanges, setShowChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isOpeningMandate, setIsOpeningMandate] = useState(false);
   const [error, setError] = useState("");
   const { document } = negociation;
+  const [proposedPlan, setProposedPlan] = useState<DepositPlanInput | null>(() =>
+    document.contractPaymentPlan ? {
+      deposits: document.contractPaymentPlan.stages
+        .filter((stage) => stage.kind === "DEPOSIT")
+        .map(({ percentage, triggerCondition }) => ({ percentage, triggerCondition })),
+      balanceCondition: document.contractPaymentPlan.stages.find((stage) => stage.kind === "BALANCE")?.triggerCondition ?? "À la livraison",
+    } : null,
+  );
   const { company } = document;
   const isInvoice = document.type === "INVOICE";
   const canNegotiate = negociation.canNegotiate;
@@ -58,7 +68,13 @@ export default function NegociationView({
       `api/negociations/${encodeURIComponent(token)}/message`,
       {
         method: "PUT",
-        body: JSON.stringify({ message: message.trim() }),
+        body: JSON.stringify({
+          message: message.trim(),
+          ...(proposedPlan ? {
+            proposedDeposits: proposedPlan.deposits,
+            proposedBalanceCondition: proposedPlan.balanceCondition,
+          } : {}),
+        }),
       },
     );
     setIsSaving(false);
@@ -69,6 +85,23 @@ export default function NegociationView({
       return;
     }
     setStatus("RENEGOCIATED");
+  }
+
+  async function openMandate() {
+    const authorizationToken = document.contractPaymentPlan?.authorizationToken;
+    if (!authorizationToken) return;
+    setIsOpeningMandate(true);
+    setError("");
+    const response = await apiClient<{ url: string | null; message?: string }>(
+      `api/public/contracts/${encodeURIComponent(authorizationToken)}/mandate`,
+    );
+    setIsOpeningMandate(false);
+    if (!response.ok) {
+      setError("Le parcours d’autorisation est indisponible. Veuillez réessayer.");
+      return;
+    }
+    if (response.data.url) window.location.assign(response.data.url);
+    else setError(response.data.message ?? "Le mandat ne peut plus être autorisé.");
   }
 
   return (
@@ -213,6 +246,20 @@ export default function NegociationView({
                   <span>{formatCurrency(document.totalPrice)}</span>
                 </div>
               </div>
+              {document.contractPaymentPlan && (
+                <section className="mt-7 rounded-xl border border-primary/15 bg-primary/5 p-5">
+                  <h2 className="text-lg font-semibold">Acomptes et solde</h2>
+                  <p className="mt-1 text-sm text-zinc-600">Chaque prélèvement sera déclenché séparément après facturation. L’acceptation du devis ne déclenche aucun paiement.</p>
+                  <ul className="mt-4 space-y-3">
+                    {document.contractPaymentPlan.stages.map((stage) => (
+                      <li key={stage.id} className="flex flex-col gap-1 border-t border-primary/10 pt-3 text-sm sm:flex-row sm:justify-between">
+                        <div><strong>{stage.kind === "BALANCE" ? "Solde" : `Acompte ${stage.sequence}`}</strong> — {stage.percentage} %<p className="text-zinc-600">{stage.triggerCondition}</p></div>
+                        <span className="font-semibold">{formatCurrency(stage.amountInCents / 100)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </div>
           </article>
           {!isInvoice && (
@@ -291,6 +338,9 @@ export default function NegociationView({
                     placeholder="Par exemple : ajouter, modifier ou supprimer une prestation ; ajuster une quantité ; demander une remise sur une ligne ou sur le total du devis ; poser une question…"
                     className="mt-4 w-full resize-y rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm leading-6 outline-none transition placeholder:text-zinc-400 focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
                   />
+                  {proposedPlan && (
+                    <DepositPlanEditor value={proposedPlan} onChange={setProposedPlan} totalAmountInCents={document.contractPaymentPlan?.totalAmountInCents ?? 0} />
+                  )}
                   {error && (
                     <p className="mt-2 text-sm text-red-600">{error}</p>
                   )}
@@ -312,12 +362,21 @@ export default function NegociationView({
                 </form>
               )}
               {status === "ACCEPTED" && (
-                <DecisionResult
-                  icon={<CircleCheck className="h-6 w-6" />}
-                  title="Devis accepté"
-                  text="Votre acceptation a bien été enregistrée."
-                  tone="text-emerald-600"
-                />
+                <>
+                  <DecisionResult
+                    icon={<CircleCheck className="h-6 w-6" />}
+                    title="Devis accepté"
+                    text="Votre acceptation a bien été enregistrée."
+                    tone="text-emerald-600"
+                  />
+                  {document.contractPaymentPlan && !document.contractPaymentPlan.cancelledAt && document.contractPaymentPlan.mandateStatus !== "ACTIVE" && (
+                    <button type="button" disabled={isOpeningMandate} onClick={openMandate}
+                      className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
+                      {isOpeningMandate ? "Ouverture…" : "Autoriser le mandat de prélèvement"}
+                    </button>
+                  )}
+                  {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+                </>
               )}
               {status === "RENEGOCIATED" && (
                 <DecisionResult

@@ -6,6 +6,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { GoCardlessOAuthService } from '../gocardless-oauth.service';
 import { $Enums } from '@prisma/client';
 import { GoCardlessClient } from 'gocardless-nodejs';
+import { NotificationsService } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInterface {
@@ -13,6 +14,7 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
     private readonly gocardlessOAuthService: GoCardlessOAuthService,
     private readonly gocardlessStatusMatcherService: GoCardlessStatusMatcherService,
     private readonly prismaService: PrismaService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async handleWebhook(webhook: GoCardlessEventDto): Promise<void> {
@@ -25,6 +27,53 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
       throw new Error(
         `Billing request missing from webhook event ${webhook.id}`,
       );
+    }
+
+    const contract = await this.prismaService.contractPaymentPlan.findUnique({
+      where: { providerBillingRequestId: billingRequestId },
+      select: { id: true, estimate: { select: { id: true, companyId: true } } },
+    });
+    if (contract) {
+      const account = await this.prismaService.companyPaymentAccount.findFirst({
+        where: {
+          companyId: contract.estimate.companyId,
+          provider: 'GOCARDLESS',
+          providerAccountId: webhook.organisation_id,
+        },
+      });
+      if (!account) throw new Error('Mandat reçu depuis un autre compte GoCardless.');
+      const contractClient = await this.gocardlessOAuthService.getClientForProviderAccount(webhook.organisation_id);
+      const request = await contractClient.billingRequests.find(billingRequestId);
+      if (request.status !== 'fulfilled') {
+        if (webhook.action !== 'fulfilled') {
+          await this.prismaService.contractPaymentPlan.update({
+            where: { id: contract.id },
+            data: { mandateStatus: 'FAILED' },
+          });
+        }
+        return;
+      }
+      const mandateId = request.links?.mandate_request_mandate;
+      if (!mandateId) throw new Error('Mandat absent de la demande GoCardless terminée.');
+      const mandate = await contractClient.mandates.find(mandateId);
+      await this.prismaService.contractPaymentPlan.update({
+        where: { id: contract.id },
+        data: {
+          providerMandateId: mandateId,
+          mandateStatus: mandate.status === 'active' ? 'ACTIVE' : 'PENDING',
+        },
+      });
+      if (mandate.status === 'active') {
+        await this.notifications.notifyCompany({
+          companyId: contract.estimate.companyId,
+          type: 'CONTRACT_MANDATE_ACTIVE',
+          title: 'Mandat de prélèvement autorisé',
+          message: 'Le mandat du devis à acomptes est prêt. Aucun paiement n’a été déclenché.',
+          href: `/documents/${contract.estimate.id}`,
+          deduplicationKey: `contract-mandate:${contract.id}`,
+        });
+      }
+      return;
     }
 
     if (

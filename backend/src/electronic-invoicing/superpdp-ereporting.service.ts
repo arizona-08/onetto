@@ -186,6 +186,7 @@ export class SuperPdpEreportingService {
             },
           },
         },
+        contractStageInvoice: { include: { payment: true } },
       },
     });
     if (!document || document.type !== 'INVOICE') return;
@@ -219,6 +220,13 @@ export class SuperPdpEreportingService {
           paidAt: instalment.paidAt ?? new Date(),
         }),
       ) ?? []),
+      ...(document.contractStageInvoice?.payment?.status === 'SUCCESS' && !document.contractStageInvoice.payment.manualSettlementAt
+        ? [{
+            sourceReference: `contract-stage:${document.contractStageInvoice.payment.id}`,
+            amountInCents: document.contractStageInvoice.payment.amountInCents,
+            paidAt: document.contractStageInvoice.payment.updatedAt,
+          }]
+        : []),
       ...(document.invoiceStatus === 'PAID_MANUALLY'
         ? [
             {

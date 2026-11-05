@@ -26,6 +26,16 @@ type InvoicePdfData = {
     taxRate: number | null;
     totalPrice: number;
   }>;
+  contractStageInvoice?: {
+    kind: 'DEPOSIT' | 'BALANCE';
+    sequence: number;
+    percentage: number;
+    plan: {
+      totalAmountInCents: number;
+      estimate: { documentNumber: string | null; totalPriceExcludingTax: number; services: InvoicePdfData['services'] };
+      stages: Array<{ kind: 'DEPOSIT' | 'BALANCE'; invoice: { documentNumber: string | null; totalPrice: number; sentAt: Date | null; createdAt: Date } | null }>;
+    };
+  } | null;
   company: {
     name: string;
     email: string;
@@ -65,14 +75,19 @@ export class PdfService {
 
       const width = pdf.page.width - 84;
       const isInvoice = data.type === 'INVOICE';
-      const title = isInvoice ? 'FACTURE' : 'DEVIS';
+      const stage = data.contractStageInvoice;
+      const isFinal = stage?.kind === 'BALANCE';
+      const title = stage?.kind === 'DEPOSIT' ? 'FACTURE D’ACOMPTE' : isFinal ? 'FACTURE FINALE' : isInvoice ? 'FACTURE' : 'DEVIS';
+      const displayedServices = isFinal ? stage.plan.estimate.services : data.services;
+      const displayedGross = isFinal ? stage.plan.totalAmountInCents / 100 : data.totalPrice;
+      const displayedNet = isFinal ? stage.plan.estimate.totalPriceExcludingTax : data.totalPriceExcludingTax;
       const issueDateLabel = isInvoice ? 'DATE D’ÉMISSION' : 'DATE DU DEVIS';
       const dueDateLabel = isInvoice ? 'DATE D’ÉCHÉANCE' : 'VALABLE JUSQU’AU';
       const issueDate = isInvoice
         ? (data.sentAt ?? new Date())
         : data.createdAt;
 
-      pdf.fillColor(primary).font('Helvetica').fontSize(42).text(title, 42, 42);
+      pdf.fillColor(primary).font('Helvetica').fontSize(stage ? 28 : 42).text(title, 42, 42);
       pdf
         .roundedRect(42, 88, 110, 19, 9)
         .strokeColor('#18181B')
@@ -104,6 +119,12 @@ export class PdfService {
         .fontSize(10)
         .text(date(data.paymentDueAt), 42, 179);
       pdf.moveTo(42, 211).lineTo(553, 211).strokeColor('#E4E4E7').stroke();
+      if (stage) {
+        pdf.fontSize(8).fillColor(muted).text(
+          `${stage.kind === 'DEPOSIT' ? `Acompte ${stage.sequence} · ${stage.percentage} %` : 'Solde'} du devis ${stage.plan.estimate.documentNumber ?? ''}`,
+          42, 197, { width: 500 },
+        );
+      }
 
       this.party(pdf, 42, 234, 'ÉMISE PAR', [
         data.company.name,
@@ -145,7 +166,7 @@ export class PdfService {
           }),
       );
       y += 25;
-      for (const service of data.services) {
+      for (const service of displayedServices) {
         const rowHeight = Math.max(
           28,
           pdf.heightOfString(service.description, { width: 190 }) + 16,
@@ -178,13 +199,13 @@ export class PdfService {
         y += rowHeight;
       }
       const boxY = Math.max(y + 25, 515);
-      const vat = data.totalPrice - data.totalPriceExcludingTax;
-      pdf.roundedRect(340, boxY, 213, 94, 9).fill('#FAFAFA');
+      const vat = displayedGross - displayedNet;
+      pdf.roundedRect(340, boxY, 213, isFinal ? 124 : 94, 9).fill('#FAFAFA');
       this.total(
         pdf,
         boxY + 15,
         'Sous-total',
-        currency(data.totalPriceExcludingTax),
+        currency(displayedNet),
         false,
       );
       this.total(pdf, boxY + 37, 'TVA', currency(vat), false);
@@ -193,8 +214,12 @@ export class PdfService {
         .lineTo(538, boxY + 61)
         .strokeColor('#E4E4E7')
         .stroke();
-      this.total(pdf, boxY + 70, 'Total TTC', currency(data.totalPrice), true);
-      const bankY = boxY + 123;
+      this.total(pdf, boxY + 70, 'Total TTC', currency(displayedGross), !isFinal);
+      if (isFinal) {
+        this.total(pdf, boxY + 92, 'Acomptes encaissés', `− ${currency(displayedGross - data.totalPrice)}`, false);
+        this.total(pdf, boxY + 110, 'Solde à payer', currency(data.totalPrice), true);
+      }
+      const bankY = boxY + (isFinal ? 153 : 123);
       pdf.moveTo(42, bankY).lineTo(553, bankY).strokeColor('#E4E4E7').stroke();
       pdf
         .fillColor('#18181B')
@@ -207,6 +232,13 @@ export class PdfService {
         .fontSize(9)
         .text(`IBAN : ${data.company.IBAN}`, 42, bankY + 31)
         .text(`BIC : ${data.company.BIC}`, 42, bankY + 45);
+      if (isFinal) {
+        const references = stage.plan.stages
+          .filter((item) => item.kind === 'DEPOSIT' && item.invoice)
+          .map((item) => item.invoice!.documentNumber)
+          .join(', ');
+        pdf.fontSize(8).fillColor(muted).text(`Factures d’acompte déjà encaissées : ${references}`, 42, bankY + 68, { width: 510 });
+      }
       pdf.end();
     });
   }
