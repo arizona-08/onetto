@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Param,
+  Post,
   Query,
   Req,
   Res,
@@ -46,7 +47,7 @@ export class SuperPdpOAuthController {
   }
 
   @UseGuards(AuthGuard)
-  @Get('companies/:companyId/verify')
+  @Post('companies/:companyId/verify')
   async verify(
     @Param('companyId') companyId: string,
     @Req() req: ExtendedRequest,

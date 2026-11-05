@@ -109,4 +109,108 @@ describe('SuperPdpOAuthService', () => {
       }),
     });
   });
+
+  it('configures the company VAT regime at SuperPDP before e-reporting', async () => {
+    const prisma = {
+      company: {
+        findUnique: jest.fn().mockResolvedValue({
+          status: 'ACTIVE',
+          subjectToVat: true,
+          vatRegime: 'MONTHLY',
+          vatExigibility: 'ON_COLLECTION',
+          electronicInvoicingConnection: { providerCompanyId: '42' },
+        }),
+      },
+    };
+    const service = new SuperPdpOAuthService(
+      {} as never,
+      prisma as never,
+      {} as never,
+    );
+    const request = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 42,
+            vat_regime: null,
+            has_vat_on_debits: false,
+          }),
+      } as never)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: 42,
+            vat_regime: 'monthly',
+            has_vat_on_debits: false,
+          }),
+      } as never);
+
+    await expect(
+      service.ensureCompanyVatRegime('company-1', 'sandbox-token'),
+    ).resolves.toMatchObject({ vat_regime: 'monthly' });
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1][0]).toBe(
+      'https://api.superpdp.tech/v1.beta/companies',
+    );
+    expect(request.mock.calls[1][1]).toMatchObject({
+      method: 'PATCH',
+      body: JSON.stringify({ vat_regime: 'monthly', has_vat_on_debits: false }),
+    });
+    request.mockRestore();
+  });
+
+  it('does not overwrite an unconfirmed local VAT setup', async () => {
+    const service = new SuperPdpOAuthService(
+      {} as never,
+      {
+        company: {
+          findUnique: jest.fn().mockResolvedValue({
+            status: 'ACTIVE',
+            subjectToVat: true,
+            vatRegime: 'VAT_EXEMPTION',
+            vatExigibility: 'UNKNOWN',
+          }),
+        },
+      } as never,
+      {} as never,
+    );
+    const request = jest.spyOn(global, 'fetch');
+
+    await expect(
+      service.ensureCompanyVatRegime('company-1', 'sandbox-token'),
+    ).rejects.toThrow('Vérifiez le régime');
+    expect(request).not.toHaveBeenCalled();
+    request.mockRestore();
+  });
+
+  it('keeps a matching SuperPDP VAT profile unchanged', async () => {
+    const service = new SuperPdpOAuthService(
+      {} as never,
+      {
+        company: {
+          findUnique: jest.fn().mockResolvedValue({
+            status: 'ACTIVE',
+            subjectToVat: true,
+            vatRegime: 'QUARTERLY',
+            vatExigibility: 'ON_DEBITS',
+            electronicInvoicingConnection: { providerCompanyId: '42' },
+          }),
+        },
+      } as never,
+      {} as never,
+    );
+    const request = jest.spyOn(global, 'fetch');
+    await expect(
+      service.ensureCompanyVatRegime('company-1', 'sandbox-token', {
+        id: 42,
+        vat_regime: 'quarterly',
+        has_vat_on_debits: true,
+      }),
+    ).resolves.toMatchObject({ vat_regime: 'quarterly' });
+    expect(request).not.toHaveBeenCalled();
+    request.mockRestore();
+  });
 });

@@ -6,6 +6,8 @@ import {
   createCompany,
   getSuperPdpConnectionStatus,
   getSuperPdpEreportingOverview,
+  retrySuperPdpB2CTransaction,
+  verifySuperPdpConnection,
   startSuperPdpAuthorization,
   SuperPdpConnectionStatus,
   SuperPdpEreportingOverview,
@@ -57,11 +59,13 @@ function CreateCompanyForm({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConnectingSuperPdp, setIsConnectingSuperPdp] = useState(false);
+  const [isVerifyingSuperPdp, setIsVerifyingSuperPdp] = useState(false);
   const [superPdpConnection, setSuperPdpConnection] =
     useState<SuperPdpConnectionStatus>(null);
   const [ereportingOverview, setEreportingOverview] =
     useState<SuperPdpEreportingOverview | null>(null);
   const [isLoadingEreporting, setIsLoadingEreporting] = useState(false);
+  const [retryingSubmissionId, setRetryingSubmissionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const inputClassName =
@@ -83,6 +87,31 @@ function CreateCompanyForm({
     setIsLoadingEreporting(false);
     if (response.ok) setEreportingOverview(response.data);
     else showToast("Impossible de synchroniser le suivi e-reporting.", "error");
+  }
+
+  async function handleVerifySuperPdp() {
+    if (!companyToEdit) return;
+    setIsVerifyingSuperPdp(true);
+    const result = await verifySuperPdpConnection(companyToEdit.id);
+    setIsVerifyingSuperPdp(false);
+    const status = await getSuperPdpConnectionStatus(companyToEdit.id);
+    if (status.ok) setSuperPdpConnection(status.data);
+    showToast(result.ok ? "Configuration SuperPDP vérifiée." :
+      typeof result.error.message === "string" ? result.error.message : "Impossible de vérifier SuperPDP.",
+      result.ok ? "success" : "error");
+  }
+
+  async function handleRetryB2CTransaction(submissionId: string) {
+    if (!companyToEdit) return;
+    setRetryingSubmissionId(submissionId);
+    const response = await retrySuperPdpB2CTransaction(companyToEdit.id, submissionId);
+    setRetryingSubmissionId(null);
+    if (!response.ok) {
+      showToast(typeof response.error.message === "string" ? response.error.message : "Impossible de renvoyer la déclaration.", "error");
+      return;
+    }
+    showToast("Déclaration B2C renvoyée à SuperPDP.", "success");
+    await loadEreportingOverview();
   }
 
   function handleInputChange(
@@ -249,7 +278,7 @@ function CreateCompanyForm({
             {superPdpConnection?.status === "ACTIVE"
               ? "SuperPDP est connecté pour cette entreprise."
               : superPdpConnection?.lastError
-                ? "La connexion SuperPDP doit être renouvelée pour utiliser la facturation électronique."
+                ? superPdpConnection.lastError
                 : "Connectez cette entreprise à SuperPDP avant d’envoyer vos déclarations B2C."}
           </p>
           {superPdpConnection?.status !== "ACTIVE" && (
@@ -274,6 +303,16 @@ function CreateCompanyForm({
                 ? "Reconnecter SuperPDP"
                 : "Connecter SuperPDP"}
           </button>
+          {superPdpConnection?.status === "ACTION_REQUIRED" && (
+            <button
+              type="button"
+              onClick={() => void handleVerifySuperPdp()}
+              disabled={isVerifyingSuperPdp}
+              className="ml-2 mt-3 rounded-md border border-primary px-3 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isVerifyingSuperPdp ? "Vérification…" : "Vérifier la configuration"}
+            </button>
+          )}
           {superPdpConnection?.status === "ACTIVE" && (
             <button
               type="button"
@@ -309,6 +348,7 @@ function CreateCompanyForm({
                       <th className="px-3 py-2">Statut</th>
                       <th className="px-3 py-2">Détail</th>
                       <th className="px-3 py-2">Créée le</th>
+                      <th className="px-3 py-2">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -338,11 +378,24 @@ function CreateCompanyForm({
                             "fr-FR",
                           )}
                         </td>
+                        <td className="px-3 py-2">
+                          {submission.kind === "TRANSACTION" && submission.status === "FAILED" &&
+                            (submission.lastError?.startsWith("SuperPDP (400)") || submission.lastError?.startsWith("Préparation TVA :")) && (
+                            <button
+                              type="button"
+                              onClick={() => void handleRetryB2CTransaction(submission.id)}
+                              disabled={retryingSubmissionId !== null}
+                              className="font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {retryingSubmissionId === submission.id ? "Envoi…" : "Réessayer"}
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                     {!ereportingOverview.submissions.length && (
                       <tr>
-                        <td colSpan={5} className="px-3 py-3 text-zinc-500">
+                        <td colSpan={6} className="px-3 py-3 text-zinc-500">
                           Aucune déclaration transmise.
                         </td>
                       </tr>

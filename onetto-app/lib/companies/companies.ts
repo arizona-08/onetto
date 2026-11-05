@@ -90,6 +90,13 @@ export function getSuperPdpConnectionStatus(companyId: string) {
   );
 }
 
+export function verifySuperPdpConnection(companyId: string) {
+  return apiClient<{ providerCompanyId: string | null }>(
+    `api/electronic-invoicing/superpdp/oauth/companies/${companyId}/verify`,
+    { method: "POST" },
+  );
+}
+
 export type SuperPdpEreportingOverview = {
   transactions: {
     data?: Array<{
@@ -130,6 +137,13 @@ export type SuperPdpEreportingOverview = {
 export function getSuperPdpEreportingOverview(companyId: string) {
   return apiClient<SuperPdpEreportingOverview>(
     `api/electronic-invoicing/superpdp/companies/${companyId}/ereporting-overview`,
+  );
+}
+
+export function retrySuperPdpB2CTransaction(companyId: string, submissionId: string) {
+  return apiClient(
+    `api/electronic-invoicing/superpdp/companies/${companyId}/ereporting-submissions/${submissionId}/retry`,
+    { method: "POST" },
   );
 }
 

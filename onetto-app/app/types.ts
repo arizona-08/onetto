@@ -121,9 +121,11 @@ export type Document = {
     }>;
   } | null;
   contractStageInvoice?: {
+    id: string;
     kind: "DEPOSIT" | "BALANCE";
     sequence: number;
     percentage: number;
+    payment?: { providerPaymentId: string | null } | null;
     plan?: { stages: Array<{ kind: "DEPOSIT" | "BALANCE" }> };
   } | null;
   invoicePaymentLinks?: Array<{ provider: "GOCARDLESS" | "BRIDGE" }>;

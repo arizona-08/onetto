@@ -21,6 +21,8 @@ type SuperPdpCompanyProfile = {
   id?: number | string;
   status?: string;
   directory_registration_status?: string;
+  vat_regime?: string | null;
+  has_vat_on_debits?: boolean;
   [key: string]: unknown;
 };
 
@@ -313,6 +315,22 @@ export class SuperPdpOAuthService {
       );
     }
 
+    try {
+      profile = await this.ensureCompanyVatRegime(companyId, token, profile);
+    } catch (error) {
+      await this.prismaService.electronicInvoicingConnection.update({
+        where: { companyId },
+        data: {
+          status: 'ACTION_REQUIRED',
+          lastError:
+            error instanceof Error
+              ? error.message
+              : 'Régime de TVA SuperPDP à vérifier.',
+        },
+      });
+      throw error;
+    }
+
     await this.prismaService.electronicInvoicingConnection.update({
       where: { companyId },
       data: {
@@ -326,6 +344,106 @@ export class SuperPdpOAuthService {
     return {
       providerCompanyId: profile.id === undefined ? null : String(profile.id),
     };
+  }
+
+  /** SuperPDP requires a VAT regime on the company before accepting e-reporting. */
+  async ensureCompanyVatRegime(
+    companyId: string,
+    token: string,
+    knownProfile?: SuperPdpCompanyProfile,
+  ): Promise<SuperPdpCompanyProfile> {
+    const company = await this.prismaService.company.findUnique({
+      where: { id: companyId },
+      select: {
+        status: true,
+        subjectToVat: true,
+        vatRegime: true,
+        vatExigibility: true,
+        electronicInvoicingConnection: { select: { providerCompanyId: true } },
+      },
+    });
+    if (!company || company.status !== 'ACTIVE') {
+      throw new BadRequestException('Entreprise introuvable ou fermée.');
+    }
+    if (
+      (company.subjectToVat && company.vatRegime === 'VAT_EXEMPTION') ||
+      (!company.subjectToVat && company.vatRegime !== 'VAT_EXEMPTION') ||
+      (company.subjectToVat && company.vatExigibility === 'UNKNOWN')
+    ) {
+      throw new BadRequestException(
+        'Vérifiez le régime et l’exigibilité de la TVA dans les paramètres de l’entreprise avant l’e-reporting.',
+      );
+    }
+    const profile = knownProfile ?? (await this.fetchCompanyProfile(token));
+    if (
+      company.electronicInvoicingConnection?.providerCompanyId &&
+      String(profile.id) !==
+        company.electronicInvoicingConnection.providerCompanyId
+    ) {
+      throw new BadGatewayException(
+        'Le compte SuperPDP connecté ne correspond plus à cette entreprise.',
+      );
+    }
+    const vatRegime = company.vatRegime.toLowerCase();
+    const hasVatOnDebits = company.vatExigibility === 'ON_DEBITS';
+    if (
+      profile.vat_regime === vatRegime &&
+      profile.has_vat_on_debits === hasVatOnDebits
+    ) {
+      return profile;
+    }
+    let response: Response;
+    try {
+      response = await fetch('https://api.superpdp.tech/v1.beta/companies', {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          vat_regime: vatRegime,
+          has_vat_on_debits: hasVatOnDebits,
+        }),
+      });
+    } catch {
+      throw new BadGatewayException(
+        'Impossible de synchroniser le régime de TVA avec SuperPDP.',
+      );
+    }
+    if (!response.ok) {
+      throw new BadGatewayException(
+        `SuperPDP a refusé la configuration du régime de TVA (${response.status}).`,
+      );
+    }
+    const updated = (await response.json()) as SuperPdpCompanyProfile;
+    if (
+      updated.vat_regime !== vatRegime ||
+      updated.has_vat_on_debits !== hasVatOnDebits
+    ) {
+      throw new BadGatewayException(
+        'SuperPDP n’a pas confirmé le régime de TVA demandé.',
+      );
+    }
+    return { ...profile, ...updated };
+  }
+
+  private async fetchCompanyProfile(
+    token: string,
+  ): Promise<SuperPdpCompanyProfile> {
+    try {
+      const response = await fetch(
+        'https://api.superpdp.tech/v1.beta/companies/me',
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return (await response.json()) as SuperPdpCompanyProfile;
+    } catch {
+      throw new BadGatewayException(
+        'Impossible de vérifier le régime de TVA du compte SuperPDP.',
+      );
+    }
   }
 
   async getConnectionStatus(input: { companyId: string; userId: string }) {

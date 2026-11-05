@@ -38,6 +38,7 @@ import { useToast } from "@/app/components/context/ToastContext";
 import { useRouter } from "next/navigation";
 import GoCardlessReconnectModal from "../molecules/GoCardlessReconnectModal";
 import { isGoCardlessAccessTokenInactive } from "@/lib/gocardless/access-token";
+import { apiClient } from "@/lib/api";
 
 const statusMatcher: Record<string, { label: string; dotClassName: string }> = {
   DRAFT: { label: "Brouillon", dotClassName: "bg-zinc-400" },
@@ -311,6 +312,44 @@ function DocumentsTable({
     }
   }
 
+  async function handleReconcileContractStage(document: Document) {
+    const stageId = document.contractStageInvoice?.id;
+    if (
+      !stageId ||
+      !document.contractStageInvoice?.payment?.providerPaymentId ||
+      reconcilingDocumentIds.includes(document.id)
+    ) {
+      return;
+    }
+    setReconcilingDocumentIds((ids) => [...ids, document.id]);
+    try {
+      const response = await apiClient(
+        `api/contracts/stages/${encodeURIComponent(stageId)}/reconcile`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        if (isGoCardlessAccessTokenInactive(response.error)) {
+          setGoCardlessReconnectCompanyId(document.companyId);
+          return;
+        }
+        showToast(
+          typeof response.error.message === "string"
+            ? response.error.message
+            : "Impossible d’actualiser le paiement.",
+          "error",
+        );
+        return;
+      }
+      await loadDocumentsPage(currentPage);
+      router.refresh();
+      showToast("Paiement actualisé.", "success");
+    } catch {
+      showToast("Impossible d’actualiser le paiement.", "error");
+    } finally {
+      setReconcilingDocumentIds((ids) => ids.filter((id) => id !== document.id));
+    }
+  }
+
   function openManualPaymentModal(document: Document) {
     setManualPaymentDocument(document);
   }
@@ -476,15 +515,28 @@ function DocumentsTable({
       document.invoicePaymentMode?.paymentMode === "INSTALMENTS";
     const isDraft = document.invoiceStatus === "DRAFT";
     if (document.contractStageInvoice && !isDraft) {
-      return <InvoiceActionsMenu
-        documentNumber={document.documentNumber}
-        actions={[{
+      const actions: InvoiceMenuAction[] = [
+        {
           label: "Gérer les acomptes",
           icon: FileChartColumnIncreasing,
-          onSelect: () => router.push(`/documents/${document.sourceDocumentId ?? document.id}`),
-        }]}
-        busy={false}
-      />;
+          onSelect: () =>
+            router.push(`/documents/${document.sourceDocumentId ?? document.id}`),
+        },
+      ];
+      if (document.contractStageInvoice.payment?.providerPaymentId) {
+        actions.push({
+          label: "Actualiser le paiement",
+          icon: RefreshCw,
+          onSelect: () => void handleReconcileContractStage(document),
+        });
+      }
+      return (
+        <InvoiceActionsMenu
+          documentNumber={document.documentNumber}
+          actions={actions}
+          busy={reconcilingDocumentIds.includes(document.id)}
+        />
+      );
     }
     const isOneTimePending =
       !isInstalments && !document.contractStageInvoice && document.invoiceStatus === "PENDING";

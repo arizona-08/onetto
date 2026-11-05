@@ -697,8 +697,14 @@ export class DocumentService {
               },
             },
             contractStageInvoice: {
-              select: { kind: true, sequence: true, percentage: true,
-                plan: { select: { stages: { select: { kind: true } } } } },
+              select: {
+                id: true,
+                kind: true,
+                sequence: true,
+                percentage: true,
+                payment: { select: { providerPaymentId: true } },
+                plan: { select: { stages: { select: { kind: true } } } },
+              },
             },
             contractPaymentPlan: { select: { id: true } },
             convertedDocuments: {
@@ -744,8 +750,14 @@ export class DocumentService {
             },
           },
           contractStageInvoice: {
-            select: { kind: true, sequence: true, percentage: true,
-              plan: { select: { stages: { select: { kind: true } } } } },
+            select: {
+              id: true,
+              kind: true,
+              sequence: true,
+              percentage: true,
+              payment: { select: { providerPaymentId: true } },
+              plan: { select: { stages: { select: { kind: true } } } },
+            },
           },
           contractPaymentPlan: { select: { id: true } },
           convertedDocuments: {

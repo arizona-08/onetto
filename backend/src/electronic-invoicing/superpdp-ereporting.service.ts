@@ -1,6 +1,7 @@
 import {
   BadGatewayException,
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,6 +12,13 @@ import { SuperPdpOAuthService } from './superpdp-oauth.service';
 
 type B2CCategoryCode = 'TLB1' | 'TPS1';
 
+function canRetryRejectedTransaction(lastError: string | null): boolean {
+  return Boolean(
+    lastError?.startsWith('SuperPDP (400)') ||
+    lastError?.startsWith('Préparation TVA :'),
+  );
+}
+
 @Injectable()
 export class SuperPdpEreportingService {
   constructor(
@@ -18,6 +26,36 @@ export class SuperPdpEreportingService {
     private readonly config: ConfigService,
     private readonly oauth: SuperPdpOAuthService,
   ) {}
+
+  async retryRejectedB2CTransaction(input: {
+    companyId: string;
+    submissionId: string;
+    userId: string;
+  }) {
+    const submission =
+      await this.prisma.electronicReportingSubmission.findFirst({
+        where: {
+          id: input.submissionId,
+          companyId: input.companyId,
+          provider: 'SUPER_PDP',
+          kind: 'TRANSACTION',
+          status: 'FAILED',
+        },
+        select: { documentId: true, lastError: true },
+      });
+    if (!submission?.documentId)
+      throw new NotFoundException('Déclaration B2C rejetée introuvable.');
+    if (!canRetryRejectedTransaction(submission.lastError)) {
+      throw new ConflictException(
+        'Cette déclaration doit être vérifiée avant un nouvel envoi.',
+      );
+    }
+    return this.submitB2CTransaction({
+      companyId: input.companyId,
+      documentId: submission.documentId,
+      userId: input.userId,
+    });
+  }
 
   async submitB2CTransaction(input: {
     companyId: string;
@@ -108,13 +146,31 @@ export class SuperPdpEreportingService {
           payloadFingerprint: fingerprint,
         },
       }));
-    await this.prisma.electronicReportingSubmission.update({
-      where: { id: submission.id },
-      data: { status: 'SUBMITTING', lastError: null },
-    });
+    if (
+      existing?.status === 'FAILED' &&
+      !canRetryRejectedTransaction(existing.lastError)
+    ) {
+      throw new ConflictException(
+        'Cette déclaration doit être vérifiée avant un nouvel envoi.',
+      );
+    }
+    const reserved = await this.prisma.electronicReportingSubmission.updateMany(
+      {
+        where: { id: submission.id, status: { in: ['PENDING', 'FAILED'] } },
+        data: { status: 'SUBMITTING', lastError: null },
+      },
+    );
+    if (reserved.count !== 1) {
+      throw new ConflictException(
+        'Une déclaration est déjà en cours pour cette facture.',
+      );
+    }
 
+    let reportRequestStarted = false;
     try {
       const token = await this.oauth.getAccessToken(input.companyId);
+      await this.oauth.ensureCompanyVatRegime(input.companyId, token);
+      reportRequestStarted = true;
       const response = await fetch(
         'https://api.superpdp.tech/v1.beta/b2c_transactions',
         {
@@ -142,7 +198,9 @@ export class SuperPdpEreportingService {
         },
       });
     } catch (error) {
-      const reason = this.getProviderErrorMessage(error);
+      const reason = reportRequestStarted
+        ? this.getProviderErrorMessage(error)
+        : `Préparation TVA : ${this.getProviderErrorMessage(error)}`;
       await this.prisma.electronicReportingSubmission.update({
         where: { id: submission.id },
         data: { status: 'FAILED', lastError: reason },
@@ -220,12 +278,16 @@ export class SuperPdpEreportingService {
           paidAt: instalment.paidAt ?? new Date(),
         }),
       ) ?? []),
-      ...(document.contractStageInvoice?.payment?.status === 'SUCCESS' && !document.contractStageInvoice.payment.manualSettlementAt
-        ? [{
-            sourceReference: `contract-stage:${document.contractStageInvoice.payment.id}`,
-            amountInCents: document.contractStageInvoice.payment.amountInCents,
-            paidAt: document.contractStageInvoice.payment.updatedAt,
-          }]
+      ...(document.contractStageInvoice?.payment?.status === 'SUCCESS' &&
+      !document.contractStageInvoice.payment.manualSettlementAt
+        ? [
+            {
+              sourceReference: `contract-stage:${document.contractStageInvoice.payment.id}`,
+              amountInCents:
+                document.contractStageInvoice.payment.amountInCents,
+              paidAt: document.contractStageInvoice.payment.updatedAt,
+            },
+          ]
         : []),
       ...(document.invoiceStatus === 'PAID_MANUALLY'
         ? [
@@ -394,6 +456,7 @@ export class SuperPdpEreportingService {
 
     try {
       const token = await this.oauth.getAccessToken(input.document.companyId);
+      await this.oauth.ensureCompanyVatRegime(input.document.companyId, token);
       const response = await fetch(
         'https://api.superpdp.tech/v1.beta/b2c_payments',
         {
