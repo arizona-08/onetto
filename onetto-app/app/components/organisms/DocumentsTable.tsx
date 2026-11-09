@@ -314,11 +314,9 @@ function DocumentsTable({
 
   async function handleReconcileContractStage(document: Document) {
     const stageId = document.contractStageInvoice?.id;
-    if (
-      !stageId ||
-      !document.contractStageInvoice?.payment?.providerPaymentId ||
-      reconcilingDocumentIds.includes(document.id)
-    ) {
+    if (!stageId || reconcilingDocumentIds.includes(document.id)) return;
+    if (!document.contractStageInvoice?.payment?.providerPaymentId) {
+      showToast("Aucun prélèvement GoCardless n’a encore été créé pour cet acompte.", "error");
       return;
     }
     setReconcilingDocumentIds((ids) => [...ids, document.id]);
@@ -515,15 +513,28 @@ function DocumentsTable({
       document.invoicePaymentMode?.paymentMode === "INSTALMENTS";
     const isDraft = document.invoiceStatus === "DRAFT";
     if (document.contractStageInvoice && !isDraft) {
+      const stage = document.contractStageInvoice;
+      const contractUrl = `/documents/${document.sourceDocumentId ?? document.id}`;
       const actions: InvoiceMenuAction[] = [
         {
           label: "Gérer les acomptes",
           icon: FileChartColumnIncreasing,
-          onSelect: () =>
-            router.push(`/documents/${document.sourceDocumentId ?? document.id}`),
+          onSelect: () => router.push(contractUrl),
         },
       ];
-      if (document.contractStageInvoice.payment?.providerPaymentId) {
+      if (
+        stage.kind === "DEPOSIT" &&
+        document.invoiceStatus === "PENDING" &&
+        !stage.payment &&
+        ["ACTIVE", "PENDING"].includes(stage.plan?.mandateStatus ?? "")
+      ) {
+        actions.push({
+          label: stage.plan?.mandateStatus === "ACTIVE" ? "Déclencher le prélèvement" : "Vérifier le mandat et déclencher",
+          icon: CirclePlusIcon,
+          onSelect: () => router.push(`${contractUrl}#acompte-${stage.id}`),
+        });
+      }
+      if (stage.payment?.providerPaymentId) {
         actions.push({
           label: "Actualiser le paiement",
           icon: RefreshCw,

@@ -11,6 +11,7 @@ import { ConflictException, ForbiddenException, NotFoundException } from '@nestj
 import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ereporting.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { SuperPdpB2bService } from 'src/electronic-invoicing/superpdp-b2b.service';
+import { finalizePendingContractAcceptance } from './contract-acceptance';
 
 @Injectable()
 export class ContractPaymentService {
@@ -31,18 +32,20 @@ export class ContractPaymentService {
       if (!locked.length) throw new BadRequestException('Jalon introuvable.');
       const stage = await tx.contractPaymentStage.findUnique({
         where: { id: stageId },
-        include: {
-          plan: {
-            include: {
-              estimate: { include: { company: true, services: true } },
-              stages: { include: { invoice: true }, orderBy: { sequence: 'asc' } },
-            },
-          },
-        },
       });
       if (!stage) throw new BadRequestException('Jalon introuvable.');
-      const plan = stage.plan;
-      const estimate = plan.estimate;
+      const plan = await tx.contractPaymentPlan.findUnique({ where: { id: stage.planId } });
+      if (!plan) throw new BadRequestException('Contrat introuvable.');
+      const estimate = await tx.document.findUnique({
+        where: { id: plan.estimateId },
+        include: { company: true, services: true },
+      });
+      if (!estimate) throw new BadRequestException('Devis introuvable.');
+      const stages = await tx.contractPaymentStage.findMany({
+        where: { planId: plan.id },
+        include: { invoice: true },
+        orderBy: { sequence: 'asc' },
+      });
       const allowed = estimate.company.ownerId === user.id || Boolean(await tx.companyUser.findFirst({
         where: { companyId: estimate.companyId, userId: user.id, role: 'ADMIN', isHidden: false },
       }));
@@ -53,7 +56,7 @@ export class ContractPaymentService {
         throw new BadRequestException('Le contrat n’est pas actif.');
       }
       if (stage.invoiceId) return { invoiceId: stage.invoiceId, alreadyPrepared: true };
-      const earlier = plan.stages.filter((item) => item.sequence < stage.sequence);
+      const earlier = stages.filter((item) => item.sequence < stage.sequence);
       if (earlier.some((item) => !item.invoice || item.invoice.invoiceStatus === 'DRAFT')) {
         throw new BadRequestException('Émettez d’abord les factures des jalons précédents.');
       }
@@ -62,7 +65,7 @@ export class ContractPaymentService {
       )) {
         throw new BadRequestException('Le solde ne peut être facturé tant que les acomptes précédents ne sont pas encaissés.');
       }
-      const deposits = plan.stages.filter((item) => item.kind === 'DEPOSIT').map((item) => ({
+      const deposits = stages.filter((item) => item.kind === 'DEPOSIT').map((item) => ({
         percentage: item.percentage,
         triggerCondition: item.triggerCondition,
       }));
@@ -154,17 +157,43 @@ export class ContractPaymentService {
     if (stage.payment) {
       throw new ConflictException('Un règlement existe déjà pour ce jalon.');
     }
-    if (!plan.providerMandateId || plan.mandateStatus !== 'ACTIVE') {
-      throw new BadRequestException('Le mandat SEPA doit être autorisé avant ce prélèvement.');
-    }
     const client = await this.oauth.getClientForCompany(estimate.companyId);
-    const mandate = await client.mandates.find(plan.providerMandateId);
-    if (!mandate || mandate.status !== 'active') {
+    let mandateId = plan.providerMandateId;
+    if (!mandateId && plan.providerBillingRequestId) {
+      const request = await client.billingRequests.find(plan.providerBillingRequestId);
+      if (request.status === 'fulfilled') {
+        mandateId = request.links?.mandate_request_mandate ?? null;
+      }
+    }
+    if (!mandateId) {
+      throw new BadRequestException('Le mandat SEPA n’est pas encore autorisé. Le client doit terminer son parcours GoCardless.');
+    }
+    if (plan.providerMandateId && plan.providerMandateId !== mandateId) {
+      throw new ConflictException('Le mandat GoCardless ne correspond pas au contrat.');
+    }
+    const mandate = await client.mandates.find(mandateId);
+    // SEPA mandates may only be submitted when their first payment is created.
+    if (!mandate || !['pending_submission', 'submitted', 'active'].includes(mandate.status as string)) {
+      const revoked = mandate && ['cancelled', 'blocked', 'expired'].includes(mandate.status as string);
       await this.prisma.contractPaymentPlan.update({
         where: { id: plan.id },
-        data: { mandateStatus: mandate?.status === 'cancelled' ? 'REVOKED' : 'FAILED' },
+        data: {
+          ...(plan.providerMandateId ? {} : { providerMandateId: mandateId }),
+          mandateStatus: revoked ? 'REVOKED' : mandate?.status === 'failed' ? 'FAILED' : 'PENDING',
+        },
       });
-      throw new BadRequestException('Le mandat SEPA n’est plus actif.');
+      throw new BadRequestException(revoked
+        ? 'Le mandat SEPA est révoqué chez GoCardless. Un nouveau mandat est nécessaire.'
+        : mandate?.status === 'pending_customer_approval'
+          ? 'Le mandat SEPA nécessite encore l’approbation du client.'
+          : 'Ce mandat SEPA ne permet pas de déclencher un prélèvement.');
+    }
+    const mandateStatus = mandate.status === 'active' ? 'ACTIVE' : 'PENDING';
+    if (plan.providerMandateId !== mandateId || plan.mandateStatus !== mandateStatus) {
+      await this.prisma.contractPaymentPlan.update({
+        where: { id: plan.id },
+        data: { providerMandateId: mandateId, mandateStatus },
+      });
     }
     const earlierUnpaidInCents = plan.stages
       .filter((item) => item.sequence < stage.sequence && item.invoice && !['PAID', 'PAID_MANUALLY'].includes(item.invoice.invoiceStatus))
@@ -181,7 +210,7 @@ export class ContractPaymentService {
       chargeDate,
       earlierUnpaidInCents,
       companyId: estimate.companyId,
-      mandateId: plan.providerMandateId,
+      mandateId,
       invoiceId: stage.invoice.id,
     };
   }
@@ -233,6 +262,63 @@ export class ContractPaymentService {
       await this.prisma.contractStagePayment.update({ where: { stageId }, data: { status: 'UNCERTAIN', failureReason: error instanceof Error ? error.message.slice(0, 500) : 'Réponse GoCardless incertaine' } });
       throw new ConflictException('La création du prélèvement doit être vérifiée auprès de GoCardless avant toute nouvelle action.');
     }
+  }
+
+  async reconcileMandateForPlan(planId: string, user: User) {
+    const plan = await this.prisma.contractPaymentPlan.findUnique({
+      where: { id: planId },
+      select: {
+        id: true,
+        cancelledAt: true,
+        providerBillingRequestId: true,
+        estimate: {
+          select: {
+            companyId: true,
+            company: {
+              select: {
+                ownerId: true,
+                status: true,
+                companyUsers: {
+                  where: { userId: user.id, role: 'ADMIN', isHidden: false },
+                  select: { id: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!plan) throw new NotFoundException('Contrat introuvable.');
+    const company = plan.estimate.company;
+    if (company.status !== 'ACTIVE' || (company.ownerId !== user.id && company.companyUsers.length === 0)) {
+      throw new ForbiddenException('Vous ne pouvez pas vérifier ce mandat.');
+    }
+    if (plan.cancelledAt || !plan.providerBillingRequestId) {
+      throw new BadRequestException('Aucune autorisation de mandat en cours pour ce contrat.');
+    }
+    const client = await this.oauth.getClientForCompany(plan.estimate.companyId);
+    const request = await client.billingRequests.find(plan.providerBillingRequestId);
+    if (request.status !== 'fulfilled') {
+      return { mandateStatus: 'PENDING', accepted: false };
+    }
+    const mandateId = request.links?.mandate_request_mandate;
+    if (!mandateId) throw new BadRequestException('GoCardless n’a pas retourné le mandat autorisé.');
+    const mandate = await client.mandates.find(mandateId);
+    const mandateStatus = mandate.status === 'active' ? 'ACTIVE' :
+      ['cancelled', 'blocked', 'expired'].includes(mandate.status as string) ? 'REVOKED' :
+        mandate.status === 'failed' ? 'FAILED' : 'PENDING';
+    await this.prisma.contractPaymentPlan.update({
+      where: { id: plan.id },
+      data: { providerMandateId: mandateId, mandateStatus },
+    });
+    if (!['cancelled', 'blocked', 'expired', 'failed'].includes(mandate.status as string)) {
+      await finalizePendingContractAcceptance(this.prisma, this.notifications, plan.id);
+    }
+    const current = await this.prisma.contractPaymentPlan.findUnique({
+      where: { id: plan.id },
+      select: { acceptedAt: true },
+    });
+    return { mandateStatus, accepted: Boolean(current?.acceptedAt) };
   }
 
   async cancelContractPlan(planId: string, user: User) {
@@ -414,13 +500,25 @@ export class ContractPaymentService {
             },
           },
         });
+        const pendingAcceptance = Boolean(
+          plan?.acceptanceRequestedAt &&
+          !plan.acceptedAt &&
+          plan.estimate.estimateStatus === 'SENT',
+        );
         if (
-          !plan?.acceptedAt ||
-          plan.estimate.estimateStatus !== 'ACCEPTED' ||
+          !plan ||
+          (!pendingAcceptance && (!plan.acceptedAt || plan.estimate.estimateStatus !== 'ACCEPTED')) ||
           plan.estimate.company.status !== 'ACTIVE' ||
           plan.cancelledAt
         ) {
           throw new BadRequestException('Ce contrat ne peut plus être autorisé.');
+        }
+        if (pendingAcceptance) {
+          const negotiation = await tx.estimateNegociation.findFirst({
+            where: { documentId: plan.estimateId, status: 'PENDING' },
+            select: { id: true },
+          });
+          if (!negotiation) throw new BadRequestException('La demande d’acceptation du devis n’est plus disponible.');
         }
         if (plan.mandateStatus === 'REVOKED' || (plan.providerMandateId && plan.mandateStatus === 'FAILED')) {
           return { url: null, message: 'Ce mandat n’est plus utilisable. Contactez l’entreprise.' };
@@ -429,9 +527,17 @@ export class ContractPaymentService {
           const client = await this.oauth.getClientForCompany(plan.estimate.companyId);
           const mandate = await client.mandates.find(plan.providerMandateId);
           const mandateStatus = mandate.status === 'active' ? 'ACTIVE' :
-            ['cancelled', 'blocked', 'expired'].includes(mandate.status as string) ? 'REVOKED' : 'PENDING';
+            ['cancelled', 'blocked', 'expired'].includes(mandate.status as string) ? 'REVOKED' :
+              mandate.status === 'failed' ? 'FAILED' : 'PENDING';
           await tx.contractPaymentPlan.update({ where: { id: plan.id }, data: { mandateStatus } });
-          return { url: null, message: mandateStatus === 'ACTIVE' ? 'Le mandat est autorisé.' : mandateStatus === 'REVOKED' ? 'Ce mandat n’est plus utilisable. Contactez l’entreprise.' : 'Le mandat est en cours d’activation.' };
+          const request = pendingAcceptance && plan.providerBillingRequestId
+            ? await client.billingRequests.find(plan.providerBillingRequestId)
+            : null;
+          return {
+            url: null,
+            message: mandateStatus === 'ACTIVE' ? 'Le mandat est autorisé.' : mandateStatus === 'REVOKED' ? 'Ce mandat n’est plus utilisable. Contactez l’entreprise.' : 'Le mandat est en cours d’activation.',
+            acceptancePlanId: request?.status === 'fulfilled' && !['REVOKED', 'FAILED'].includes(mandateStatus) ? plan.id : null,
+          };
         }
         if (plan.mandateStatus === 'ACTIVE') {
           return { url: null, message: 'Le mandat a déjà été autorisé.' };
@@ -466,7 +572,11 @@ export class ContractPaymentService {
               mandateStatus: mandate.status === 'active' ? 'ACTIVE' : 'PENDING',
             },
           });
-          return { url: null, message: mandate.status === 'active' ? 'Le mandat est autorisé.' : 'Le mandat est en cours d’activation.' };
+          return {
+            url: null,
+            message: mandate.status === 'active' ? 'Le mandat est autorisé.' : 'Le mandat est en cours d’activation.',
+            acceptancePlanId: pendingAcceptance && !['cancelled', 'blocked', 'expired', 'failed'].includes(mandate.status as string) ? plan.id : null,
+          };
         }
         if (billingRequest.status === 'fulfilling' || billingRequest.status === 'ready_to_fulfil') {
           return { url: null, message: 'Le mandat est en cours d’activation.' };
@@ -511,6 +621,15 @@ export class ContractPaymentService {
       },
       { timeout: 30_000 },
     );
+    let accepted = false;
+    if ('acceptancePlanId' in result && result.acceptancePlanId) {
+      await finalizePendingContractAcceptance(this.prisma, this.notifications, result.acceptancePlanId);
+      const plan = await this.prisma.contractPaymentPlan.findUnique({
+        where: { id: result.acceptancePlanId },
+        select: { acceptedAt: true },
+      });
+      accepted = Boolean(plan?.acceptedAt);
+    }
     if (result.message === 'Le mandat est autorisé.') {
       const plan = await this.prisma.contractPaymentPlan.findUnique({
         where: { authorizationToken: token },
@@ -531,6 +650,8 @@ export class ContractPaymentService {
         }
       }
     }
-    return result;
+    if (accepted) return { url: result.url, message: result.message, accepted };
+    if (result.message) return { url: result.url, message: result.message };
+    return { url: result.url };
   }
 }

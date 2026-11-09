@@ -478,6 +478,7 @@ model ContractPaymentPlan {
   estimateId              String                    @unique
   estimate                Document                  @relation("EstimateContractPlan", fields: [estimateId], references: [id], onDelete: Cascade)
   totalAmountInCents      Int
+  acceptanceRequestedAt   DateTime?
   acceptedAt              DateTime?
   authorizationToken      String                    @unique @default(uuid())
   authorizationExpiresAt  DateTime?

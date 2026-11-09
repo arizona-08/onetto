@@ -462,10 +462,10 @@ export class DocumentService {
   ) {
     const existing = await prisma.contractPaymentPlan.findUnique({
       where: { estimateId },
-      select: { id: true, acceptedAt: true },
+      select: { id: true, acceptedAt: true, acceptanceRequestedAt: true },
     });
-    if (existing?.acceptedAt) {
-      throw new BadRequestException('Le plan accepté ne peut plus être modifié.');
+    if (existing?.acceptedAt || existing?.acceptanceRequestedAt) {
+      throw new BadRequestException('Le plan en cours d’autorisation ou déjà accepté ne peut plus être modifié.');
     }
     if (!input) {
       if (existing) {
@@ -703,7 +703,7 @@ export class DocumentService {
                 sequence: true,
                 percentage: true,
                 payment: { select: { providerPaymentId: true } },
-                plan: { select: { stages: { select: { kind: true } } } },
+                plan: { select: { mandateStatus: true, stages: { select: { kind: true } } } },
               },
             },
             contractPaymentPlan: { select: { id: true } },
@@ -756,7 +756,7 @@ export class DocumentService {
               sequence: true,
               percentage: true,
               payment: { select: { providerPaymentId: true } },
-              plan: { select: { stages: { select: { kind: true } } } },
+              plan: { select: { mandateStatus: true, stages: { select: { kind: true } } } },
             },
           },
           contractPaymentPlan: { select: { id: true } },
@@ -1526,9 +1526,12 @@ export class DocumentService {
           status: 'PENDING',
           document: { type: 'ESTIMATE', estimateStatus: 'SENT', isLastVersion: true, company: { status: 'ACTIVE' } },
         },
-        select: { document: { select: { companyId: true, totalPrice: true, contractPaymentPlan: { select: { id: true } } } } },
+        select: { document: { select: { companyId: true, totalPrice: true, contractPaymentPlan: { select: { id: true, acceptanceRequestedAt: true } } } } },
       });
     if (!pendingNegociation) return null;
+    if (pendingNegociation.document.contractPaymentPlan?.acceptanceRequestedAt) {
+      throw new BadRequestException('L’autorisation du mandat SEPA est déjà en cours pour ce devis.');
+    }
 
     await this.planAccessService.assertFeatureAvailable(
       pendingNegociation.document.companyId,
@@ -1546,6 +1549,9 @@ export class DocumentService {
       : null;
 
     const result = await this.prismaService.$transaction(async (prisma) => {
+      await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "EstimateNegociation" WHERE "negociationToken" = ${negociationToken} FOR UPDATE
+      `;
       const negociation = await prisma.estimateNegociation.findFirst({
         where: {
           negociationToken,
@@ -1557,6 +1563,14 @@ export class DocumentService {
 
       if (!negociation) {
         return null;
+      }
+
+      const contract = await prisma.contractPaymentPlan.findUnique({
+        where: { estimateId: negociation.documentId },
+        select: { id: true, acceptanceRequestedAt: true },
+      });
+      if (contract?.acceptanceRequestedAt) {
+        throw new BadRequestException('L’autorisation du mandat SEPA est déjà en cours pour ce devis.');
       }
 
       await prisma.estimateNegociation.update({
@@ -1591,6 +1605,9 @@ export class DocumentService {
     status: 'ACCEPTED' | 'REJECTED',
   ) {
     const result = await this.prismaService.$transaction(async (prisma) => {
+      await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "EstimateNegociation" WHERE "negociationToken" = ${negociationToken} FOR UPDATE
+      `;
       const negociation = await prisma.estimateNegociation.findFirst({
         where: {
           negociationToken,
@@ -1602,6 +1619,17 @@ export class DocumentService {
 
       if (!negociation) {
         return null;
+      }
+
+      const contract = await prisma.contractPaymentPlan.findUnique({
+        where: { estimateId: negociation.documentId },
+        select: { id: true, acceptanceRequestedAt: true },
+      });
+      if (status === 'ACCEPTED' && contract) {
+        throw new BadRequestException('Ce devis doit être accepté avec l’autorisation du mandat SEPA.');
+      }
+      if (status === 'REJECTED' && contract?.acceptanceRequestedAt) {
+        throw new BadRequestException('L’autorisation du mandat SEPA est déjà en cours pour ce devis.');
       }
 
       await prisma.estimateNegociation.update({
@@ -1647,6 +1675,54 @@ export class DocumentService {
         });
     }
     return result;
+  }
+
+  async startContractAcceptance(negociationToken: string) {
+    return this.prismaService.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "EstimateNegociation" WHERE "negociationToken" = ${negociationToken} FOR UPDATE
+      `;
+      if (!locked.length) throw new BadRequestException('Ce devis ne peut plus être accepté.');
+      const negotiation = await tx.estimateNegociation.findUnique({
+        where: { negociationToken },
+        select: {
+          status: true,
+          document: {
+            select: {
+              type: true,
+              estimateStatus: true,
+              isLastVersion: true,
+              company: { select: { status: true } },
+              contractPaymentPlan: {
+                select: { id: true, authorizationToken: true, cancelledAt: true },
+              },
+            },
+          },
+        },
+      });
+      const estimate = negotiation?.document;
+      const plan = estimate?.contractPaymentPlan;
+      if (
+        negotiation?.status !== 'PENDING' ||
+        estimate?.type !== 'ESTIMATE' ||
+        estimate.estimateStatus !== 'SENT' ||
+        !estimate.isLastVersion ||
+        estimate.company.status !== 'ACTIVE' ||
+        !plan ||
+        plan.cancelledAt
+      ) {
+        throw new BadRequestException('Ce devis ne peut plus être accepté.');
+      }
+      const requestedAt = new Date();
+      await tx.contractPaymentPlan.updateMany({
+        where: { id: plan.id, acceptanceRequestedAt: null, acceptedAt: null },
+        data: {
+          acceptanceRequestedAt: requestedAt,
+          authorizationExpiresAt: new Date(requestedAt.getTime() + 30 * 86_400_000),
+        },
+      });
+      return plan.authorizationToken;
+    });
   }
 
   async getNegociationsByDocument(documentId: string, user: User) {

@@ -94,6 +94,9 @@ export type Document = {
     acceptedAt?: string | null;
     cancelledAt?: string | null;
     mandateStatus: string;
+    acceptanceRequestedAt?: string | null;
+    providerBillingRequestId?: string | null;
+    providerMandateId?: string | null;
     stages: Array<{
       id: string;
       sequence: number;
@@ -126,7 +129,10 @@ export type Document = {
     sequence: number;
     percentage: number;
     payment?: { providerPaymentId: string | null } | null;
-    plan?: { stages: Array<{ kind: "DEPOSIT" | "BALANCE" }> };
+    plan?: {
+      mandateStatus: string;
+      stages: Array<{ kind: "DEPOSIT" | "BALANCE" }>;
+    };
   } | null;
   invoicePaymentLinks?: Array<{ provider: "GOCARDLESS" | "BRIDGE" }>;
   invoiceInstalmentPlan?: {

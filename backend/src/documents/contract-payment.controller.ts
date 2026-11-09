@@ -52,6 +52,12 @@ export class ContractPaymentController {
     return this.contracts.cancelContractPlan(planId, request.user);
   }
 
+  @Post(':planId/mandate/reconcile')
+  reconcileMandate(@Param('planId') planId: string, @Req() request: ExtendedRequest) {
+    if (!request.user) throw new UnauthorizedException('Non authentifié');
+    return this.contracts.reconcileMandateForPlan(planId, request.user);
+  }
+
   @Post('stages/:stageId/retry')
   retryPayment(@Param('stageId') stageId: string, @Req() request: ExtendedRequest) {
     if (!request.user) throw new UnauthorizedException('Non authentifié');

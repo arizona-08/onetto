@@ -58,6 +58,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
   } | null>(null);
   const [acknowledgePrevious, setAcknowledgePrevious] = useState(false);
   const [isTriggeringStage, setIsTriggeringStage] = useState(false);
+  const [isCheckingMandate, setIsCheckingMandate] = useState(false);
   const [isCancellingPlan, setIsCancellingPlan] = useState(false);
   const [isMoreActionsOpen, setIsMoreActionsOpen] = useState(false);
   const [isGoCardlessReconnectOpen, setIsGoCardlessReconnectOpen] =
@@ -232,6 +233,25 @@ function ShowDocument({ document }: ShowDocumentProps) {
       showToast(typeof response.error?.message === "string" ? response.error.message : "Actualisation impossible.", "error");
       return;
     }
+    router.refresh();
+  }
+
+  async function checkContractMandate() {
+    const planId = document.contractPaymentPlan?.id;
+    if (!planId) return;
+    setIsCheckingMandate(true);
+    const response = await apiClient<{ mandateStatus: string; accepted: boolean }>(
+      `api/contracts/${encodeURIComponent(planId)}/mandate/reconcile`,
+      { method: "POST" },
+    );
+    setIsCheckingMandate(false);
+    if (!response.ok) {
+      showToast(typeof response.error.message === "string" ? response.error.message : "Vérification du mandat impossible.", "error");
+      return;
+    }
+    showToast(response.data.accepted
+      ? response.data.mandateStatus === "ACTIVE" ? "Devis accepté et mandat actif." : "Devis accepté. Le mandat est en cours d’activation."
+      : "Le parcours d’autorisation du mandat n’est pas encore terminé.", "success");
     router.refresh();
   }
 
@@ -557,6 +577,11 @@ function ShowDocument({ document }: ShowDocumentProps) {
               {document.contractPaymentPlan.cancelledAt ? "Projet annulé" : `Mandat : ${document.contractPaymentPlan.mandateStatus === "ACTIVE" ? "autorisé" : document.contractPaymentPlan.mandateStatus === "PENDING" ? "en cours" : document.contractPaymentPlan.mandateStatus === "REVOKED" ? "révoqué" : "à autoriser"}`}
             </span>
           </div>
+          {document.contractPaymentPlan.providerBillingRequestId && (!isAcceptedEstimate || document.contractPaymentPlan.mandateStatus !== "ACTIVE") && !document.contractPaymentPlan.cancelledAt && (
+            <button type="button" disabled={isCheckingMandate} onClick={() => void checkContractMandate()} className="mt-2 text-sm font-medium text-primary underline disabled:opacity-50">
+              {isCheckingMandate ? "Vérification…" : "Vérifier l’autorisation du mandat"}
+            </button>
+          )}
           <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <p>Total contractuel : <strong>{euroCents(document.contractPaymentPlan.totalAmountInCents)}</strong></p>
             <p>Facturé : <strong>{euroCents(invoicedInCents)}</strong></p>
@@ -568,7 +593,7 @@ function ShowDocument({ document }: ShowDocumentProps) {
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {document.contractPaymentPlan.stages.map((stage) => (
-              <div key={stage.id} className="rounded-lg border border-zinc-200 p-3">
+              <div id={`acompte-${stage.id}`} key={stage.id} className="scroll-mt-6 rounded-lg border border-zinc-200 p-3">
                 <p className="font-semibold">{stage.kind === "BALANCE" ? "Solde" : `${stage.sequence}${stage.sequence === 1 ? "er" : "e"} acompte`} · {stage.percentage} %</p>
                 <p className="text-lg font-semibold text-primary">{(stage.amountInCents / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</p>
                 <p className="mt-1 text-sm text-zinc-600">{stage.triggerCondition}</p>
@@ -588,8 +613,11 @@ function ShowDocument({ document }: ShowDocumentProps) {
                     {stage.payment?.status === "FAILED" && !stage.payment.automaticRetryScheduled && !stage.payment.manualRetryRequestedAt && !stage.payment.manualSettlementAt && (
                       <button type="button" onClick={() => void markStagePaidManually(stage.id)} className="block text-sm font-medium text-primary underline">Enregistrer un règlement manuel</button>
                     )}
-                    {stage.invoice.invoiceStatus === "PENDING" && !stage.payment && document.contractPaymentPlan?.mandateStatus === "ACTIVE" && (
-                      <button type="button" disabled={isSendingBlocked} onClick={() => void openStagePayment(stage.id)} className="block rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Déclencher le prélèvement</button>
+                    {stage.invoice.invoiceStatus === "PENDING" && !stage.payment && ["ACTIVE", "PENDING"].includes(document.contractPaymentPlan?.mandateStatus ?? "") && (
+                      <button type="button" disabled={isSendingBlocked} onClick={() => void openStagePayment(stage.id)} className="block rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{document.contractPaymentPlan?.mandateStatus === "ACTIVE" ? "Déclencher le prélèvement" : "Vérifier le mandat et déclencher"}</button>
+                    )}
+                    {stage.invoice.invoiceStatus === "PENDING" && !stage.payment && !["ACTIVE", "PENDING"].includes(document.contractPaymentPlan?.mandateStatus ?? "") && (
+                      <p className="text-xs text-amber-800">Le client doit autoriser le mandat SEPA avant que le prélèvement puisse être déclenché.</p>
                     )}
                   </div>
                 ) : (

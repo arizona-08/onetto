@@ -7,6 +7,7 @@ import { GoCardlessOAuthService } from '../gocardless-oauth.service';
 import { $Enums } from '@prisma/client';
 import { GoCardlessClient } from 'gocardless-nodejs';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { finalizePendingContractAcceptance } from 'src/documents/contract-acceptance';
 
 @Injectable()
 export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInterface {
@@ -31,7 +32,7 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
 
     const contract = await this.prismaService.contractPaymentPlan.findUnique({
       where: { providerBillingRequestId: billingRequestId },
-      select: { id: true, estimate: { select: { id: true, companyId: true } } },
+      select: { id: true, acceptanceRequestedAt: true, estimate: { select: { id: true, companyId: true } } },
     });
     if (contract) {
       const account = await this.prismaService.companyPaymentAccount.findFirst({
@@ -63,6 +64,9 @@ export class GoCardlessBillingRequestWebhookHandler implements WebhookHandlerInt
           mandateStatus: mandate.status === 'active' ? 'ACTIVE' : 'PENDING',
         },
       });
+      if (contract.acceptanceRequestedAt && !['cancelled', 'blocked', 'expired', 'failed'].includes(mandate.status as string)) {
+        await finalizePendingContractAcceptance(this.prismaService, this.notifications, contract.id);
+      }
       if (mandate.status === 'active') {
         await this.notifications.notifyCompany({
           companyId: contract.estimate.companyId,
