@@ -19,6 +19,9 @@ type SuperPdpToken = {
 
 type SuperPdpCompanyProfile = {
   id?: number | string;
+  number?: string;
+  number_scheme?: string;
+  env?: string;
   status?: string;
   directory_registration_status?: string;
   vat_regime?: string | null;
@@ -53,7 +56,10 @@ export class SuperPdpOAuthService {
           },
         ],
       },
-      select: { id: true, email: true, siren: true, electronicAddress: true },
+      select: {
+        id: true, email: true, siren: true,
+        electronicInvoicingConnection: { select: { superPdpSandboxCompanyNumber: true } },
+      },
     });
     if (!company) {
       throw new NotFoundException(
@@ -61,6 +67,10 @@ export class SuperPdpOAuthService {
       );
     }
 
+    const companyHint = this.getCompanyHint(
+      company.siren,
+      company.electronicInvoicingConnection?.superPdpSandboxCompanyNumber,
+    );
     const state = randomBytes(32).toString('base64url');
     await this.prismaService.$transaction(async (prisma) => {
       await prisma.electronicInvoicingOAuthState.deleteMany({
@@ -81,7 +91,7 @@ export class SuperPdpOAuthService {
           environment: this.getEnvironment(),
           status: 'PENDING_AUTHORIZATION',
         },
-        update: { status: 'PENDING_AUTHORIZATION', lastError: null },
+        update: { environment: this.getEnvironment(), status: 'PENDING_AUTHORIZATION', lastError: null },
       });
     });
 
@@ -97,10 +107,6 @@ export class SuperPdpOAuthService {
     );
     url.searchParams.set('state', state);
     url.searchParams.set('login_hint', company.email);
-    const companyHint = this.getCompanyHint(
-      company.siren,
-      company.electronicAddress,
-    );
     url.searchParams.set('superpdp_company_number', companyHint.number);
     url.searchParams.set('superpdp_company_number_scheme', companyHint.scheme);
     url.searchParams.set('superpdp_send_and_receive', 'any');
@@ -179,6 +185,8 @@ export class SuperPdpOAuthService {
           update: {
             environment: this.getEnvironment(),
             status: 'VERIFYING',
+            providerCompanyId: null,
+            metadata: Prisma.DbNull,
             accessTokenEncrypted: this.tokenCryptoService.encrypt(
               token.access_token!,
             ),
@@ -199,11 +207,8 @@ export class SuperPdpOAuthService {
       throw error;
     }
 
-    // OAuth is sufficient to confirm the connection synchronously. Webhooks
-    // are only needed later for invoice and reporting lifecycle events.
-    await this.syncProviderConnection(oauthState.companyId).catch(
-      () => undefined,
-    );
+    // A token alone does not prove that it belongs to the intended company.
+    await this.syncProviderConnection(oauthState.companyId);
     return { companyId: oauthState.companyId };
   }
 
@@ -212,10 +217,16 @@ export class SuperPdpOAuthService {
    * both tokens are persisted together whenever a refresh succeeds.
    */
   async getAccessToken(companyId: string): Promise<string> {
+    return this.loadAccessToken(companyId, false);
+  }
+
+  private async loadAccessToken(companyId: string, forVerification: boolean): Promise<string> {
     const connection =
       await this.prismaService.electronicInvoicingConnection.findUnique({
         where: { companyId },
         select: {
+          status: true,
+          environment: true,
           accessTokenEncrypted: true,
           refreshTokenEncrypted: true,
           accessTokenExpiresAt: true,
@@ -228,6 +239,10 @@ export class SuperPdpOAuthService {
       throw new BadRequestException(
         'Cette entreprise n’est pas connectée à SuperPDP.',
       );
+    }
+    if (!forVerification &&
+      (connection.status !== 'ACTIVE' || connection.environment !== this.getEnvironment())) {
+      throw new BadRequestException('Vérifiez l’identité de l’entreprise SuperPDP avant de poursuivre.');
     }
 
     const expiresSoon =
@@ -263,9 +278,7 @@ export class SuperPdpOAuthService {
             token.refresh_token,
           ),
           accessTokenExpiresAt: expiresAt,
-          status: 'ACTIVE',
           lastSyncedAt: new Date(),
-          lastError: null,
         },
       });
       return token.access_token;
@@ -289,7 +302,12 @@ export class SuperPdpOAuthService {
   }
 
   private async syncProviderConnection(companyId: string) {
-    const token = await this.getAccessToken(companyId);
+    const token = await this.loadAccessToken(companyId, true);
+    const connection = await this.prismaService.electronicInvoicingConnection.findUnique({
+      where: { companyId },
+      select: { accessTokenEncrypted: true, superPdpSandboxCompanyNumber: true, environment: true },
+    });
+    if (!connection) throw new BadRequestException('Connexion SuperPDP introuvable.');
     let profile: SuperPdpCompanyProfile;
     try {
       const response = await fetch(
@@ -316,6 +334,7 @@ export class SuperPdpOAuthService {
     }
 
     try {
+      await this.assertCompanyIdentity(companyId, profile);
       profile = await this.ensureCompanyVatRegime(companyId, token, profile);
     } catch (error) {
       await this.prismaService.electronicInvoicingConnection.update({
@@ -331,19 +350,92 @@ export class SuperPdpOAuthService {
       throw error;
     }
 
-    await this.prismaService.electronicInvoicingConnection.update({
-      where: { companyId },
+    const verified = await this.prismaService.electronicInvoicingConnection.updateMany({
+      where: {
+        companyId,
+        accessTokenEncrypted: connection.accessTokenEncrypted,
+        superPdpSandboxCompanyNumber: connection.superPdpSandboxCompanyNumber,
+        environment: connection.environment,
+      },
       data: {
         status: 'ACTIVE',
+        environment: this.getEnvironment(),
         providerCompanyId: profile.id === undefined ? null : String(profile.id),
         metadata: profile as Prisma.InputJsonValue,
         lastSyncedAt: new Date(),
         lastError: null,
       },
     });
-    return {
-      providerCompanyId: profile.id === undefined ? null : String(profile.id),
+    if (verified.count !== 1) throw new BadRequestException('La connexion SuperPDP a changé pendant la vérification. Réessayez.');
+    return { providerCompanyId: String(profile.id) };
+  }
+
+  private async assertCompanyIdentity(companyId: string, profile: SuperPdpCompanyProfile) {
+    const company = await this.prismaService.company.findUnique({
+      where: { id: companyId },
+      select: {
+        status: true, siren: true,
+        electronicInvoicingConnection: { select: { superPdpSandboxCompanyNumber: true } },
+      },
+    });
+    if (company?.status !== 'ACTIVE') throw new BadRequestException('Entreprise fermée ou introuvable.');
+    const expected = this.getCompanyHint(company.siren, company.electronicInvoicingConnection?.superPdpSandboxCompanyNumber);
+    if (!profile.id || profile.env !== this.getEnvironment().toLowerCase() ||
+      profile.number_scheme !== expected.scheme || profile.number !== expected.number) {
+      throw new BadRequestException(
+        `Le compte SuperPDP connecté ne correspond pas à l’entreprise attendue (${expected.scheme} : ${expected.number}). Reconnectez la bonne entreprise.`,
+      );
+    }
+  }
+
+  async configureSandboxCompany(input: { companyId: string; userId: string; superPdpSandboxCompanyNumber: string }) {
+    await this.findAccessibleCompany(input);
+    if (this.getEnvironment() !== 'SANDBOX') throw new BadRequestException('Ce réglage est réservé à l’environnement de test.');
+    const number = input.superPdpSandboxCompanyNumber;
+    if (!/^\d{9}$/.test(number)) throw new BadRequestException('Le numéro d’entreprise sandbox doit comporter 9 chiffres.');
+    await this.prismaService.$transaction(async (tx) => {
+      const companies = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Company" WHERE id = ${input.companyId} AND status = 'ACTIVE' FOR UPDATE`;
+      if (!companies.length) throw new BadRequestException('Entreprise fermée ou introuvable.');
+      const existing = await tx.electronicInvoicingConnection.findUnique({ where: { companyId: input.companyId } });
+      if (existing?.superPdpSandboxCompanyNumber === number && existing.environment === 'SANDBOX') return;
+      await tx.electronicInvoicingConnection.upsert({
+        where: { companyId: input.companyId },
+        create: {
+          companyId: input.companyId, provider: 'SUPER_PDP', environment: 'SANDBOX',
+          superPdpSandboxCompanyNumber: number,
+        },
+        update: {
+          superPdpSandboxCompanyNumber: number, environment: 'SANDBOX', status: 'NOT_CONFIGURED',
+          accessTokenEncrypted: null, refreshTokenEncrypted: null, accessTokenExpiresAt: null,
+          providerCompanyId: null, connectedAt: null, lastSyncedAt: null, metadata: Prisma.DbNull,
+          lastError: null,
+        },
+      });
+      await tx.electronicInvoicingOAuthState.deleteMany({ where: { companyId: input.companyId } });
+    });
+    return this.getConnectionStatus(input);
+  }
+
+  async getCompanyDirectoryEntries(input: { companyId: string; userId: string }) {
+    await this.findAccessibleCompany(input);
+    const token = await this.getAccessToken(input.companyId);
+    const response = await fetch('https://api.superpdp.tech/v1.beta/directory_entries', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new BadGatewayException('Impossible de consulter les adresses SuperPDP de cette entreprise.');
+    const entries = await response.json() as {
+      data: Array<{ identifier: string; directory: string; status: string; is_replyto?: boolean; company: SuperPdpCompanyProfile }>;
     };
+    const available = (entries.data ?? []).filter((entry) => entry.directory === 'peppol' && entry.status === 'created' && !entry.is_replyto);
+    if (available.length) {
+      const company = available[0].company;
+      await this.assertCompanyIdentity(input.companyId, company);
+      if (available.some((entry) => String(entry.company.id) !== String(company.id) ||
+        entry.company.number !== company.number || entry.company.number_scheme !== company.number_scheme || entry.company.env !== company.env)) {
+        throw new BadGatewayException('L’annuaire contient des adresses associées à une autre entreprise.');
+      }
+    }
+    return { data: available.map(({ identifier }) => ({ identifier })) };
   }
 
   /** SuperPDP requires a VAT regime on the company before accepting e-reporting. */
@@ -448,7 +540,7 @@ export class SuperPdpOAuthService {
 
   async getConnectionStatus(input: { companyId: string; userId: string }) {
     await this.findAccessibleCompany(input);
-    return this.prismaService.electronicInvoicingConnection.findUnique({
+    const connection = await this.prismaService.electronicInvoicingConnection.findUnique({
       where: { companyId: input.companyId },
       select: {
         provider: true,
@@ -456,11 +548,22 @@ export class SuperPdpOAuthService {
         status: true,
         directoryRegistrationStatus: true,
         providerCompanyId: true,
+        superPdpSandboxCompanyNumber: true,
         connectedAt: true,
         lastSyncedAt: true,
         lastError: true,
       },
     });
+    return connection ? {
+      ...connection,
+      environment: this.getEnvironment(),
+      ...(connection.environment !== this.getEnvironment() ? {
+        status: 'ACTION_REQUIRED', lastError: 'Reconnectez SuperPDP dans l’environnement configuré pour Onetto.',
+      } : {}),
+    } : {
+      environment: this.getEnvironment(), status: 'NOT_CONFIGURED',
+      superPdpSandboxCompanyNumber: null, connectedAt: null, lastError: null,
+    };
   }
 
   private async exchangeCode(code: string): Promise<SuperPdpToken> {
@@ -527,19 +630,17 @@ export class SuperPdpOAuthService {
 
   private getCompanyHint(
     localSiren: string,
-    electronicAddress?: string | null,
+    sandboxCompanyNumber?: string | null,
   ): {
     number: string;
     scheme: 'sandbox' | 'fr_siren';
   } {
     if (this.getEnvironment() === 'SANDBOX') {
+      if (!sandboxCompanyNumber || !/^\d{9}$/.test(sandboxCompanyNumber)) {
+        throw new BadRequestException('Renseignez le numéro d’entreprise sandbox SuperPDP dans les paramètres de connexion.');
+      }
       return {
-        // SuperPDP sandbox companies use their own sandbox number.  Keeping it
-        // on the Onetto company lets one OAuth application connect both Burger
-        // Queen (000000002) and Tricatel (000000001), for example.
-        number:
-          electronicAddress?.trim() ||
-          this.getRequiredConfig('SUPERPDP_SANDBOX_COMPANY_NUMBER'),
+        number: sandboxCompanyNumber,
         scheme: 'sandbox',
       };
     }

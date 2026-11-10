@@ -22,7 +22,8 @@ describe('SuperPdpOAuthService', () => {
           id: 'company-1',
           email: 'owner@example.test',
           siren: '123456789',
-          electronicAddress: '000000001',
+          electronicAddress: '0225:315143296_81589',
+          electronicInvoicingConnection: { superPdpSandboxCompanyNumber: '000000001' },
         }),
       },
       $transaction: jest.fn(
@@ -66,9 +67,10 @@ describe('SuperPdpOAuthService', () => {
     );
   });
 
-  it('restores an active connection after a successful token refresh', async () => {
+  it('refreshes tokens without changing the identity verification status', async () => {
     const connection = {
       findUnique: jest.fn().mockResolvedValue({
+        status: 'ACTIVE', environment: 'SANDBOX',
         accessTokenEncrypted: 'encrypted-access-token',
         refreshTokenEncrypted: 'encrypted-refresh-token',
         accessTokenExpiresAt: new Date(Date.now() - 60_000),
@@ -104,10 +106,152 @@ describe('SuperPdpOAuthService', () => {
     expect(connection.update).toHaveBeenCalledWith({
       where: { companyId: 'company-1' },
       data: expect.objectContaining({
-        status: 'ACTIVE',
-        lastError: null,
+        accessTokenEncrypted: 'encrypted-new-access-token',
       }),
     });
+    expect(connection.update.mock.calls[0][0].data).not.toHaveProperty('status');
+  });
+
+  it('never uses an electronic address or the global fallback as the sandbox identity', async () => {
+    const prisma = {
+      company: { findFirst: jest.fn().mockResolvedValue({
+        id: 'company-1', siren: '000000002', electronicAddress: '000000002',
+        electronicInvoicingConnection: null,
+      }) },
+      $transaction: jest.fn(),
+    };
+    const service = new SuperPdpOAuthService({ get: (name: string) => config[name as keyof typeof config] } as never, prisma as never, {} as never);
+    await expect(service.buildAuthorizationUrl({ companyId: 'company-1', userId: 'u1' })).rejects.toThrow('numéro d’entreprise sandbox');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  describe('company identity verification', () => {
+    const profile = {
+      id: 42, number: '000000002', number_scheme: 'sandbox', env: 'sandbox',
+      vat_regime: 'vat_exemption', has_vat_on_debits: false,
+    };
+    let service: SuperPdpOAuthService;
+    let prisma: {
+      company: { findFirst: jest.Mock; findUnique: jest.Mock };
+      electronicInvoicingConnection: { findUnique: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
+    };
+    let request: jest.SpyInstance;
+
+    beforeEach(() => {
+      prisma = {
+        company: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'company-1' }),
+          findUnique: jest.fn().mockResolvedValue({
+            status: 'ACTIVE', siren: '123456789', subjectToVat: false,
+            vatRegime: 'VAT_EXEMPTION', vatExigibility: 'UNKNOWN',
+            electronicInvoicingConnection: { superPdpSandboxCompanyNumber: '000000002' },
+          }),
+        },
+        electronicInvoicingConnection: {
+          findUnique: jest.fn().mockResolvedValue({
+            accessTokenEncrypted: 'encrypted-token', refreshTokenEncrypted: 'encrypted-refresh',
+            accessTokenExpiresAt: new Date(Date.now() + 3600_000), status: 'VERIFYING',
+            environment: 'SANDBOX', superPdpSandboxCompanyNumber: '000000002',
+          }),
+          update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+      };
+      service = new SuperPdpOAuthService(
+        { get: (name: string) => config[name as keyof typeof config] } as never,
+        prisma as never, { decrypt: () => 'token' } as never,
+      );
+      request = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, json: async () => profile } as Response);
+    });
+    afterEach(() => jest.restoreAllMocks());
+
+    it('activates only the expected sandbox company', async () => {
+      await expect(service.verifyConnection({ companyId: 'company-1', userId: 'u1' })).resolves.toEqual({ providerCompanyId: '42' });
+      expect(prisma.electronicInvoicingConnection.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ status: 'ACTIVE', providerCompanyId: '42' }),
+      }));
+    });
+
+    it.each([
+      { number: '000000001' }, { number_scheme: 'fr_siren' }, { env: 'production' }, { number: undefined },
+    ])('blocks mismatched or incomplete profiles: %j', async (difference) => {
+      request.mockResolvedValue({ ok: true, json: async () => ({ ...profile, ...difference }) } as Response);
+      await expect(service.verifyConnection({ companyId: 'company-1', userId: 'u1' })).rejects.toThrow('entreprise attendue');
+      expect(prisma.electronicInvoicingConnection.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ status: 'ACTION_REQUIRED' }),
+      }));
+      expect(prisma.electronicInvoicingConnection.updateMany).not.toHaveBeenCalled();
+      expect(request).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not hand out an unverified token for invoice transmission', async () => {
+      await expect(service.getAccessToken('company-1')).rejects.toThrow('Vérifiez l’identité');
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it('uses the legal SIREN in production even if a sandbox number exists', async () => {
+      service = new SuperPdpOAuthService(
+        { get: (name: string) => name === 'SUPERPDP_ENVIRONMENT' ? 'production' : config[name as keyof typeof config] } as never,
+        prisma as never, { decrypt: () => 'token' } as never,
+      );
+      prisma.electronicInvoicingConnection.findUnique.mockResolvedValue({
+        accessTokenEncrypted: 'token', refreshTokenEncrypted: 'refresh', accessTokenExpiresAt: new Date(Date.now() + 3600_000),
+        environment: 'PRODUCTION', status: 'VERIFYING', superPdpSandboxCompanyNumber: '000000002',
+      });
+      request.mockResolvedValue({ ok: true, json: async () => ({ ...profile, env: 'production', number_scheme: 'fr_siren', number: '123456789' }) } as Response);
+      await expect(service.verifyConnection({ companyId: 'company-1', userId: 'u1' })).resolves.toEqual({ providerCompanyId: '42' });
+    });
+
+    it('cannot activate a connection changed during verification', async () => {
+      prisma.electronicInvoicingConnection.updateMany.mockResolvedValue({ count: 0 });
+      await expect(service.verifyConnection({ companyId: 'company-1', userId: 'u1' })).rejects.toThrow('changé pendant');
+    });
+
+    it('lists billing endpoints of the verified company and excludes technical reply-to addresses', async () => {
+      prisma.electronicInvoicingConnection.findUnique.mockResolvedValue({
+        status: 'ACTIVE', environment: 'SANDBOX', accessTokenEncrypted: 'token', refreshTokenEncrypted: 'refresh',
+        accessTokenExpiresAt: new Date(Date.now() + 3600_000),
+      });
+      request.mockResolvedValue({ ok: true, json: async () => ({ data: [
+        { identifier: '0225:315143296_12345', directory: 'peppol', status: 'created', company: profile },
+        { identifier: '0225:technical', directory: 'peppol', status: 'created', is_replyto: true, company: profile },
+        { identifier: '0225:pending', directory: 'peppol', status: 'pending', company: profile },
+        { identifier: '123456789', directory: 'ppf', status: 'created', company: profile },
+      ] }) } as Response);
+      await expect(service.getCompanyDirectoryEntries({ companyId: 'company-1', userId: 'u1' })).resolves.toEqual({
+        data: [{ identifier: '0225:315143296_12345' }],
+      });
+    });
+
+    it('refuses endpoints returned for another company', async () => {
+      prisma.electronicInvoicingConnection.findUnique.mockResolvedValue({
+        status: 'ACTIVE', environment: 'SANDBOX', accessTokenEncrypted: 'token', refreshTokenEncrypted: 'refresh',
+        accessTokenExpiresAt: new Date(Date.now() + 3600_000),
+      });
+      request.mockResolvedValue({ ok: true, json: async () => ({ data: [
+        { identifier: '0225:other', directory: 'peppol', status: 'created', company: { ...profile, number: '000000001' } },
+      ] }) } as Response);
+      await expect(service.getCompanyDirectoryEntries({ companyId: 'company-1', userId: 'u1' })).rejects.toThrow('entreprise attendue');
+    });
+  });
+
+  it('invalidates the previous authorization when the sandbox identity changes', async () => {
+    const connection = {
+      findUnique: jest.fn().mockResolvedValue({ superPdpSandboxCompanyNumber: '000000001', environment: 'SANDBOX' }),
+      upsert: jest.fn(),
+    };
+    const oauthState = { deleteMany: jest.fn() };
+    const tx = { $queryRaw: jest.fn().mockResolvedValue([{ id: 'company-1' }]), electronicInvoicingConnection: connection, electronicInvoicingOAuthState: oauthState };
+    const prisma = {
+      company: { findFirst: jest.fn().mockResolvedValue({ id: 'company-1' }) },
+      electronicInvoicingConnection: connection,
+      $transaction: jest.fn((work: (value: typeof tx) => Promise<void>) => work(tx)),
+    };
+    const service = new SuperPdpOAuthService({ get: (name: string) => config[name as keyof typeof config] } as never, prisma as never, {} as never);
+    await service.configureSandboxCompany({ companyId: 'company-1', userId: 'u1', superPdpSandboxCompanyNumber: '000000002' });
+    expect(connection.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      update: expect.objectContaining({ status: 'NOT_CONFIGURED', superPdpSandboxCompanyNumber: '000000002', accessTokenEncrypted: null, refreshTokenEncrypted: null }),
+    }));
+    expect(oauthState.deleteMany).toHaveBeenCalledWith({ where: { companyId: 'company-1' } });
   });
 
   it('configures the company VAT regime at SuperPDP before e-reporting', async () => {

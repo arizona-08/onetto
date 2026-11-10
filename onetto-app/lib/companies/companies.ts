@@ -73,6 +73,8 @@ export function startSuperPdpAuthorization(companyId: string) {
 }
 
 export type SuperPdpConnectionStatus = {
+  environment: "SANDBOX" | "PRODUCTION";
+  superPdpSandboxCompanyNumber: string | null;
   status:
     | "NOT_CONFIGURED"
     | "PENDING_AUTHORIZATION"
@@ -83,6 +85,19 @@ export type SuperPdpConnectionStatus = {
   connectedAt: string | null;
   lastError: string | null;
 } | null;
+
+export function configureSuperPdpSandbox(companyId: string, superPdpSandboxCompanyNumber: string) {
+  return apiClient<SuperPdpConnectionStatus>(
+    `api/electronic-invoicing/superpdp/oauth/companies/${companyId}/sandbox-configuration`,
+    { method: "PUT", body: JSON.stringify({ superPdpSandboxCompanyNumber }) },
+  );
+}
+
+export function getCompanySuperPdpDirectoryEntries(companyId: string) {
+  return apiClient<{ data: Array<{ identifier: string }> }>(
+    `api/electronic-invoicing/superpdp/oauth/companies/${companyId}/directory-entries`,
+  );
+}
 
 export function getSuperPdpConnectionStatus(companyId: string) {
   return apiClient<SuperPdpConnectionStatus>(

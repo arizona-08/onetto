@@ -4,6 +4,8 @@ import { CreateCompanyDto } from "@/lib/companies/dtos/create-company.dto";
 import { Company } from "@/lib/companies/dtos/create-company.dto";
 import {
   createCompany,
+  configureSuperPdpSandbox,
+  getCompanySuperPdpDirectoryEntries,
   getSuperPdpConnectionStatus,
   getSuperPdpEreportingOverview,
   retrySuperPdpB2CTransaction,
@@ -60,6 +62,9 @@ function CreateCompanyForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConnectingSuperPdp, setIsConnectingSuperPdp] = useState(false);
   const [isVerifyingSuperPdp, setIsVerifyingSuperPdp] = useState(false);
+  const [sandboxCompanyNumber, setSandboxCompanyNumber] = useState("");
+  const [directoryEntries, setDirectoryEntries] = useState<Array<{ identifier: string }>>([]);
+  const [isLoadingDirectory, setIsLoadingDirectory] = useState(false);
   const [superPdpConnection, setSuperPdpConnection] =
     useState<SuperPdpConnectionStatus>(null);
   const [ereportingOverview, setEreportingOverview] =
@@ -76,7 +81,10 @@ function CreateCompanyForm({
   useEffect(() => {
     if (!companyToEdit) return;
     void getSuperPdpConnectionStatus(companyToEdit.id).then((response) => {
-      if (response.ok) setSuperPdpConnection(response.data);
+      if (response.ok) {
+        setSuperPdpConnection(response.data);
+        setSandboxCompanyNumber(response.data?.superPdpSandboxCompanyNumber ?? "");
+      }
     });
   }, [companyToEdit]);
 
@@ -254,13 +262,35 @@ function CreateCompanyForm({
       );
       return;
     }
+    if (superPdpConnection?.environment === "SANDBOX") {
+      const configuration = await configureSuperPdpSandbox(companyToEdit.id, sandboxCompanyNumber.trim());
+      if (!configuration.ok) {
+        setIsConnectingSuperPdp(false);
+        showToast(typeof configuration.error.message === "string" ? configuration.error.message : "Vérifiez le numéro d’entreprise de test.", "error");
+        return;
+      }
+      setSuperPdpConnection(configuration.data);
+    }
     const response = await startSuperPdpAuthorization(companyToEdit.id);
     setIsConnectingSuperPdp(false);
     if (!response.ok) {
-      showToast("Impossible de démarrer la connexion SuperPDP.", "error");
+      showToast(typeof response.error.message === "string" ? response.error.message : "Impossible de démarrer la connexion SuperPDP.", "error");
       return;
     }
     window.location.assign(response.data.url);
+  }
+
+  async function loadSuperPdpAddresses() {
+    if (!companyToEdit) return;
+    setIsLoadingDirectory(true);
+    const response = await getCompanySuperPdpDirectoryEntries(companyToEdit.id);
+    setIsLoadingDirectory(false);
+    if (!response.ok) {
+      showToast(typeof response.error.message === "string" ? response.error.message : "Impossible de charger les adresses SuperPDP.", "error");
+      return;
+    }
+    setDirectoryEntries(response.data.data);
+    if (response.data.data.length === 0) showToast("Aucune adresse de facturation disponible dans ce compte SuperPDP.", "error");
   }
 
   return (
@@ -291,19 +321,30 @@ function CreateCompanyForm({
               pas aboutir.
             </p>
           )}
+          {superPdpConnection?.environment === "SANDBOX" && (
+            <div className="mt-3 flex max-w-md flex-col gap-2">
+              <label htmlFor="superPdpSandboxCompanyNumber" className={labelClassName}>Numéro d’entreprise de test SuperPDP</label>
+              <input id="superPdpSandboxCompanyNumber" type="text" inputMode="numeric" maxLength={9}
+                value={sandboxCompanyNumber} onChange={(event) => setSandboxCompanyNumber(event.target.value)}
+                placeholder="Ex. : 000000002" className={inputClassName} />
+              <p className="text-xs text-zinc-600">Enregistré lors de la connexion. Ce numéro sélectionne le compte de test ; l’adresse de facturation se renseigne séparément ci-dessous.</p>
+            </div>
+          )}
           <button
             type="button"
             onClick={handleConnectSuperPdp}
-            disabled={isConnectingSuperPdp}
+            disabled={isConnectingSuperPdp || !superPdpConnection || (superPdpConnection.environment === "SANDBOX" && !/^\d{9}$/.test(sandboxCompanyNumber.trim()))}
             className="mt-3 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isConnectingSuperPdp
               ? "Redirection…"
+              : superPdpConnection?.environment === "SANDBOX" && sandboxCompanyNumber.trim() !== superPdpConnection.superPdpSandboxCompanyNumber
+                ? "Enregistrer et connecter SuperPDP"
               : superPdpConnection?.status === "ACTIVE"
                 ? "Reconnecter SuperPDP"
                 : "Connecter SuperPDP"}
           </button>
-          {superPdpConnection?.status === "ACTION_REQUIRED" && (
+          {superPdpConnection && ["ACTION_REQUIRED", "VERIFYING", "ACTIVE"].includes(superPdpConnection.status) && (
             <button
               type="button"
               onClick={() => void handleVerifySuperPdp()}
@@ -479,9 +520,25 @@ function CreateCompanyForm({
             required
             value={companyInfos.electronicAddress}
             onChange={handleInputChange}
-            placeholder="Votre SIREN"
+            placeholder={companyInfos.electronicAddressScheme === "PEPPOL" ? "Ex. : 0225:123456789" : "Adresse enregistrée dans l’annuaire"}
             className={inputClassName}
           />
+          <p className="text-xs text-zinc-500">Utilisez l’adresse de facturation de votre entreprise. Pour Peppol, conservez le schéma suivi de « : » et de l’identifiant.</p>
+          {companyToEdit && superPdpConnection?.status === "ACTIVE" && (
+            <button type="button" onClick={() => void loadSuperPdpAddresses()} disabled={isLoadingDirectory}
+              className="text-left text-sm font-semibold text-primary disabled:opacity-60">
+              {isLoadingDirectory ? "Chargement…" : "Charger mes adresses SuperPDP"}
+            </button>
+          )}
+          {directoryEntries.length > 0 && (
+            <select aria-label="Choisir une adresse de facturation SuperPDP" value="" className={inputClassName}
+              onChange={(event) => {
+                if (event.target.value) setCompanyInfos((previous) => ({ ...previous, electronicAddress: event.target.value, electronicAddressScheme: "PEPPOL" }));
+              }}>
+              <option value="">Choisir une adresse puis enregistrer l’entreprise</option>
+              {directoryEntries.map(({ identifier }) => <option key={identifier} value={identifier}>{identifier}</option>)}
+            </select>
+          )}
         </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="electronicAddressScheme" className={labelClassName}>

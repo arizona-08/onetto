@@ -28,9 +28,6 @@ export function validateSuperPdpConfiguration(env: Environment): Environment {
     'SUPERPDP_TOKEN_ENCRYPTION_KEY',
   ];
   const missing = required.filter((name) => !env[name]);
-  if (environment === 'sandbox' && !env.SUPERPDP_SANDBOX_COMPANY_NUMBER) {
-    missing.push('SUPERPDP_SANDBOX_COMPANY_NUMBER');
-  }
   if (missing.length > 0) {
     throw new Error(
       `Configuration SuperPDP incomplète : ${missing.join(', ')}.`,

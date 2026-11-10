@@ -112,6 +112,7 @@ export class InvoicePaymentStatusService {
   async refreshFromInstalment(
     invoiceId: string,
     paidInstalmentAmountInCents?: number,
+    paidInstalmentId?: string,
   ): Promise<void> {
     let justPaid = false;
     let synchronized = false;
@@ -152,6 +153,17 @@ export class InvoicePaymentStatusService {
     }
     if (justPaid) {
       await this.sendInvoicePaidConfirmation(invoiceId);
+    }
+    if (paidInstalmentAmountInCents !== undefined && paidInstalmentId) {
+      await this.notifyPayment(
+        invoiceId,
+        'PAYMENT_SUCCEEDED',
+        'Échéance réglée',
+        'Le règlement de l’échéance a été confirmé.',
+        `instalment:${paidInstalmentId}:confirmed`,
+        paidInstalmentId,
+      );
+    } else if (justPaid) {
       await this.notifyPayment(
         invoiceId,
         'PAYMENT_SUCCEEDED',
@@ -412,17 +424,66 @@ export class InvoicePaymentStatusService {
     title: string,
     message: string,
     key: string,
+    paidInstalmentId?: string,
   ): Promise<void> {
     const document = await this.prismaService.document.findUnique({
       where: { id: documentId },
-      select: { companyId: true, documentNumber: true },
+      select: {
+        companyId: true,
+        documentNumber: true,
+        totalPrice: true,
+        invoiceStatus: true,
+        contractStageInvoice: {
+          select: {
+            kind: true,
+            sequence: true,
+            percentage: true,
+            plan: { select: { estimate: { select: { documentNumber: true } } } },
+          },
+        },
+        invoiceInstalmentPlan: {
+          select: {
+            _count: { select: { invoicePaymentInstalments: true } },
+            invoicePaymentInstalments: {
+              where: { id: paidInstalmentId ?? '' },
+              select: { instalmentNumber: true, amountInCents: true },
+            },
+          },
+        },
+      },
     });
     if (!document) return;
+    if (type === 'PAYMENT_SUCCEEDED') {
+      const formatAmount = (amount: number) => amount.toLocaleString('fr-FR', {
+        style: 'currency', currency: 'EUR',
+      });
+      const stage = document.contractStageInvoice;
+      const instalmentPlan = document.invoiceInstalmentPlan;
+      const instalment = instalmentPlan?.invoicePaymentInstalments[0];
+      if (stage) {
+        const label = stage.kind === 'DEPOSIT' ? `de l’acompte n° ${stage.sequence} (${stage.percentage} %)` : 'du solde';
+        title = stage.kind === 'DEPOSIT' ? `Acompte n° ${stage.sequence} réglé` : 'Solde réglé';
+        message = `Le règlement ${label} de ${formatAmount(document.totalPrice)} a été confirmé pour la facture ${document.documentNumber}, relative au devis ${stage.plan.estimate.documentNumber}.`;
+      } else if (instalmentPlan && instalment) {
+        const total = instalmentPlan._count.invoicePaymentInstalments;
+        title = `Échéance n° ${instalment.instalmentNumber}/${total} réglée`;
+        message = `Le règlement de l’échéance n° ${instalment.instalmentNumber} sur ${total}, d’un montant de ${formatAmount(instalment.amountInCents / 100)}, a été confirmé pour la facture ${document.documentNumber}.`;
+        if (document.invoiceStatus === 'PAID') message += ' La facture est désormais intégralement réglée.';
+      } else if (instalmentPlan) {
+        title = 'Facture intégralement réglée';
+        message = `Toutes les échéances de la facture ${document.documentNumber} ont été réglées, pour un total de ${formatAmount(document.totalPrice)}.`;
+      } else {
+        title = 'Facture réglée — paiement unique';
+        message = `Le règlement unique de ${formatAmount(document.totalPrice)} a été confirmé pour la facture ${document.documentNumber}.`;
+      }
+    } else {
+      message = `${message} (${document.documentNumber})`;
+    }
     await this.notifications.notifyCompany({
       companyId: document.companyId,
       type,
       title,
-      message: `${message} (${document.documentNumber})`,
+      message,
       href: `/documents/${documentId}`,
       deduplicationKey: `payment:${documentId}:${key}`,
     });

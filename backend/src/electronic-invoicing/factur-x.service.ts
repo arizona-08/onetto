@@ -411,6 +411,12 @@ export class FacturXService {
         : document.company.electronicAddressScheme === 'SIRET'
           ? '0009'
           : document.company.electronicAddressScheme;
+    const sellerElectronicAddress = document.company.electronicAddressScheme === 'PEPPOL'
+      ? document.company.electronicAddress?.match(/^(\d{4}):(.+)$/u)
+      : null;
+    if (document.company.electronicAddressScheme === 'PEPPOL' && !sellerElectronicAddress) {
+      throw new BadRequestException('L’adresse Peppol du vendeur doit contenir le schéma et l’identifiant, par exemple 0225:123456789.');
+    }
     // `0225` is the Peppol participant scheme used to discover a receiving
     // endpoint. The buyer electronic address (BT-49) is the delivery address:
     // it must therefore keep the selected Peppol endpoint. The SIREN is a
@@ -471,8 +477,8 @@ export class FacturXService {
       seller: {
         name: document.company.name,
         electronic_address: {
-          value: document.company.electronicAddress,
-          scheme: electronicScheme,
+          value: sellerElectronicAddress ? sellerElectronicAddress[2] : document.company.electronicAddress,
+          scheme: sellerElectronicAddress ? sellerElectronicAddress[1] : electronicScheme,
         },
         postal_address: address(document.company),
         legal_registration_identifier: {

@@ -174,6 +174,7 @@ describe('GoCardlessPaymentWebhookHandler', () => {
     expect(invoiceStatus.refreshFromInstalment).toHaveBeenCalledWith(
       'invoice-1',
       5000,
+      'instalment-1',
     );
     expect(prisma.payByBankPaymentAttempt.findFirst).not.toHaveBeenCalled();
   });
@@ -336,6 +337,7 @@ describe('GoCardlessPaymentWebhookHandler', () => {
     expect(invoiceStatus.refreshFromInstalment).toHaveBeenCalledWith(
       'invoice-1',
       5000,
+      'instalment-1',
     );
   });
 
@@ -403,6 +405,7 @@ describe('GoCardlessPaymentWebhookHandler', () => {
     expect(invoiceStatus.refreshFromInstalment).toHaveBeenCalledWith(
       'invoice-1',
       undefined,
+      'instalment-1',
     );
   });
 
@@ -467,6 +470,7 @@ describe('GoCardlessPaymentWebhookHandler', () => {
     expect(invoiceStatus.refreshFromInstalment).toHaveBeenCalledWith(
       'invoice-1',
       5000,
+      'instalment-1',
     );
   });
 });

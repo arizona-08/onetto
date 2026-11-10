@@ -327,6 +327,7 @@ describe('GoCardlessInstalmentRetryService', () => {
     expect(invoiceStatus.refreshFromInstalment).toHaveBeenCalledWith(
       'invoice-1',
       undefined,
+      'instalment-1',
     );
   });
 

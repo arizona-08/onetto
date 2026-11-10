@@ -52,6 +52,21 @@ describe('FacturXService buyer address', () => {
     null as never,
   );
 
+  it('keeps the seller legal identity separate from its Peppol routing address', () => {
+    const result = service['toEn16931']({
+      ...invoice,
+      company: { ...invoice.company, siren: '000000002', electronicAddress: '0225:315143296_99999', electronicAddressScheme: 'PEPPOL' },
+    }, 'peppol');
+    expect(result.seller.legal_registration_identifier).toEqual({ value: '000000002', scheme: '0002' });
+    expect(result.seller.electronic_address).toEqual({ value: '315143296_99999', scheme: '0225' });
+  });
+
+  it('rejects a sandbox company number used as a Peppol address', () => {
+    expect(() => service['toEn16931']({
+      ...invoice, company: { ...invoice.company, electronicAddress: '000000002', electronicAddressScheme: 'PEPPOL' },
+    })).toThrow('schéma et l’identifiant');
+  });
+
   it('uses the individual buyer email with the EM scheme for Factur-X', () => {
     const result = service['toEn16931'](invoice);
 

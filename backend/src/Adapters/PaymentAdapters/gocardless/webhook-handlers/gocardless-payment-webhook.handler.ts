@@ -356,6 +356,7 @@ export class GoCardlessPaymentWebhookHandler implements WebhookHandlerInterface 
       canUpdateStatus && mappedStatus === 'SUCCESS'
         ? instalment.amountInCents
         : undefined,
+      instalment.id,
     );
     if (
       canUpdateStatus &&

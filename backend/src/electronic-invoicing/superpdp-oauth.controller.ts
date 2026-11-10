@@ -1,8 +1,10 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -13,10 +15,37 @@ import type { Response } from 'express';
 import { AuthGuard } from 'src/auth/auth.guard';
 import type { ExtendedRequest } from 'src/types/extended-request.types';
 import { SuperPdpOAuthService } from './superpdp-oauth.service';
+import { IsString, Matches } from 'class-validator';
+
+class SuperPdpSandboxConfigurationDto {
+  @IsString()
+  @Matches(/^\d{9}$/, { message: 'Le numéro d’entreprise sandbox doit comporter 9 chiffres.' })
+  superPdpSandboxCompanyNumber: string;
+}
 
 @Controller('api/electronic-invoicing/superpdp/oauth')
 export class SuperPdpOAuthController {
   constructor(private readonly superPdpOAuthService: SuperPdpOAuthService) {}
+
+  @UseGuards(AuthGuard)
+  @Put('companies/:companyId/sandbox-configuration')
+  configureSandbox(
+    @Param('companyId') companyId: string,
+    @Body() body: SuperPdpSandboxConfigurationDto,
+    @Req() req: ExtendedRequest,
+  ) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.superPdpOAuthService.configureSandboxCompany({
+      companyId, userId: req.user.id, superPdpSandboxCompanyNumber: body.superPdpSandboxCompanyNumber,
+    });
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('companies/:companyId/directory-entries')
+  directoryEntries(@Param('companyId') companyId: string, @Req() req: ExtendedRequest) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.superPdpOAuthService.getCompanyDirectoryEntries({ companyId, userId: req.user.id });
+  }
 
   @UseGuards(AuthGuard)
   @Get('companies/:companyId/authorize')

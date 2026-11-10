@@ -895,6 +895,7 @@ model ElectronicInvoicingConnection {
   provider                    ElectronicInvoicingProvider
   environment                 ElectronicInvoicingEnvironment
   providerCompanyId           String?
+  superPdpSandboxCompanyNumber String?
   accessTokenEncrypted        String?
   refreshTokenEncrypted       String?
   accessTokenExpiresAt        DateTime?
