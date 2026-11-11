@@ -69,6 +69,7 @@ export const STRIPE_PRODUCTS: StripeProduct[] = [
     features: [
       "Tout le plan Starter",
       "Paiement en 2 ou 3 fois",
+      "Création de factures d’acompte",
       "Jusqu’à 3 entreprises",
       "Analyses avancées et prévisions d’encaissement",
     ],
