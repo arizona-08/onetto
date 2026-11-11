@@ -2592,6 +2592,7 @@ export class DocumentService {
         city: true,
         country: true,
         vatNumber: true,
+        bank: true,
         IBAN: true,
         BIC: true,
       },

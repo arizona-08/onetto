@@ -16,6 +16,7 @@ export type CreateCompanyDto = {
   electronicAddress: string;
   electronicAddressScheme: "SIREN" | "SIRET" | "VAT" | "GLN" | "PEPPOL";
   vatNumber?: string;
+  bank?: string | null;
   IBAN: string;
   BIC: string;
 };

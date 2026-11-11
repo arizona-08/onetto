@@ -315,9 +315,11 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
                 <p className="flex min-w-0 justify-between gap-4 break-all">
                   <b>IBAN : {companyIban}</b>
                 </p>
-                <p className="flex min-w-0 justify-between gap-4 break-all">
-                  <b>Banque : {companyName}</b>
-                </p>
+                {activeCompany?.bank && (
+                  <p className="flex min-w-0 justify-between gap-4 break-all">
+                    <b>Banque : {activeCompany.bank}</b>
+                  </p>
+                )}
                 <p className="flex min-w-0 justify-between gap-4 break-all">
                   <b>BIC : {companyBic}</b>
                 </p>

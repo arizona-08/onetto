@@ -45,6 +45,7 @@ const emptyCompany: CreateCompanyDto = {
   electronicAddress: "",
   electronicAddressScheme: "SIREN",
   vatNumber: "",
+  bank: "",
   IBAN: "",
   BIC: "",
 };
@@ -205,6 +206,7 @@ function CreateCompanyForm({
       electronicAddress: companyInfos.electronicAddress,
       electronicAddressScheme: companyInfos.electronicAddressScheme,
       vatNumber: companyInfos.vatNumber,
+      bank: companyInfos.bank?.trim() || null,
       IBAN: companyInfos.IBAN,
       BIC: companyInfos.BIC,
     };
@@ -768,6 +770,20 @@ function CreateCompanyForm({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="bank" className={labelClassName}>
+            Nom de la banque (facultatif)
+          </label>
+          <input
+            id="bank"
+            name="bank"
+            type="text"
+            maxLength={120}
+            value={companyInfos.bank ?? ""}
+            onChange={handleInputChange}
+            className={inputClassName}
+          />
+        </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="IBAN" className={labelClassName}>
             IBAN

@@ -46,6 +46,7 @@ type InvoicePdfData = {
     city: string;
     country: string;
     vatNumber: string | null;
+    bank?: string | null;
     IBAN: string;
     BIC: string;
   };
@@ -232,12 +233,15 @@ export class PdfService {
         .fontSize(9)
         .text(`IBAN : ${data.company.IBAN}`, 42, bankY + 31)
         .text(`BIC : ${data.company.BIC}`, 42, bankY + 45);
+      if (data.company.bank) {
+        pdf.text(`Banque : ${data.company.bank}`, 42, bankY + 59, { width: 510 });
+      }
       if (isFinal) {
         const references = stage.plan.stages
           .filter((item) => item.kind === 'DEPOSIT' && item.invoice)
           .map((item) => item.invoice!.documentNumber)
           .join(', ');
-        pdf.fontSize(8).fillColor(muted).text(`Factures d’acompte déjà encaissées : ${references}`, 42, bankY + 68, { width: 510 });
+        pdf.fontSize(8).fillColor(muted).text(`Factures d’acompte déjà encaissées : ${references}`, 42, data.company.bank ? pdf.y + 12 : bankY + 68, { width: 510 });
       }
       pdf.end();
     });

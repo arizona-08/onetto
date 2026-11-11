@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsPhoneNumber,
   IsString,
+  MaxLength,
 } from 'class-validator';
 import type {
   CompanyElectronicAddressScheme,
@@ -126,6 +127,11 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsString()
   vatNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  bank?: string | null;
 
   @IsOptional()
   @IsIBAN()

@@ -177,6 +177,7 @@ model Company {
   country                   String
   subjectToVat              Boolean
   vatNumber                 String?
+  bank                      String?
   IBAN                      String
   BIC                       String
   status                    CompanyStatus     @default(ACTIVE)

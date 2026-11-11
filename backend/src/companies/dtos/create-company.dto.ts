@@ -5,8 +5,10 @@ import {
   IsEmail,
   IsIBAN,
   IsIn,
+  IsOptional,
   IsPhoneNumber,
   IsString,
+  MaxLength,
 } from 'class-validator';
 
 const legalStatuses = [
@@ -111,6 +113,11 @@ export class CreateCompanyDto {
 
   @IsString()
   vatNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  bank?: string | null;
 
   @IsDefined()
   @IsIBAN()
