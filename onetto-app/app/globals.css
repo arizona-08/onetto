@@ -63,6 +63,22 @@ body {
   overflow-x: hidden;
 }
 
+.document-editor input:not([type="radio"]):not([type="checkbox"]),
+.document-editor select {
+  min-height: 40px;
+  border: 1px solid var(--onetto-border-control);
+  border-radius: 12px;
+  background: var(--onetto-surface);
+  padding: 8px 12px;
+  color: var(--onetto-text);
+}
+
+.document-editor input:focus-visible,
+.document-editor select:focus-visible {
+  outline: 2px solid var(--onetto-primary);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;

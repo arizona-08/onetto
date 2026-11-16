@@ -15,6 +15,7 @@ interface ServiceLineItemsProps {
   documentDateErrors?: DocumentDateError;
   documentLineItemsErrors?: DocumentLineItemsError;
   disabled?: boolean;
+  editorLayout?: boolean;
 }
 function ServiceLineItems({
   hydratedLineItems,
@@ -24,6 +25,7 @@ function ServiceLineItems({
   documentDateErrors,
   documentLineItemsErrors,
   disabled = false,
+  editorLayout = false,
 }: ServiceLineItemsProps) {
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([]);
 
@@ -53,6 +55,7 @@ function ServiceLineItems({
 
   function handleOnCloseModal() {
     setIsModalVisible(false);
+    setLineItemToModify(null);
   }
 
   function handleOnAddLineItem(lineItem: ServiceLineItem) {
@@ -87,17 +90,17 @@ function ServiceLineItems({
         lineItemToModify={lineItemToModify}
         onEditLineItem={handleOnEditLineItem}
       />
-      <div className="border border-gray-200 rounded-md p-4 mb-6">
+      <div className={editorLayout ? "rounded-ui-card border border-ui-border bg-ui-surface p-5 shadow-ui-card" : "mb-6 rounded-md border border-gray-200 p-4"}>
         <div
           className={disabled ? "opacity-50 pointer-events-none" : undefined}
         >
-          <header className="flex flex-col items-center mb-10 md:flex-row md:justify-between">
+          <header className={`flex flex-col items-center md:flex-row md:justify-between ${editorLayout ? "mb-5" : "mb-10"}`}>
             <div className="flex items-center gap-4 w-full md:w-fit">
-              <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold font-title">
+              <div className={editorLayout ? "flex h-9 w-9 items-center justify-center rounded-ui-control bg-ui-primary-soft font-title font-semibold text-ui-primary" : "flex h-10 w-10 items-center justify-center rounded-full bg-primary font-title font-semibold text-white"}>
                 <span>02</span>
               </div>
               <h2 className="text-lg font-title font-semibold mb-1">
-                Détails du service
+                {editorLayout ? "Articles" : "Détails du service"}
               </h2>
             </div>
 
@@ -105,10 +108,13 @@ function ServiceLineItems({
               <button
                 disabled={disabled}
                 className="flex items-center gap-2 text-sm text-primary font-medium hover:text-primary-hover transition-colors"
-                onClick={() => setIsModalVisible(true)}
+                onClick={() => {
+                  setLineItemToModify(null);
+                  setIsModalVisible(true);
+                }}
               >
                 <Plus size={16} />
-                <span>Ajouter un service</span>
+                <span>{editorLayout ? "Ajouter une ligne" : "Ajouter un service"}</span>
               </button>
             </div>
           </header>
@@ -190,25 +196,25 @@ function ServiceLineItems({
             </table>
           </div>
         </div>
-        <div className="mt-10 flex justify-end gap-4">
-          <div className="bg-primary/10 p-5 rounded-md flex flex-col items-center gap-5 w-full max-w-100 mx-auto md:mx-0">
+        <div className={editorLayout ? "mt-5 flex justify-end border-t border-ui-border pt-5" : "mt-10 flex justify-end gap-4"}>
+          <div className={editorLayout ? "flex w-full max-w-64 flex-col rounded-ui-control bg-ui-subtle p-4" : "bg-primary/10 p-5 rounded-md flex flex-col items-center gap-5 w-full max-w-100 mx-auto md:mx-0"}>
             <div className="flex flex-col gap-2 w-full">
-              <span className="uppercase text-xs font-semibold tracking-wide text-primary/80">
-                Date d'échéance
-              </span>
+              <label htmlFor="document-due-date" className="uppercase text-xs font-semibold tracking-wide text-primary/80">
+                Date d&apos;échéance
+              </label>
               <input
                 type="date"
                 name="dueDate"
-                id=""
+                id="document-due-date"
                 value={hydratedDocumentDates.dueDate.slice(0, 10)}
                 onChange={handleDocumentDatesChange}
-                className="bg-primary/20 rounded-md p-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50"
+                className={editorLayout ? "rounded-ui-control border border-ui-control bg-ui-surface p-2 text-sm font-medium text-ui-text focus:outline-none focus:ring-2 focus:ring-ui-primary" : "bg-primary/20 rounded-md p-2 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50"}
               />
               {documentDateErrors && documentDateErrors.dueDate && (
                 <ul>
                   {documentDateErrors.dueDate.map((error, index) => (
-                    <li>
-                      <span key={index} className="text-red-500">
+                    <li key={index}>
+                      <span className="text-red-500">
                         {error}
                       </span>
                     </li>
@@ -221,8 +227,8 @@ function ServiceLineItems({
         {documentLineItemsErrors && documentLineItemsErrors.general && (
           <ul>
             {documentLineItemsErrors.general.map((error, index) => (
-              <li>
-                <span key={index} className="text-red-500">
+              <li key={index}>
+                <span className="text-red-500">
                   {error}
                 </span>
               </li>

@@ -41,6 +41,7 @@ interface DocumentFormProps {
   depositPlan?: DepositPlanInput | null;
   onDepositPlanChange?: (plan: DepositPlanInput | null) => void;
   totalAmountInCents?: number;
+  editorLayout?: boolean;
 }
 
 function DocumentForm({
@@ -66,6 +67,7 @@ function DocumentForm({
   depositPlan = null,
   onDepositPlanChange,
   totalAmountInCents = 0,
+  editorLayout = false,
 }: DocumentFormProps) {
   const paymentLimitInformation =
     paymentMode === "INSTALMENTS"
@@ -73,12 +75,13 @@ function DocumentForm({
       : "Par défaut, GoCardless limite un paiement unique Open Banking à 1 000 €. Vous pouvez demander un relèvement jusqu’à 15 000 € pour la devise EUR Open Banking (SEPA) depuis votre tableau de bord GoCardless : Paramètres > Paramètres de la société > Transaction limits > Demander un relèvement.";
 
   return (
-    <div className="">
+    <div className={editorLayout ? "space-y-5" : ""}>
       <CustomerDetails
         client={client}
         onClientChange={onClientChange}
         documentClientErrors={errors?.documentClientErrors}
         disabled={lockInvoiceContent}
+        editorLayout={editorLayout}
       />
       <ServiceLineItems
         hydratedLineItems={lineItems}
@@ -88,9 +91,10 @@ function DocumentForm({
         documentDateErrors={errors?.documentDateErrors}
         documentLineItemsErrors={errors?.documentLineItemsErrors}
         disabled={lockInvoiceContent}
+        editorLayout={editorLayout}
       />
       {showDepositPlan && (
-        <section className="mx-auto mt-8 w-full max-w-2xl rounded-lg border border-zinc-200 p-5">
+        <section className={editorLayout ? "rounded-ui-card border border-ui-border bg-ui-surface p-5 shadow-ui-card" : "mx-auto mt-8 w-full max-w-2xl rounded-lg border border-zinc-200 p-5"}>
           <h2 className="text-lg font-semibold text-zinc-900">Mode de paiement du devis</h2>
           <div className="mt-4 flex flex-wrap gap-3">
             <label className="flex cursor-pointer items-center gap-2 rounded-md border border-zinc-200 px-4 py-3">
@@ -109,7 +113,7 @@ function DocumentForm({
         </section>
       )}
       {showPaymentMode && (
-        <section className="mx-auto mt-8 w-full max-w-2xl rounded-lg border border-zinc-200 p-5">
+        <section className={editorLayout ? "rounded-ui-card border border-ui-border bg-ui-surface p-5 shadow-ui-card" : "mx-auto mt-8 w-full max-w-2xl rounded-lg border border-zinc-200 p-5"}>
           <div className="flex items-center gap-2">
             <h2 className="text-lg font-semibold text-zinc-900">
               Mode de paiement

@@ -2,6 +2,7 @@ import { Service, ServiceLineItem } from "@/app/types";
 import { ChevronDown } from "lucide-react";
 import React from "react";
 import { getActiveCompanyServices } from "@/lib/companies/catalog";
+import { calculateDiscountedUnitPrice } from "./line-item-discount";
 
 interface AddLineItemModalProps {
   isVisible: boolean;
@@ -33,6 +34,8 @@ function AddLineItemModal({
   );
 
   const [isDropdownOpen, setIsDropdownOpen] = React.useState(false);
+  const [discountType, setDiscountType] = React.useState<"PERCENT" | "AMOUNT">("PERCENT");
+  const [discountValue, setDiscountValue] = React.useState(0);
   const [preSelectedService, setPreSelectedService] =
     React.useState<Service | null>(null);
   const [predefinedServices, setPredefinedServices] = React.useState<Service[]>(
@@ -42,6 +45,7 @@ function AddLineItemModal({
 
   function handleServiceSelect(service: Service | null) {
     setPreSelectedService(service);
+    setDiscountValue(0);
     if (service) {
       setLineItemDetails({
         description: service.description as string,
@@ -111,6 +115,8 @@ function AddLineItemModal({
   }, []);
 
   function resetLineItemDetails() {
+    setDiscountValue(0);
+    setDiscountType("PERCENT");
     setLineItemDetails({
       description: "",
       quantity: 1,
@@ -130,6 +136,18 @@ function AddLineItemModal({
           ? Number(value)
           : value,
     }));
+  }
+
+  const discountedUnitPrice = calculateDiscountedUnitPrice(
+    lineItemDetails.unitPrice,
+    discountType,
+    discountValue,
+  );
+  const discountIsValid = discountedUnitPrice !== null;
+
+  function handleClose() {
+    resetLineItemDetails();
+    onClose();
   }
 
   return (
@@ -323,29 +341,66 @@ function AddLineItemModal({
                 </div>
               </div>
 
+              <fieldset className="rounded-ui-control border border-ui-border bg-ui-subtle p-4">
+                <legend className="px-1 text-sm font-semibold text-ui-text">Remise sur cet article</legend>
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="min-w-28 flex-1 text-sm text-ui-secondary">
+                    Type de remise
+                    <select
+                      value={discountType}
+                      onChange={(event) => setDiscountType(event.target.value as "PERCENT" | "AMOUNT")}
+                      className="mt-1 w-full rounded-ui-control border border-ui-control bg-ui-surface px-3 py-2 text-ui-text"
+                    >
+                      <option value="PERCENT">Pourcentage</option>
+                      <option value="AMOUNT">€ par unité</option>
+                    </select>
+                  </label>
+                  <label className="min-w-28 flex-1 text-sm text-ui-secondary">
+                    Montant {discountType === "PERCENT" ? "(%)" : "(€)"}
+                    <input
+                      type="number"
+                      min={0}
+                      max={discountType === "PERCENT" ? 100 : lineItemDetails.unitPrice}
+                      step="0.01"
+                      value={discountValue}
+                      onChange={(event) => setDiscountValue(Number(event.target.value))}
+                      aria-invalid={!discountIsValid}
+                      className="mt-1 w-full rounded-ui-control border border-ui-control bg-ui-surface px-3 py-2 text-ui-text"
+                    />
+                  </label>
+                </div>
+                {!discountIsValid && <p role="alert" className="mt-2 text-xs text-ui-danger">La remise ne peut pas dépasser le prix unitaire.</p>}
+                <p className="mt-2 text-xs text-ui-secondary">
+                  Prix unitaire après remise : {discountIsValid ? discountedUnitPrice.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "—"} HT.
+                  La remise est intégrée au prix enregistré.
+                </p>
+              </fieldset>
+
               <div className="flex justify-end gap-4">
                 <button
                   type="button"
                   className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-                  onClick={onClose}
+                  onClick={handleClose}
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
+                  disabled={!discountIsValid}
                   className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-hover transition-colors"
                   onClick={(e) => {
                     e.preventDefault();
+                    if (discountedUnitPrice === null) return;
+                    const discountedLineItem = { ...lineItemDetails, unitPrice: discountedUnitPrice };
                     if (lineItemToModify) {
                       onEditLineItem(
-                        lineItemDetails,
+                        discountedLineItem,
                         lineItemToModify.index || 0,
                       );
                     } else {
-                      onAddLineItem(lineItemDetails);
+                      onAddLineItem(discountedLineItem);
                     }
-                    resetLineItemDetails();
-                    onClose();
+                    handleClose();
                   }}
                 >
                   {lineItemToModify ? "Modifier" : "Ajouter"}

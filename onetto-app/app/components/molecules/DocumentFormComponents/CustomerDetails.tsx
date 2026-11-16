@@ -15,12 +15,14 @@ interface CustomerDetailsProps {
   onClientChange: (client: Client | null) => void;
   documentClientErrors?: DocumentClientError;
   disabled?: boolean;
+  editorLayout?: boolean;
 }
 function CustomerDetails({
   client,
   onClientChange,
   documentClientErrors,
   disabled = false,
+  editorLayout = false,
 }: CustomerDetailsProps) {
   const [selectedClient, setSelectedClient] = React.useState<Client | null>(
     null,
@@ -167,10 +169,10 @@ function CustomerDetails({
 
   return (
     <div
-      className={`border border-gray-200 rounded-md p-4 mb-6 ${disabled ? "opacity-50 pointer-events-none" : ""}`}
+      className={`${editorLayout ? "rounded-ui-card border border-ui-border bg-ui-surface p-5 shadow-ui-card" : "mb-6 rounded-md border border-gray-200 p-4"} ${disabled ? "opacity-50 pointer-events-none" : ""}`}
     >
-      <header className="flex items-center gap-4 mb-6">
-        <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white font-semibold font-title">
+      <header className="mb-6 flex items-center gap-4">
+        <div className={editorLayout ? "flex h-9 w-9 items-center justify-center rounded-ui-control bg-ui-primary-soft font-title font-semibold text-ui-primary" : "flex h-10 w-10 items-center justify-center rounded-full bg-primary font-title font-semibold text-white"}>
           <span>01</span>
         </div>
         <h2 className="text-lg font-title font-semibold mb-1">

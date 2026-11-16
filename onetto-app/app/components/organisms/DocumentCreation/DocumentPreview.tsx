@@ -1,6 +1,6 @@
 "use client";
 
-import { Client, DocumentDates, ServiceLineItem } from "@/app/types";
+import { Client, DepositPlanInput, DocumentDates, ServiceLineItem } from "@/app/types";
 import { formatDate } from "@/shared/utils";
 import { Landmark } from "lucide-react";
 import React from "react";
@@ -13,6 +13,11 @@ interface DocumentPreviewProps {
   lineItems: ServiceLineItem[];
   documentDates: DocumentDates;
   creationDate: string;
+  documentNumber?: string;
+  paymentMode?: "ONE_TIME" | "INSTALMENTS";
+  numberOfInstalments?: 2 | 3;
+  depositPlan?: DepositPlanInput | null;
+  editorLayout?: boolean;
 }
 
 const currency = (amount: number) =>
@@ -24,6 +29,11 @@ function DocumentPreview({
   lineItems,
   documentDates,
   creationDate,
+  documentNumber,
+  paymentMode = "ONE_TIME",
+  numberOfInstalments = 2,
+  depositPlan,
+  editorLayout = false,
 }: DocumentPreviewProps) {
   const { user } = useAuthUser();
   const { activeCompany } = useActiveCompany();
@@ -39,22 +49,20 @@ function DocumentPreview({
   const totalTTC = totalHT + totalTVA;
 
   return (
-    <div className="mt-10">
-      <div className="mb-4 flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary">
-        <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+    <div className={editorLayout ? "min-w-0 rounded-ui-card border border-ui-border bg-ui-primary-soft/20 p-4 shadow-ui-card xl:sticky xl:top-5" : "mt-10"}>
+      <div className={editorLayout ? "mb-4 flex items-center justify-between border-b border-ui-border pb-3 text-sm font-semibold text-ui-primary" : "mb-4 flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary"}>
+        {!editorLayout && <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />}
         <span>Aperçu {type === "invoice" ? "de la facture" : "du devis"}</span>
       </div>
 
-      <article className="mx-auto w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950">
-        <header className="px-7 py-6">
+      <article className={editorLayout ? "mx-auto w-full max-w-2xl overflow-hidden rounded-ui-control border border-ui-border bg-ui-surface text-[11px] leading-relaxed text-ui-text shadow-ui-card" : "mx-auto w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950"}>
+        <header className={editorLayout ? "px-4 py-5 sm:px-6" : "px-7 py-6"}>
           <div className="flex items-start justify-between gap-6">
-            <div className="-space-y-4">
-              <p className="font-title text-7xl tracking-tighter font-medium uppercase text-primary flex flex-col">
+            <div>
+              <p className={editorLayout ? "font-title text-3xl font-semibold text-ui-text" : "flex flex-col font-title text-7xl font-medium uppercase tracking-tighter text-primary"}>
                 {type === "invoice" ? "Facture" : "Devis"}
               </p>
-              <span className="inline-block text-xs px-2 py-1 border border-black rounded-full bg-white ">
-                n° XXXXX
-              </span>
+              <span className="text-xs text-ui-secondary">{documentNumber ?? "Numéro attribué à l’enregistrement"}</span>
 
               <div className="mt-5 flex flex-col gap-2">
                 <div>
@@ -72,19 +80,18 @@ function DocumentPreview({
             </div>
 
             {/* Logo de l'entreprise */}
-            <div className="w-20 h-20 bg-primary rounded-md"></div>
+            <div className={editorLayout ? "flex h-12 w-12 shrink-0 items-center justify-center rounded-ui-control bg-ui-primary-soft font-title text-xl font-bold text-ui-primary" : "h-20 w-20 rounded-md bg-primary"}>{editorLayout ? "O" : null}</div>
           </div>
 
           {/* divider */}
           <hr className="inline-block w-full mt-10 text-primary" />
 
-          <div className="mt-7 grid gap-6 md:grid-cols-2">
+          <div className={`mt-7 grid gap-6 ${editorLayout ? "sm:grid-cols-2" : "md:grid-cols-2"}`}>
             <section className="">
               <div className="space-y-0.5">
                 <p className="min-h-5 font-title text-lg font-semibold">
                   {activeCompany?.name ?? ""}
                 </p>
-                <p>Statut: Micro-entreprise</p>
                 <p>SIREN : {activeCompany?.siren ?? ""}</p>
                 <p>TVA intracommunautaire : {activeCompany?.vatNumber ?? ""}</p>
                 <p>Téléphone: {activeCompany?.phoneNumber}</p>
@@ -102,28 +109,27 @@ function DocumentPreview({
               </p>
               <div className="space-y-0.5">
                 <p className="min-h-5 font-title text-lg font-semibold">
-                  {client?.name ?? "John Doe"}
+                  {client?.name ?? ""}
                 </p>
-                <p>{client?.email ?? "john.doe@example.com"}</p>
+                <p>{client?.email ?? ""}</p>
                 {client?.clientType === "BUSINESS" && client.siren && (
                   <p>SIREN : {client.siren}</p>
                 )}
                 {client?.clientType === "BUSINESS" && client.vatNumber && (
                   <p>TVA intracommunautaire : {client.vatNumber}</p>
                 )}
-                <p>{client?.address ?? "10 rue de la Paix"}</p>
+                <p>{client?.address ?? ""}</p>
                 <p>
-                  {client?.postalCode ?? "75000"}, {client?.city ?? "Paris"},{" "}
-                  {client?.country ?? "France"}
+                  {[client?.postalCode, client?.city, client?.country].filter(Boolean).join(", ")}
                 </p>
               </div>
             </section>
           </div>
         </header>
 
-        <div className="px-7 py-6">
-          <div className="overflow-hidden">
-            <table className="w-full table-fixed border-collapse text-left text-[10px]">
+        <div className={editorLayout ? "px-4 py-5 sm:px-6" : "px-7 py-6"}>
+          <div className="overflow-x-auto">
+            <table className={`w-full table-fixed border-collapse text-left text-[10px] ${editorLayout ? "min-w-[480px]" : ""}`}>
               <colgroup>
                 <col className="w-[37%]" />
                 <col className="w-[7%]" />
@@ -200,6 +206,20 @@ function DocumentPreview({
             </div>
           </div>
 
+          {editorLayout && (
+            <section className="mt-6 rounded-ui-control bg-ui-primary-soft/50 p-3 text-xs">
+              <h2 className="font-semibold text-ui-text">Conditions de paiement</h2>
+              <p className="mt-1 text-ui-secondary">
+                {type === "estimate" && depositPlan
+                  ? `${depositPlan.deposits.length} acompte(s) et un solde`
+                  : paymentMode === "INSTALMENTS"
+                    ? `Paiement en ${numberOfInstalments} échéances`
+                    : "Paiement unique"}
+                {documentDates.dueDate ? ` · Échéance le ${formatDate(documentDates.dueDate)}` : ""}
+              </p>
+            </section>
+          )}
+
           <footer className="mt-7 grid gap-6 border-t border-zinc-200 pt-5 md:grid-cols-[1.1fr,0.9fr]">
             <section>
               <div className="mb-3 flex items-center gap-2 font-title font-semibold">
@@ -233,7 +253,7 @@ function DocumentPreview({
                 <p className="text-[10px] text-zinc-500">
                   Merci pour votre confiance.
                 </p>
-                <p>Facture faite avec Onetto</p>
+                <p>{type === "invoice" ? "Facture" : "Devis"} fait avec Onetto</p>
               </div>
             </section>
           </footer>
