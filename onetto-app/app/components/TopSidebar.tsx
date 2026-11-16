@@ -18,6 +18,7 @@ import { logout } from "@/lib/auth/auth";
 import { getMyCompanies, selectCompany } from "@/lib/companies/companies";
 import { Company } from "@/lib/companies/dtos/create-company.dto";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuthUser } from "./context/AuthUserContext";
 import {
   COMPANY_UPDATED_EVENT,
@@ -61,6 +62,7 @@ function TopSidebar() {
 
   const pathname = usePathname();
   const router = useRouter();
+  const appUserRole = user?.appUserRole;
 
   async function handleLogout() {
     const response = await logout();
@@ -90,17 +92,17 @@ function TopSidebar() {
 
   React.useEffect(() => {
     if (
-      (user && user.appUserRole !== "USER") ||
+      (appUserRole && appUserRole !== "USER") ||
       pathname.startsWith("/admin")
     ) {
       return;
     }
 
-    void loadCompanies();
+    queueMicrotask(() => void loadCompanies());
     window.addEventListener(COMPANY_UPDATED_EVENT, loadCompanies);
     return () =>
       window.removeEventListener(COMPANY_UPDATED_EVENT, loadCompanies);
-  }, [loadCompanies, pathname, user?.appUserRole]);
+  }, [loadCompanies, pathname, appUserRole]);
 
   const activeCompany = companies.find(
     (company) => company.id === activeCompanyId,
@@ -144,16 +146,17 @@ function TopSidebar() {
   const links = hasAdminAccess ? adminLinks : userLinks;
 
   return (
-    <header className="bg-white relative w-full border-b border-zinc-200 lg:w-64 lg:h-screen p-4 lg:flex lg:flex-col">
+    <aside className="relative z-20 w-full shrink-0 border-b border-ui-border bg-ui-surface p-4 lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-64 lg:flex-col lg:border-r lg:border-b-0 lg:px-4 lg:py-7">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <BurgerMenu trigger={() => setIsOpen(!isOpen)} />
-          <h1
-            className="font-title text-2xl font-bold text-primary"
-            onClick={() => setIsOpen(true)}
+        <div className="flex items-center gap-2 lg:px-2">
+          <BurgerMenu trigger={() => setIsOpen(!isOpen)} expanded={isOpen} />
+          <Link
+            href={hasAdminAccess ? "/admin" : "/dashboard"}
+            className="flex items-center gap-2.5 rounded-lg font-title text-2xl font-bold tracking-tight text-ui-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary"
           >
-            ONETTO
-          </h1>
+            <Image src="/logos/Onetto logo purple.svg" alt="" width={30} height={30} />
+            Onetto
+          </Link>
         </div>
 
         <div className="relative">
@@ -161,7 +164,8 @@ function TopSidebar() {
           <button
             type="button"
             aria-label="Ouvrir le menu du compte"
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary lg:hidden"
+            aria-expanded={showMobileCompaniesMenu}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-ui-primary-soft text-xs font-semibold text-ui-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary lg:hidden"
             onClick={() => setShowMobileCompaniesMenu(!showMobileCompaniesMenu)}
           >
             {hasAdminAccess
@@ -174,66 +178,63 @@ function TopSidebar() {
           </button>
 
           {/* mobile companies menu */}
-          <div className="lg:hidden absolute right-0 top-full z-20 mt-2 w-56 rounded-lg bg-white">
-            {showMobileCompaniesMenu && (
-              <div>
+          {showMobileCompaniesMenu && (
+            <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-ui-border bg-ui-surface shadow-ui-popover lg:hidden">
                 <div className="px-4 py-3">
                   {!hasAdminAccess && (
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ui-primary-soft text-xs font-semibold text-ui-primary">
                         {activeCompany ? getInitials(activeCompany.name) : "O"}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-zinc-800">
+                        <p className="truncate text-sm font-semibold text-ui-text">
                           {activeCompany?.name ??
                             "Aucune entreprise sélectionnée"}
                         </p>
-                        <p className="truncate text-xs text-zinc-500">
+                        <p className="truncate text-xs text-ui-secondary">
                           {activeCompany?.email ?? "Gérer mes entreprises"}
                         </p>
                       </div>
                     </div>
                   )}
-                  {!hasAdminAccess && <hr className="my-3 border-zinc-200" />}
-                  <p className="truncate text-sm font-medium text-zinc-800">
+                  {!hasAdminAccess && <hr className="my-3 border-ui-border" />}
+                  <p className="truncate text-sm font-medium text-ui-text">
                     {user
                       ? `${user.firstname} ${user.lastname}`
                       : "Chargement du compte…"}
                   </p>
-                  <p className="truncate text-xs text-zinc-500">
+                  <p className="truncate text-xs text-ui-secondary">
                     {user?.email ?? ""}
                   </p>
                 </div>
                 {!hasAdminAccess && (
                   <>
-                    <hr className="border-zinc-200" />
-                    <ul>
+                    <hr className="border-ui-border" />
+                    <ul className="max-h-48 overflow-y-auto">
                       {otherCompanies.map((company) => (
-                        <li
-                          key={company.id}
-                          className="cursor-pointer overflow-hidden px-4 py-2 hover:bg-zinc-50"
-                          onClick={() =>
-                            void handleCompanySelection(company.id)
-                          }
-                        >
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                        <li key={company.id} className="overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => void handleCompanySelection(company.id)}
+                            className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-ui-primary"
+                          >
+                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ui-primary-soft text-xs font-semibold text-ui-primary">
                               {getInitials(company.name)}
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="truncate">{company.name}</p>
-                              <p className="truncate text-xs text-zinc-500">
+                              <p className="truncate text-xs text-ui-secondary">
                                 {company.email}
                               </p>
                             </div>
-                          </div>
+                          </button>
                         </li>
                       ))}
                     </ul>
 
                     <Link
                       href="/my-companies"
-                      className="mx-4 mt-3 block rounded-md border border-zinc-200 px-3 py-2 text-center text-sm font-medium text-zinc-700"
+                      className="mx-4 mt-3 block rounded-md border border-ui-border px-3 py-2 text-center text-sm font-medium text-ui-secondary"
                       onClick={() => setShowMobileCompaniesMenu(false)}
                     >
                       Gérer mes entreprises
@@ -243,24 +244,25 @@ function TopSidebar() {
 
                 <hr className="my-3 block text-zinc-200 w-full max-w-35 mx-auto" />
 
-                <div
-                  className="flex items-center justify-center mb-4 cursor-pointer"
-                  onClick={handleLogout}
+                <button
+                  type="button"
+                  className="mb-4 flex w-full items-center justify-center rounded-lg py-2 text-sm text-red-600 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-ui-primary"
+                  onClick={() => void handleLogout()}
                 >
-                  <p className="text-sm text-red-500 flex items-center gap-3">
+                  <span className="flex items-center gap-3">
                     Se déconnecter <LogOut className="w-4 h-4" />
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
+                  </span>
+                </button>
+            </div>
+          )}
         </div>
       </div>
 
       <div
-        className={`bg-white border-b border-zinc-200 absolute left-0 top-full z-10 w-full h-0 overflow-hidden ${isOpen ? "h-90" : ""} lg:h-full lg:relative lg:top-0 lg:border-b-0 lg:flex-1 lg:flex lg:flex-col lg:justify-between transition-all duration-150`}
+        id="app-navigation"
+        className={`absolute left-0 top-full z-10 w-full overflow-hidden border-ui-border bg-ui-surface transition-all duration-150 ${isOpen ? "max-h-[70vh] overflow-y-auto border-b shadow-ui-popover" : "invisible max-h-0"} lg:visible lg:relative lg:top-0 lg:mt-10 lg:flex lg:max-h-none lg:flex-1 lg:flex-col lg:justify-between lg:overflow-visible lg:border-0 lg:shadow-none`}
       >
-        <nav className="mt-4">
+        <nav className="mt-2" aria-label="Navigation principale">
           <ul className="px-2 lg:px-0">
             {links.map((link) => {
               const isCurrentPathName = hasAdminAccess
@@ -269,13 +271,15 @@ function TopSidebar() {
                     pathname.startsWith(link.href + "/"))
                 : pathname.split("/")[1] === link.href.split("/")[1];
               return (
-                <li key={link.name} className="mb-2">
+                <li key={link.name} className="mb-1">
                   <a
                     href={link.href}
-                    className={`flex items-center gap-3 px-4 py-2 rounded-lg font-normal transition-colors truncate ${isCurrentPathName ? "bg-[#EEEFFF] text-[#0A0C56] font-medium" : "text-[#21259A] hover:bg-[#EEEFFF]"}`}
+                    aria-current={isCurrentPathName ? "page" : undefined}
+                    onClick={() => setIsOpen(false)}
+                    className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary ${isCurrentPathName ? "bg-ui-primary-soft font-semibold text-ui-primary" : "font-medium text-ui-text hover:bg-ui-subtle hover:text-ui-primary"}`}
                   >
-                    {link.icon}
-                    {link.name}
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center [&_svg]:h-5 [&_svg]:w-5 [&_svg]:stroke-[1.75]">{link.icon}</span>
+                    <span className="min-w-0 flex-1 truncate">{link.name}</span>
                     {link.href === "/my-companies" &&
                       hasCompanyActionRequired && (
                         <TriangleAlert
@@ -290,29 +294,34 @@ function TopSidebar() {
           </ul>
         </nav>
 
-        <div className="hidden lg:block relative w-full rounded-lg p-2 transition-colors hover:bg-zinc-100 group duration-300">
-          {!hasAdminAccess && (
-            <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-full opacity-0 invisible group-hover:visible group-hover:opacity-100 transition-all duration-150 space-y-2">
-              <ul className="bg-white border border-zinc-200 rounded-lg">
+        <div
+          role={otherCompanies.length > 0 && !hasAdminAccess ? "group" : undefined}
+          aria-label={otherCompanies.length > 0 && !hasAdminAccess ? "Changer d’entreprise" : undefined}
+          tabIndex={otherCompanies.length > 0 && !hasAdminAccess ? 0 : undefined}
+          className="group relative mb-1 hidden w-full rounded-2xl border border-ui-border bg-ui-surface p-3 shadow-ui-card transition-colors hover:bg-ui-subtle focus-within:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary lg:block"
+        >
+          {!hasAdminAccess && otherCompanies.length > 0 && (
+            <div className="invisible absolute bottom-full left-0 z-20 mb-2 w-full space-y-2 opacity-0 transition-all duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+              <ul className="max-h-56 overflow-y-auto rounded-2xl border border-ui-border bg-ui-surface shadow-ui-popover">
                 {otherCompanies.map((company) => (
-                  <li
-                    key={company.id}
-                    className="cursor-pointer overflow-hidden px-2 py-2 hover:bg-zinc-50"
-                    onClick={() => void handleCompanySelection(company.id)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                  <li key={company.id} className="overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => void handleCompanySelection(company.id)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-ui-primary"
+                    >
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ui-primary-soft text-xs font-semibold text-ui-primary">
                         {getInitials(company.name)}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold">
                           {company.name}
                         </p>
-                        <p className="truncate text-xs text-zinc-500">
+                        <p className="truncate text-xs text-ui-secondary">
                           {company.email}
                         </p>
                       </div>
-                    </div>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -321,29 +330,29 @@ function TopSidebar() {
           <div className="space-y-3 cursor-pointer">
             {!hasAdminAccess && (
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ui-primary-soft text-xs font-semibold text-ui-primary">
                   {activeCompany ? getInitials(activeCompany.name) : "O"}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-zinc-800">
+                  <p className="truncate text-sm font-semibold text-ui-text">
                     {activeCompany?.name ?? "Aucune entreprise sélectionnée"}
                   </p>
-                  <p className="truncate text-xs text-zinc-500">
+                  <p className="truncate text-xs text-ui-secondary">
                     {activeCompany?.email ?? "Gérer mes entreprises"}
                   </p>
                 </div>
               </div>
             )}
-            {!hasAdminAccess && <hr className="border-zinc-200" />}
+            {!hasAdminAccess && <hr className="border-ui-border" />}
 
             <div className="flex items-center justify-between gap-3 px-1">
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-zinc-800">
+                <p className="truncate text-sm font-medium text-ui-text">
                   {user
                     ? `${user.firstname} ${user.lastname}`
                     : "Chargement du compte…"}
                 </p>
-                <p className="truncate text-xs text-zinc-500">
+                <p className="truncate text-xs text-ui-secondary">
                   {user?.email ?? ""}
                 </p>
               </div>
@@ -352,7 +361,7 @@ function TopSidebar() {
                 aria-label="Se déconnecter"
                 title="Se déconnecter"
                 onClick={() => void handleLogout()}
-                className="shrink-0 rounded-md p-2 text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600"
+                className="shrink-0 rounded-md p-2 text-ui-secondary transition-colors hover:bg-red-50 hover:text-red-600"
               >
                 <LogOut className="h-4 w-4 text-red-500" />
               </button>
@@ -360,7 +369,7 @@ function TopSidebar() {
           </div>
         </div>
       </div>
-    </header>
+    </aside>
   );
 }
 

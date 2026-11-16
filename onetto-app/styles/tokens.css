@@ -1,0 +1,24 @@
+:root {
+  --onetto-primary: #454ade;
+  --onetto-primary-hover: #3c40b8;
+  --onetto-primary-active: #3338a3;
+  --onetto-primary-soft: #eeefff;
+  --onetto-accent: #dddfff;
+  --onetto-background: #f7f7fc;
+  --onetto-surface: #ffffff;
+  --onetto-surface-subtle: #f3f4f9;
+  --onetto-border: #e5e6ef;
+  --onetto-border-control: #8b8fa2;
+  --onetto-text: #171824;
+  --onetto-text-secondary: #676b7b;
+  --onetto-success: #166534;
+  --onetto-success-soft: #ecfdf3;
+  --onetto-warning: #92400e;
+  --onetto-warning-soft: #fffbeb;
+  --onetto-danger: #b42318;
+  --onetto-danger-soft: #fef3f2;
+  --onetto-info: #1d4ed8;
+  --onetto-info-soft: #eff6ff;
+  --onetto-shadow-card: 0 3px 16px rgb(31 30 70 / 3.5%);
+  --onetto-shadow-popover: 0 16px 40px rgb(27 24 68 / 10%);
+}

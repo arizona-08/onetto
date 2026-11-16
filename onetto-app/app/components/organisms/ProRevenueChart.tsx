@@ -57,7 +57,10 @@ export default function ProRevenueChart({
   points: Array<{ label: string; billed: number; collected: number }>;
 }) {
   return (
-    <Line
+    <div className="h-full">
+      <Line
+      role="img"
+      aria-label="Évolution du chiffre d’affaires facturé et encaissé sur les six derniers mois"
       data={{
         labels: points.map((point) => point.label),
         datasets: [
@@ -147,6 +150,20 @@ export default function ProRevenueChart({
           },
         },
       }}
-    />
+      />
+      <table className="sr-only">
+        <caption>Évolution du chiffre d’affaires facturé et encaissé</caption>
+        <thead><tr><th scope="col">Mois</th><th scope="col">Facturé</th><th scope="col">Encaissé</th></tr></thead>
+        <tbody>
+          {points.map((point) => (
+            <tr key={point.label}>
+              <th scope="row">{point.label}</th>
+              <td>{point.billed.toLocaleString("fr-FR")} €</td>
+              <td>{point.collected.toLocaleString("fr-FR")} €</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

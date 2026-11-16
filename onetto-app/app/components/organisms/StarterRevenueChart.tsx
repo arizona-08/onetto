@@ -47,7 +47,10 @@ export default function StarterRevenueChart({
   points: Array<{ label: string; amount: number }>;
 }) {
   return (
-    <Line
+    <div className="h-full">
+      <Line
+      role="img"
+      aria-label="Évolution du chiffre d’affaires facturé sur les six derniers mois"
       data={{
         labels: points.map((point) => point.label),
         datasets: [
@@ -111,6 +114,19 @@ export default function StarterRevenueChart({
           },
         },
       }}
-    />
+      />
+      <table className="sr-only">
+        <caption>Évolution du chiffre d’affaires facturé</caption>
+        <thead><tr><th scope="col">Mois</th><th scope="col">Facturé</th></tr></thead>
+        <tbody>
+          {points.map((point) => (
+            <tr key={point.label}>
+              <th scope="row">{point.label}</th>
+              <td>{point.amount.toLocaleString("fr-FR")} €</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

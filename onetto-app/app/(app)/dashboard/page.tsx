@@ -1,4 +1,6 @@
 import Greetings from "@/app/components/atoms/Greetings";
+import { Badge } from "@/app/components/ui/Badge";
+import { Card } from "@/app/components/ui/Card";
 import ProRevenueChart from "@/app/components/organisms/ProRevenueChart";
 import StarterRevenueChart from "@/app/components/organisms/StarterRevenueChart";
 import {
@@ -31,6 +33,9 @@ import {
   emptyProDashboard,
 } from "./empty-dashboard-data";
 
+const dashboardMainClass =
+  "mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-8 sm:py-8 lg:px-10 lg:py-10 2xl:px-12";
+
 function formatCurrency(amount: number) {
   return amount.toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 }
@@ -55,7 +60,7 @@ function invoiceTone(status: string) {
     return "bg-emerald-50 text-emerald-700";
   if (status === "OVERDUE" || status === "REJECTED")
     return "bg-red-50 text-red-700";
-  if (status === "DRAFT") return "bg-zinc-100 text-zinc-600";
+  if (status === "DRAFT") return "bg-ui-subtle text-ui-secondary";
   return "bg-amber-50 text-amber-700";
 }
 
@@ -79,15 +84,15 @@ function DashboardHeader({
   description: string;
 }) {
   return (
-    <header className="flex flex-col gap-4 border-b border-zinc-200 pb-6 sm:flex-row sm:items-start sm:justify-between">
+    <header className="flex flex-col gap-5 border-b border-ui-border pb-7 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <Greetings />
-        <p className="mt-1 text-sm text-zinc-600">{description}</p>
+        <p className="mt-2 text-sm leading-6 text-ui-secondary sm:text-base">{description}</p>
       </div>
-      <span className="inline-flex w-fit items-center gap-2 rounded-full border border-primary/15 bg-primary/[0.05] px-3 py-1.5 text-xs font-semibold text-primary">
+      <Badge tone="primary" className="gap-2 border border-ui-primary/15 px-3 py-1.5">
         <BarChart3 className="h-3.5 w-3.5" aria-hidden="true" />
         Tableau de bord {plan}
-      </span>
+      </Badge>
     </header>
   );
 }
@@ -113,20 +118,20 @@ function MetricCard({
   };
 
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-4">
+    <Card>
       <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium text-zinc-600">{label}</p>
+        <p className="text-sm font-medium text-ui-secondary">{label}</p>
         <span
-          className={`flex h-8 w-8 items-center justify-center rounded-lg ${tones[tone]}`}
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}
         >
           {icon}
         </span>
       </div>
-      <p className="mt-4 font-title text-2xl font-semibold tracking-tight text-zinc-900">
+      <p className="mt-5 font-title text-2xl font-semibold tracking-tight text-ui-text [font-variant-numeric:tabular-nums] sm:text-[26px]">
         {value}
       </p>
-      <p className="mt-1 text-xs text-zinc-500">{hint}</p>
-    </section>
+      <p className="mt-1 text-xs leading-5 text-ui-secondary">{hint}</p>
+    </Card>
   );
 }
 
@@ -142,11 +147,11 @@ function PanelTitle({
   return (
     <div className="flex items-start justify-between gap-4">
       <div>
-        <h2 className="font-title text-lg font-semibold text-zinc-900">
+        <h2 className="font-title text-lg font-semibold tracking-tight text-ui-text">
           {title}
         </h2>
         {description && (
-          <p className="mt-1 text-sm text-zinc-500">{description}</p>
+          <p className="mt-1 text-sm leading-6 text-ui-secondary">{description}</p>
         )}
       </div>
       {action}
@@ -156,7 +161,7 @@ function PanelTitle({
 
 function NoActiveCompanyNotice() {
   return (
-    <div className="mt-6 rounded-2xl border border-primary/20 bg-primary/[0.05] p-5 text-sm text-zinc-700">
+    <div className="mt-6 rounded-2xl border border-primary/20 bg-primary/[0.05] p-5 text-sm text-ui-secondary">
       <p>
         Votre abonnement est actif. Créez une entreprise pour commencer à
         alimenter ce tableau de bord.
@@ -189,7 +194,7 @@ async function Dashboard() {
 
   if (!companiesResponse.ok || !currentPlan) {
     return (
-      <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
+      <main className={dashboardMainClass}>
         <p
           role="alert"
           className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800"
@@ -220,7 +225,7 @@ async function Dashboard() {
 
   if (!summary || (currentPlan === "PRO" && !proDashboard)) {
     return (
-      <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
+      <main className={dashboardMainClass}>
         <p
           role="alert"
           className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800"
@@ -237,13 +242,13 @@ async function Dashboard() {
       1,
     );
     return (
-      <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
+      <main className={dashboardMainClass}>
         <DashboardHeader
           plan="Pro"
           description="Suivez vos encaissements, vos prévisions et la performance de votre activité."
         />
         {!hasActiveCompany && <NoActiveCompanyNotice />}
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="CA facturé"
             value={formatCurrency(summary.billedAmount)}
@@ -277,17 +282,17 @@ async function Dashboard() {
           />
         </div>
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-[1.45fr_0.85fr]">
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(340px,1fr)]">
+          <Card>
             <PanelTitle
               title="Évolution du chiffre d’affaires"
               description="Facturé et encaissé sur les six derniers mois."
             />
-            <div className="mt-6 h-72">
+            <div className="mt-6 h-72 sm:h-80">
               <ProRevenueChart points={proDashboard.revenueByMonth} />
             </div>
-          </section>
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+          </Card>
+          <Card>
             <PanelTitle
               title="Modes de paiement"
               description="Répartition des montants facturés."
@@ -307,10 +312,10 @@ async function Dashboard() {
               ].map(([label, percent, color]) => (
                 <div key={String(label)}>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-zinc-700">{label}</span>
-                    <strong className="text-zinc-900">{percent} %</strong>
+                    <span className="font-medium text-ui-secondary">{label}</span>
+                    <strong className="text-ui-text">{percent} %</strong>
                   </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-100">
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-ui-subtle">
                     <div
                       className={`h-full rounded-full ${color}`}
                       style={{ width: `${percent}%` }}
@@ -319,25 +324,25 @@ async function Dashboard() {
                 </div>
               ))}
             </div>
-            <dl className="mt-8 grid grid-cols-2 gap-3 border-t border-zinc-100 pt-5 text-sm">
-              <div className="rounded-xl bg-zinc-50 p-3">
-                <dt className="text-zinc-500">Échéanciers en 2×</dt>
-                <dd className="mt-1 font-title text-xl font-semibold text-zinc-900">
+            <dl className="mt-8 grid grid-cols-2 gap-3 border-t border-ui-border pt-5 text-sm">
+              <div className="rounded-xl bg-ui-subtle p-3">
+                <dt className="text-ui-secondary">Échéanciers en 2×</dt>
+                <dd className="mt-1 font-title text-xl font-semibold text-ui-text">
                   {proDashboard.paymentDistribution.twoInstalments}
                 </dd>
               </div>
-              <div className="rounded-xl bg-zinc-50 p-3">
-                <dt className="text-zinc-500">En 3× ou plus</dt>
-                <dd className="mt-1 font-title text-xl font-semibold text-zinc-900">
+              <div className="rounded-xl bg-ui-subtle p-3">
+                <dt className="text-ui-secondary">En 3× ou plus</dt>
+                <dd className="mt-1 font-title text-xl font-semibold text-ui-text">
                   {proDashboard.paymentDistribution.threePlusInstalments}
                 </dd>
               </div>
             </dl>
-          </section>
+          </Card>
         </div>
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(340px,1fr)]">
+          <Card>
             <PanelTitle
               title="Encaissements prévus"
               description="Montants attendus sur les prochaines échéances."
@@ -346,13 +351,13 @@ async function Dashboard() {
               {proDashboard.cashflowForecast.map((item) => (
                 <div
                   key={item.month}
-                  className="grid grid-cols-[minmax(5rem,0.7fr)_minmax(5.5rem,0.7fr)_minmax(4rem,1.6fr)] items-center gap-3 text-sm"
+                  className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-sm sm:grid sm:grid-cols-[minmax(5rem,0.7fr)_minmax(5.5rem,0.7fr)_minmax(4rem,1.6fr)]"
                 >
-                  <span className="capitalize text-zinc-600">{item.month}</span>
-                  <strong className="text-zinc-900">
+                  <span className="capitalize text-ui-secondary">{item.month}</span>
+                  <strong className="text-ui-text">
                     {formatCurrency(item.amount)}
                   </strong>
-                  <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-ui-subtle sm:w-auto">
                     <div
                       className="h-full rounded-full bg-primary"
                       style={{
@@ -363,13 +368,13 @@ async function Dashboard() {
                 </div>
               ))}
               {!proDashboard.cashflowForecast.length && (
-                <p className="rounded-xl bg-zinc-50 p-4 text-sm text-zinc-500">
+                <p className="rounded-xl bg-ui-subtle p-4 text-sm text-ui-secondary">
                   Aucun encaissement à prévoir.
                 </p>
               )}
             </div>
-          </section>
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+          </Card>
+          <Card>
             <PanelTitle title="Alertes à traiter" />
             <ul className="mt-5 space-y-3 text-sm">
               <li className="flex items-center gap-3 rounded-xl bg-red-50 p-3 text-red-800">
@@ -394,27 +399,27 @@ async function Dashboard() {
                 </span>
               </li>
             </ul>
-          </section>
+          </Card>
         </div>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-3">
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+        <div className="mt-5 grid gap-5 lg:grid-cols-3">
+          <Card>
             <PanelTitle title="Performance commerciale" />
             <dl className="mt-5 space-y-3 text-sm">
               <div className="flex justify-between">
-                <dt className="text-zinc-500">Acceptation des devis</dt>
+                <dt className="text-ui-secondary">Acceptation des devis</dt>
                 <dd className="font-semibold">
                   {proDashboard.performance.acceptanceRate} %
                 </dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-zinc-500">Conversion en facture</dt>
+                <dt className="text-ui-secondary">Conversion en facture</dt>
                 <dd className="font-semibold">
                   {proDashboard.performance.invoiceConversionRate} %
                 </dd>
               </div>
-              <div className="flex justify-between border-t border-zinc-100 pt-3">
-                <dt className="text-zinc-500">Panier moyen</dt>
+              <div className="flex justify-between border-t border-ui-border pt-3">
+                <dt className="text-ui-secondary">Panier moyen</dt>
                 <dd className="font-semibold">
                   {formatCurrency(
                     proDashboard.performance.averageInvoiceAmount,
@@ -422,12 +427,12 @@ async function Dashboard() {
                 </dd>
               </div>
             </dl>
-          </section>
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+          </Card>
+          <Card>
             <PanelTitle title="Suivi des paiements" />
             <dl className="mt-5 space-y-3 text-sm">
               <div className="flex justify-between">
-                <dt className="text-zinc-500">Délai moyen</dt>
+                <dt className="text-ui-secondary">Délai moyen</dt>
                 <dd className="font-semibold">
                   {proDashboard.payments.averageDelayDays === null
                     ? "—"
@@ -435,20 +440,20 @@ async function Dashboard() {
                 </dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-zinc-500">Échéances à venir</dt>
+                <dt className="text-ui-secondary">Échéances à venir</dt>
                 <dd className="font-semibold">
                   {proDashboard.payments.upcomingInstalments}
                 </dd>
               </div>
-              <div className="flex justify-between border-t border-zinc-100 pt-3">
-                <dt className="text-zinc-500">Échéances en retard</dt>
+              <div className="flex justify-between border-t border-ui-border pt-3">
+                <dt className="text-ui-secondary">Échéances en retard</dt>
                 <dd className="font-semibold text-red-700">
                   {proDashboard.payments.overdueInstalments}
                 </dd>
               </div>
             </dl>
-          </section>
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+          </Card>
+          <Card>
             <PanelTitle title="Top clients" />
             <ul className="mt-5 space-y-3 text-sm">
               {proDashboard.topClients.map((client, index) => (
@@ -457,7 +462,7 @@ async function Dashboard() {
                   className="flex items-center justify-between gap-3"
                 >
                   <span className="flex min-w-0 items-center gap-2">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-semibold text-zinc-600">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ui-subtle text-xs font-semibold text-ui-secondary">
                       {index + 1}
                     </span>
                     <span className="truncate">{client.name}</span>
@@ -466,12 +471,12 @@ async function Dashboard() {
                 </li>
               ))}
               {!proDashboard.topClients.length && (
-                <li className="rounded-xl bg-zinc-50 p-3 text-zinc-500">
+                <li className="rounded-xl bg-ui-subtle p-3 text-ui-secondary">
                   Aucun encaissement client.
                 </li>
               )}
             </ul>
-          </section>
+          </Card>
         </div>
       </main>
     );
@@ -480,13 +485,13 @@ async function Dashboard() {
   if (currentPlan === "STARTER") {
     const performance = summary.starter.commercialPerformance;
     return (
-      <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
+      <main className={dashboardMainClass}>
         <DashboardHeader
           plan="Starter"
           description="Gardez le contrôle sur vos factures, devis et relances."
         />
         {!hasActiveCompany && <NoActiveCompanyNotice />}
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="CA facturé"
             value={formatCurrency(summary.billedAmount)}
@@ -515,24 +520,24 @@ async function Dashboard() {
             icon={<BellRing className="h-4 w-4" />}
           />
         </div>
-        <div className="mt-4 grid gap-4 xl:grid-cols-[1.45fr_0.85fr]">
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(340px,1fr)]">
+          <Card>
             <PanelTitle
               title="Évolution du chiffre d’affaires"
               description="Facturé sur les six derniers mois."
             />
-            <div className="mt-6 h-72">
+            <div className="mt-6 h-72 sm:h-80">
               <StarterRevenueChart points={summary.starter.revenueByMonth} />
             </div>
-          </section>
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+          </Card>
+          <Card>
             <PanelTitle
               title="Performance commerciale"
               description="Suivi des devis envoyés."
             />
             <dl className="mt-6 grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-xl bg-zinc-50 p-3">
-                <dt className="text-zinc-500">Envoyés</dt>
+              <div className="rounded-xl bg-ui-subtle p-3">
+                <dt className="text-ui-secondary">Envoyés</dt>
                 <dd className="mt-1 font-title text-xl font-semibold">
                   {performance.sent}
                 </dd>
@@ -557,15 +562,15 @@ async function Dashboard() {
               </div>
             </dl>
             <div className="mt-5 flex items-center justify-between rounded-xl border border-primary/15 bg-primary/[0.04] p-3 text-sm">
-              <span className="text-zinc-700">Taux d’acceptation</span>
+              <span className="text-ui-secondary">Taux d’acceptation</span>
               <strong className="font-title text-xl text-primary">
                 {performance.acceptanceRate} %
               </strong>
             </div>
-          </section>
+          </Card>
         </div>
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          <Card>
             <PanelTitle
               title="Relances à effectuer"
               description="Factures à suivre en priorité."
@@ -579,7 +584,7 @@ async function Dashboard() {
                 >
                   <Link
                     href={`/documents/${invoice.id}`}
-                    className="font-semibold text-zinc-800 hover:text-primary"
+                    className="rounded-md font-semibold text-ui-text hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   >
                     {invoice.documentNumber ?? "Facture"}
                   </Link>
@@ -591,13 +596,13 @@ async function Dashboard() {
                 </li>
               ))}
               {!summary.starter.reminders.length && (
-                <li className="rounded-xl bg-zinc-50 p-4 text-sm text-zinc-500">
+                <li className="rounded-xl bg-ui-subtle p-4 text-sm text-ui-secondary">
                   Aucune relance à effectuer.
                 </li>
               )}
             </ul>
-          </section>
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+          </Card>
+          <Card>
             <PanelTitle
               title="Devis à suivre"
               description="En attente de la réponse de vos clients."
@@ -611,50 +616,50 @@ async function Dashboard() {
                 >
                   <Link
                     href={`/documents/${estimate.id}`}
-                    className="font-semibold text-zinc-800 hover:text-primary"
+                    className="rounded-md font-semibold text-ui-text hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   >
                     {estimate.documentNumber ?? "Devis"}
                   </Link>
-                  <span className="text-zinc-500">
+                  <span className="text-ui-secondary">
                     {formatCurrency(estimate.totalPrice)}
                   </span>
                 </li>
               ))}
               {!summary.pendingEstimates.length && (
-                <li className="rounded-xl bg-zinc-50 p-4 text-sm text-zinc-500">
+                <li className="rounded-xl bg-ui-subtle p-4 text-sm text-ui-secondary">
                   Aucun devis à suivre.
                 </li>
               )}
             </ul>
-          </section>
+          </Card>
         </div>
-        <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-5">
+        <Card className="mt-5">
           <PanelTitle title="Activité récente" />
-          <ul className="mt-4 grid gap-2 text-sm text-zinc-700 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-4 grid gap-2 text-sm text-ui-secondary sm:grid-cols-2 lg:grid-cols-3">
             {summary.recentActivity.map((activity) => (
-              <li key={activity.id} className="rounded-xl bg-zinc-50 p-3">
+              <li key={activity.id} className="rounded-xl bg-ui-subtle p-3">
                 {activityLabel(activity)}
               </li>
             ))}
             {!summary.recentActivity.length && (
-              <li className="rounded-xl bg-zinc-50 p-4 text-zinc-500">
+              <li className="rounded-xl bg-ui-subtle p-4 text-ui-secondary">
                 Aucune activité récente.
               </li>
             )}
           </ul>
-        </section>
+        </Card>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
+    <main className={dashboardMainClass}>
       <DashboardHeader
         plan="Free"
         description="Une vue claire de vos factures et devis récents."
       />
       {!hasActiveCompany && <NoActiveCompanyNotice />}
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="CA facturé"
           value={formatCurrency(summary?.billedAmount ?? 0)}
@@ -683,15 +688,15 @@ async function Dashboard() {
           icon={<BellRing className="h-4 w-4" />}
         />
       </div>
-      <div className="mt-4 grid gap-4 xl:grid-cols-2">
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <Card>
           <PanelTitle
             title="Factures récentes"
             description="Vos derniers documents émis."
             action={
               <Link
                 href="/documents"
-                className="text-sm font-semibold text-primary hover:underline"
+                className="rounded-md text-sm font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 Tout voir
               </Link>
@@ -706,11 +711,11 @@ async function Dashboard() {
                 <div className="min-w-0">
                   <Link
                     href={`/documents/${invoice.id}`}
-                    className="font-semibold text-zinc-800 hover:text-primary"
+                    className="rounded-md font-semibold text-ui-text hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   >
                     {invoice.documentNumber ?? "Facture sans numéro"}
                   </Link>
-                  <p className="mt-0.5 text-xs text-zinc-500">
+                  <p className="mt-0.5 text-xs text-ui-secondary">
                     {formatCurrency(invoice.totalPrice)}
                   </p>
                 </div>
@@ -722,20 +727,20 @@ async function Dashboard() {
               </li>
             ))}
             {!summary?.recentInvoices.length && (
-              <li className="rounded-xl bg-zinc-50 p-4 text-sm text-zinc-500">
+              <li className="rounded-xl bg-ui-subtle p-4 text-sm text-ui-secondary">
                 Aucune facture récente.
               </li>
             )}
           </ul>
-        </section>
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5">
+        </Card>
+        <Card>
           <PanelTitle
             title="Devis en attente"
             description="À suivre auprès de vos clients."
             action={
               <Link
                 href="/documents"
-                className="text-sm font-semibold text-primary hover:underline"
+                className="rounded-md text-sm font-semibold text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 Tout voir
               </Link>
@@ -749,7 +754,7 @@ async function Dashboard() {
               >
                 <Link
                   href={`/documents/${estimate.id}`}
-                  className="font-semibold text-zinc-800 hover:text-primary"
+                  className="rounded-md font-semibold text-ui-text hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   {estimate.documentNumber ?? "Devis sans numéro"}
                 </Link>
@@ -759,28 +764,28 @@ async function Dashboard() {
               </li>
             ))}
             {!summary?.pendingEstimates.length && (
-              <li className="rounded-xl bg-zinc-50 p-4 text-sm text-zinc-500">
+              <li className="rounded-xl bg-ui-subtle p-4 text-sm text-ui-secondary">
                 Aucun devis en attente.
               </li>
             )}
           </ul>
-        </section>
+        </Card>
       </div>
-      <section className="mt-4 rounded-2xl border border-zinc-200 bg-white p-5">
+      <Card className="mt-5">
         <PanelTitle title="Activité récente" />
-        <ul className="mt-4 grid gap-2 text-sm text-zinc-700 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-4 grid gap-2 text-sm text-ui-secondary sm:grid-cols-2 lg:grid-cols-3">
           {summary?.recentActivity.map((activity) => (
-            <li key={activity.id} className="rounded-xl bg-zinc-50 p-3">
+            <li key={activity.id} className="rounded-xl bg-ui-subtle p-3">
               {activityLabel(activity)}
             </li>
           ))}
           {!summary?.recentActivity.length && (
-            <li className="rounded-xl bg-zinc-50 p-4 text-zinc-500">
+            <li className="rounded-xl bg-ui-subtle p-4 text-ui-secondary">
               Aucune activité récente.
             </li>
           )}
         </ul>
-      </section>
+      </Card>
     </main>
   );
 }

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "../styles/tokens.css";
 
 :root {
   --background: #F0F0FF;
@@ -20,6 +21,32 @@
   --color-secondary: #1B1725;
   --font-title: var(--font-poppins);
   --font-body: var(--font-poppins);
+
+  /* Opt-in utilities for the new interface. Legacy pages keep their styles. */
+  --color-ui-primary: var(--onetto-primary);
+  --color-ui-primary-hover: var(--onetto-primary-hover);
+  --color-ui-primary-active: var(--onetto-primary-active);
+  --color-ui-primary-soft: var(--onetto-primary-soft);
+  --color-ui-accent: var(--onetto-accent);
+  --color-ui-background: var(--onetto-background);
+  --color-ui-surface: var(--onetto-surface);
+  --color-ui-subtle: var(--onetto-surface-subtle);
+  --color-ui-border: var(--onetto-border);
+  --color-ui-control: var(--onetto-border-control);
+  --color-ui-text: var(--onetto-text);
+  --color-ui-secondary: var(--onetto-text-secondary);
+  --color-ui-success: var(--onetto-success);
+  --color-ui-success-soft: var(--onetto-success-soft);
+  --color-ui-warning: var(--onetto-warning);
+  --color-ui-warning-soft: var(--onetto-warning-soft);
+  --color-ui-danger: var(--onetto-danger);
+  --color-ui-danger-soft: var(--onetto-danger-soft);
+  --color-ui-info: var(--onetto-info);
+  --color-ui-info-soft: var(--onetto-info-soft);
+  --radius-ui-card: 20px;
+  --radius-ui-control: 12px;
+  --shadow-ui-card: var(--onetto-shadow-card);
+  --shadow-ui-popover: var(--onetto-shadow-popover);
 }
 
 /* @media (prefers-color-scheme: dark) {
