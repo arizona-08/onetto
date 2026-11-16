@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { Client, Document, DocumentDates, ServiceLineItem } from "@/app/types";
+import { Client, DepositPlanInput, Document, DocumentDates, ServiceLineItem } from "@/app/types";
 import {
   DocumentClientError,
   DocumentDateError,
@@ -94,6 +94,7 @@ function DocumentCreator({
   const [paymentMode, setPaymentMode] = useState<"ONE_TIME" | "INSTALMENTS">(
     "ONE_TIME",
   );
+  const [depositPlan, setDepositPlan] = useState<DepositPlanInput | null>(null);
   const [numberOfInstalments, setNumberOfInstalments] = useState<2 | 3>(2);
   const [firstDueDate, setFirstDueDate] = useState(() =>
     addCalendarWeeks(toDateInputValue(new Date()), 1),
@@ -145,6 +146,14 @@ function DocumentCreator({
       setDocumentDates({
         dueDate: document.paymentDueAt, // à adapter pour les devis avec document.toValidateAt
       });
+      if (document.contractPaymentPlan) {
+        setDepositPlan({
+          deposits: document.contractPaymentPlan.stages
+            .filter((stage) => stage.kind === "DEPOSIT")
+            .map(({ percentage, triggerCondition }) => ({ percentage, triggerCondition })),
+          balanceCondition: document.contractPaymentPlan.stages.find((stage) => stage.kind === "BALANCE")?.triggerCondition ?? "À la livraison",
+        });
+      }
       if (
         document.invoicePaymentMode?.paymentMode === "INSTALMENTS"
       ) {
@@ -296,6 +305,7 @@ function DocumentCreator({
           documentType === "INVOICE" && paymentMode === "INSTALMENTS"
             ? { numberOfInstalments, firstDueDate }
             : undefined,
+        depositPlan: documentType === "ESTIMATE" ? depositPlan ?? undefined : undefined,
       });
     } else {
       response = await updateDraftDocument(document?.id as string, {
@@ -307,6 +317,7 @@ function DocumentCreator({
           isInvoice && paymentMode === "INSTALMENTS"
             ? { numberOfInstalments, firstDueDate }
             : undefined,
+        depositPlan: !isInvoice ? depositPlan ?? undefined : undefined,
       });
     }
 
@@ -420,6 +431,10 @@ function DocumentCreator({
           client={client}
           lineItems={lineItems}
           documentDates={documentDates}
+          showDepositPlan={isInCreationEstimate && canEditDocument}
+          depositPlan={depositPlan}
+          onDepositPlanChange={setDepositPlan}
+          totalAmountInCents={totalPriceInCents}
           showPaymentMode={isCreatingInvoice || isDraftInvoice}
           canUseInstalments={canUseInstalments}
           paymentMode={paymentMode}

@@ -82,6 +82,11 @@ const companyClients = [
 ];
 
 async function seed() {
+  // Use an actual directory endpoint; sandbox company numbers are OAuth identities.
+  const sellerElectronicAddress = process.env.SUPERPDP_SEED_SELLER_ELECTRONIC_ADDRESS?.trim();
+  if (sellerElectronicAddress && !/^\d{4}:.+$/.test(sellerElectronicAddress)) {
+    throw new Error('SUPERPDP_SEED_SELLER_ELECTRONIC_ADDRESS doit contenir une adresse Peppol complète (schéma:identifiant).');
+  }
   const password = await argon2.hash('test123456');
   const user = await prisma.user.upsert({
     where: { email: userEmail },
@@ -121,8 +126,7 @@ async function seed() {
       vatRegime: 'MONTHLY',
       isVatExempt: false,
       hasVatOnDebits: false,
-      electronicAddress: '000000002',
-      electronicAddressScheme: 'SIREN',
+      ...(sellerElectronicAddress ? { electronicAddress: sellerElectronicAddress, electronicAddressScheme: 'PEPPOL' as const } : {}),
       vatNumber: 'FR00000000002',
       IBAN: 'FR7630006000011234567890189',
       BIC: 'CMCIFRPP',
@@ -146,13 +150,24 @@ async function seed() {
       vatRegime: 'MONTHLY',
       isVatExempt: false,
       hasVatOnDebits: false,
-      electronicAddress: '000000002',
-      electronicAddressScheme: 'SIREN',
+      electronicAddress: sellerElectronicAddress ?? '',
+      electronicAddressScheme: 'PEPPOL',
       vatNumber: 'FR00000000002',
       IBAN: 'FR7630006000011234567890189',
       BIC: 'CMCIFRPP',
     },
   });
+
+  if (process.env.SUPERPDP_ENVIRONMENT !== 'production') {
+    await prisma.electronicInvoicingConnection.upsert({
+      where: { companyId: company.id },
+      create: {
+        companyId: company.id, provider: 'SUPER_PDP', environment: 'SANDBOX',
+        superPdpSandboxCompanyNumber: '000000002',
+      },
+      update: {},
+    });
+  }
 
   await prisma.companyUser.upsert({
     where: {

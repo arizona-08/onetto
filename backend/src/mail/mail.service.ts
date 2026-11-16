@@ -1,6 +1,6 @@
 import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { ReminderType, SubscriptionPlan } from '@prisma/client';
+import { AppNotificationType, ReminderType, SubscriptionPlan } from '@prisma/client';
 
 type Attachment = {
   filename: string;
@@ -52,6 +52,7 @@ type PaymentReceiptMailInput = {
 };
 
 type AppNotificationMailInput = {
+  type?: AppNotificationType;
   title: string;
   message: string;
   href?: string;
@@ -137,7 +138,20 @@ export class MailService {
     return {
       subject: `Onetto — ${input.title}`,
       text: `${input.title}\n\n${input.message}${link ? `\n\nVoir dans Onetto : ${link}` : ''}`,
-      html: `<h1>${input.title}</h1><p>${input.message}</p>${link ? `<p><a href="${link}">Voir dans Onetto</a></p>` : ''}`,
+      html: input.type === 'ESTIMATE_ACCEPTED'
+        ? this.createEmailLayout({
+            badge: 'DEVIS ACCEPTÉ',
+            title: this.escapeHtml(input.title),
+            greeting: 'Bonjour,',
+            message: this.escapeHtml(input.message),
+            details: this.createDetailsTable([['Statut du devis', 'Accepté']]),
+            action: link
+              ? { label: 'Consulter le devis', url: this.escapeHtml(link) }
+              : undefined,
+            footer: 'Onetto · Votre espace documentaire',
+            note: 'Retrouvez les détails du devis et préparez la suite depuis votre espace Onetto.',
+          })
+        : `<h1>${input.title}</h1><p>${input.message}</p>${link ? `<p><a href="${link}">Voir dans Onetto</a></p>` : ''}`,
     };
   }
 

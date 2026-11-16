@@ -97,6 +97,27 @@ export class InstalmentsDetailsDto {
   firstDueDate: string;
 }
 
+export class DepositStageDto {
+  @IsDefined()
+  @IsNumber()
+  percentage: number;
+
+  @IsDefined()
+  @IsString()
+  triggerCondition: string;
+}
+
+export class DepositPlanDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DepositStageDto)
+  deposits: DepositStageDto[];
+
+  @IsDefined()
+  @IsString()
+  balanceCondition: string;
+}
+
 export class CreateDocumentDto {
   @IsOptional()
   @IsIn(['ESTIMATE', 'INVOICE'])
@@ -125,4 +146,9 @@ export class CreateDocumentDto {
   @ValidateNested()
   @Type(() => InstalmentsDetailsDto)
   instalmentsDetails?: InstalmentsDetailsDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DepositPlanDto)
+  depositPlan?: DepositPlanDto;
 }

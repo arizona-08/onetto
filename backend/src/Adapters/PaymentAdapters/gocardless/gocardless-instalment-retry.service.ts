@@ -479,6 +479,7 @@ export class GoCardlessInstalmentRetryService {
     await this.invoicePaymentStatusService.refreshFromInstalment(
       instalment.invoiceInstalmentPlan.invoiceId,
       status === 'SUCCESS' ? instalment.amountInCents : undefined,
+      instalment.id,
     );
   }
 

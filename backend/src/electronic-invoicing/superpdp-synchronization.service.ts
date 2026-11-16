@@ -24,6 +24,7 @@ export class SuperPdpSynchronizationService {
     this.isRunning = true;
     try {
       const result = await this.b2b.syncPendingTransmissions();
+      const reports = await this.b2b.reconcileContractPaymentReports();
       const incoming = await this.incoming.synchronizeAll();
       if (result.checked > 0) {
         this.logger.log(
@@ -35,6 +36,10 @@ export class SuperPdpSynchronizationService {
           `Synchronisation SuperPDP incomplète : ${result.failed} facture(s) à réessayer.`,
         );
       }
+      if (reports.failed > 0)
+        this.logger.warn(
+          `Vérification des encaissements SuperPDP incomplète : ${reports.failed} déclaration(s) à réessayer.`,
+        );
       if (incoming.failed > 0)
         this.logger.warn(
           `Synchronisation des factures fournisseurs incomplète : ${incoming.failed} entreprise(s) à réessayer.`,

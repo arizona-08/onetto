@@ -4,8 +4,12 @@ import { CreateCompanyDto } from "@/lib/companies/dtos/create-company.dto";
 import { Company } from "@/lib/companies/dtos/create-company.dto";
 import {
   createCompany,
+  configureSuperPdpSandbox,
+  getCompanySuperPdpDirectoryEntries,
   getSuperPdpConnectionStatus,
   getSuperPdpEreportingOverview,
+  retrySuperPdpB2CTransaction,
+  verifySuperPdpConnection,
   startSuperPdpAuthorization,
   SuperPdpConnectionStatus,
   SuperPdpEreportingOverview,
@@ -41,6 +45,7 @@ const emptyCompany: CreateCompanyDto = {
   electronicAddress: "",
   electronicAddressScheme: "SIREN",
   vatNumber: "",
+  bank: "",
   IBAN: "",
   BIC: "",
 };
@@ -57,11 +62,16 @@ function CreateCompanyForm({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConnectingSuperPdp, setIsConnectingSuperPdp] = useState(false);
+  const [isVerifyingSuperPdp, setIsVerifyingSuperPdp] = useState(false);
+  const [sandboxCompanyNumber, setSandboxCompanyNumber] = useState("");
+  const [directoryEntries, setDirectoryEntries] = useState<Array<{ identifier: string }>>([]);
+  const [isLoadingDirectory, setIsLoadingDirectory] = useState(false);
   const [superPdpConnection, setSuperPdpConnection] =
     useState<SuperPdpConnectionStatus>(null);
   const [ereportingOverview, setEreportingOverview] =
     useState<SuperPdpEreportingOverview | null>(null);
   const [isLoadingEreporting, setIsLoadingEreporting] = useState(false);
+  const [retryingSubmissionId, setRetryingSubmissionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const inputClassName =
@@ -72,7 +82,10 @@ function CreateCompanyForm({
   useEffect(() => {
     if (!companyToEdit) return;
     void getSuperPdpConnectionStatus(companyToEdit.id).then((response) => {
-      if (response.ok) setSuperPdpConnection(response.data);
+      if (response.ok) {
+        setSuperPdpConnection(response.data);
+        setSandboxCompanyNumber(response.data?.superPdpSandboxCompanyNumber ?? "");
+      }
     });
   }, [companyToEdit]);
 
@@ -83,6 +96,31 @@ function CreateCompanyForm({
     setIsLoadingEreporting(false);
     if (response.ok) setEreportingOverview(response.data);
     else showToast("Impossible de synchroniser le suivi e-reporting.", "error");
+  }
+
+  async function handleVerifySuperPdp() {
+    if (!companyToEdit) return;
+    setIsVerifyingSuperPdp(true);
+    const result = await verifySuperPdpConnection(companyToEdit.id);
+    setIsVerifyingSuperPdp(false);
+    const status = await getSuperPdpConnectionStatus(companyToEdit.id);
+    if (status.ok) setSuperPdpConnection(status.data);
+    showToast(result.ok ? "Configuration SuperPDP vérifiée." :
+      typeof result.error.message === "string" ? result.error.message : "Impossible de vérifier SuperPDP.",
+      result.ok ? "success" : "error");
+  }
+
+  async function handleRetryB2CTransaction(submissionId: string) {
+    if (!companyToEdit) return;
+    setRetryingSubmissionId(submissionId);
+    const response = await retrySuperPdpB2CTransaction(companyToEdit.id, submissionId);
+    setRetryingSubmissionId(null);
+    if (!response.ok) {
+      showToast(typeof response.error.message === "string" ? response.error.message : "Impossible de renvoyer la déclaration.", "error");
+      return;
+    }
+    showToast("Déclaration B2C renvoyée à SuperPDP.", "success");
+    await loadEreportingOverview();
   }
 
   function handleInputChange(
@@ -168,6 +206,7 @@ function CreateCompanyForm({
       electronicAddress: companyInfos.electronicAddress,
       electronicAddressScheme: companyInfos.electronicAddressScheme,
       vatNumber: companyInfos.vatNumber,
+      bank: companyInfos.bank?.trim() || null,
       IBAN: companyInfos.IBAN,
       BIC: companyInfos.BIC,
     };
@@ -225,13 +264,35 @@ function CreateCompanyForm({
       );
       return;
     }
+    if (superPdpConnection?.environment === "SANDBOX") {
+      const configuration = await configureSuperPdpSandbox(companyToEdit.id, sandboxCompanyNumber.trim());
+      if (!configuration.ok) {
+        setIsConnectingSuperPdp(false);
+        showToast(typeof configuration.error.message === "string" ? configuration.error.message : "Vérifiez le numéro d’entreprise de test.", "error");
+        return;
+      }
+      setSuperPdpConnection(configuration.data);
+    }
     const response = await startSuperPdpAuthorization(companyToEdit.id);
     setIsConnectingSuperPdp(false);
     if (!response.ok) {
-      showToast("Impossible de démarrer la connexion SuperPDP.", "error");
+      showToast(typeof response.error.message === "string" ? response.error.message : "Impossible de démarrer la connexion SuperPDP.", "error");
       return;
     }
     window.location.assign(response.data.url);
+  }
+
+  async function loadSuperPdpAddresses() {
+    if (!companyToEdit) return;
+    setIsLoadingDirectory(true);
+    const response = await getCompanySuperPdpDirectoryEntries(companyToEdit.id);
+    setIsLoadingDirectory(false);
+    if (!response.ok) {
+      showToast(typeof response.error.message === "string" ? response.error.message : "Impossible de charger les adresses SuperPDP.", "error");
+      return;
+    }
+    setDirectoryEntries(response.data.data);
+    if (response.data.data.length === 0) showToast("Aucune adresse de facturation disponible dans ce compte SuperPDP.", "error");
   }
 
   return (
@@ -249,7 +310,7 @@ function CreateCompanyForm({
             {superPdpConnection?.status === "ACTIVE"
               ? "SuperPDP est connecté pour cette entreprise."
               : superPdpConnection?.lastError
-                ? "La connexion SuperPDP doit être renouvelée pour utiliser la facturation électronique."
+                ? superPdpConnection.lastError
                 : "Connectez cette entreprise à SuperPDP avant d’envoyer vos déclarations B2C."}
           </p>
           {superPdpConnection?.status !== "ACTIVE" && (
@@ -262,18 +323,39 @@ function CreateCompanyForm({
               pas aboutir.
             </p>
           )}
+          {superPdpConnection?.environment === "SANDBOX" && (
+            <div className="mt-3 flex max-w-md flex-col gap-2">
+              <label htmlFor="superPdpSandboxCompanyNumber" className={labelClassName}>Numéro d’entreprise de test SuperPDP</label>
+              <input id="superPdpSandboxCompanyNumber" type="text" inputMode="numeric" maxLength={9}
+                value={sandboxCompanyNumber} onChange={(event) => setSandboxCompanyNumber(event.target.value)}
+                placeholder="Ex. : 000000002" className={inputClassName} />
+              <p className="text-xs text-zinc-600">Enregistré lors de la connexion. Ce numéro sélectionne le compte de test ; l’adresse de facturation se renseigne séparément ci-dessous.</p>
+            </div>
+          )}
           <button
             type="button"
             onClick={handleConnectSuperPdp}
-            disabled={isConnectingSuperPdp}
+            disabled={isConnectingSuperPdp || !superPdpConnection || (superPdpConnection.environment === "SANDBOX" && !/^\d{9}$/.test(sandboxCompanyNumber.trim()))}
             className="mt-3 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isConnectingSuperPdp
               ? "Redirection…"
+              : superPdpConnection?.environment === "SANDBOX" && sandboxCompanyNumber.trim() !== superPdpConnection.superPdpSandboxCompanyNumber
+                ? "Enregistrer et connecter SuperPDP"
               : superPdpConnection?.status === "ACTIVE"
                 ? "Reconnecter SuperPDP"
                 : "Connecter SuperPDP"}
           </button>
+          {superPdpConnection && ["ACTION_REQUIRED", "VERIFYING", "ACTIVE"].includes(superPdpConnection.status) && (
+            <button
+              type="button"
+              onClick={() => void handleVerifySuperPdp()}
+              disabled={isVerifyingSuperPdp}
+              className="ml-2 mt-3 rounded-md border border-primary px-3 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isVerifyingSuperPdp ? "Vérification…" : "Vérifier la configuration"}
+            </button>
+          )}
           {superPdpConnection?.status === "ACTIVE" && (
             <button
               type="button"
@@ -309,6 +391,7 @@ function CreateCompanyForm({
                       <th className="px-3 py-2">Statut</th>
                       <th className="px-3 py-2">Détail</th>
                       <th className="px-3 py-2">Créée le</th>
+                      <th className="px-3 py-2">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -338,11 +421,24 @@ function CreateCompanyForm({
                             "fr-FR",
                           )}
                         </td>
+                        <td className="px-3 py-2">
+                          {submission.kind === "TRANSACTION" && submission.status === "FAILED" &&
+                            (submission.lastError?.startsWith("SuperPDP (400)") || submission.lastError?.startsWith("Préparation TVA :")) && (
+                            <button
+                              type="button"
+                              onClick={() => void handleRetryB2CTransaction(submission.id)}
+                              disabled={retryingSubmissionId !== null}
+                              className="font-semibold text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {retryingSubmissionId === submission.id ? "Envoi…" : "Réessayer"}
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                     {!ereportingOverview.submissions.length && (
                       <tr>
-                        <td colSpan={5} className="px-3 py-3 text-zinc-500">
+                        <td colSpan={6} className="px-3 py-3 text-zinc-500">
                           Aucune déclaration transmise.
                         </td>
                       </tr>
@@ -426,9 +522,25 @@ function CreateCompanyForm({
             required
             value={companyInfos.electronicAddress}
             onChange={handleInputChange}
-            placeholder="Votre SIREN"
+            placeholder={companyInfos.electronicAddressScheme === "PEPPOL" ? "Ex. : 0225:123456789" : "Adresse enregistrée dans l’annuaire"}
             className={inputClassName}
           />
+          <p className="text-xs text-zinc-500">Utilisez l’adresse de facturation de votre entreprise. Pour Peppol, conservez le schéma suivi de « : » et de l’identifiant.</p>
+          {companyToEdit && superPdpConnection?.status === "ACTIVE" && (
+            <button type="button" onClick={() => void loadSuperPdpAddresses()} disabled={isLoadingDirectory}
+              className="text-left text-sm font-semibold text-primary disabled:opacity-60">
+              {isLoadingDirectory ? "Chargement…" : "Charger mes adresses SuperPDP"}
+            </button>
+          )}
+          {directoryEntries.length > 0 && (
+            <select aria-label="Choisir une adresse de facturation SuperPDP" value="" className={inputClassName}
+              onChange={(event) => {
+                if (event.target.value) setCompanyInfos((previous) => ({ ...previous, electronicAddress: event.target.value, electronicAddressScheme: "PEPPOL" }));
+              }}>
+              <option value="">Choisir une adresse puis enregistrer l’entreprise</option>
+              {directoryEntries.map(({ identifier }) => <option key={identifier} value={identifier}>{identifier}</option>)}
+            </select>
+          )}
         </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="electronicAddressScheme" className={labelClassName}>
@@ -658,6 +770,20 @@ function CreateCompanyForm({
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <label htmlFor="bank" className={labelClassName}>
+            Nom de la banque (facultatif)
+          </label>
+          <input
+            id="bank"
+            name="bank"
+            type="text"
+            maxLength={120}
+            value={companyInfos.bank ?? ""}
+            onChange={handleInputChange}
+            className={inputClassName}
+          />
+        </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="IBAN" className={labelClassName}>
             IBAN

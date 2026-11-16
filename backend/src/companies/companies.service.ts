@@ -78,6 +78,7 @@ export class CompaniesService {
         const createdCompany = await prisma.company.create({
           data: {
             ...data,
+            bank: data.bank?.trim() || null,
             vatNumber: data.subjectToVat ? data.vatNumber : null,
             hasVatOnDebits: data.vatExigibility === 'ON_DEBITS',
             ownerId,
@@ -429,6 +430,7 @@ export class CompaniesService {
         where: { id: companyId },
         data: {
           ...companyData,
+          ...(companyData.bank !== undefined ? { bank: companyData.bank?.trim() || null } : {}),
           ...(companyData.vatExigibility
             ? { hasVatOnDebits: companyData.vatExigibility === 'ON_DEBITS' }
             : {}),

@@ -2,7 +2,7 @@
 
 import { Client, DocumentDates, ServiceLineItem } from "@/app/types";
 import { formatDate } from "@/shared/utils";
-import { CreditCard, Landmark } from "lucide-react";
+import { Landmark } from "lucide-react";
 import React from "react";
 import { useAuthUser } from "../../context/AuthUserContext";
 import { useActiveCompany } from "../../context/ActiveCompanyContext";
@@ -27,7 +27,6 @@ function DocumentPreview({
 }: DocumentPreviewProps) {
   const { user } = useAuthUser();
   const { activeCompany } = useActiveCompany();
-  const contactName = `${user?.firstname ?? ""} ${user?.lastname ?? ""}`.trim();
   const contactEmail = user?.email ?? "";
   const totalHT = lineItems.reduce(
     (sum, item) => sum + item.unitPrice * item.quantity,
@@ -66,7 +65,7 @@ function DocumentPreview({
                 </div>
 
                 <div>
-                  <p className="font-semibold text-zinc-500">Date d'échéance</p>
+                  <p className="font-semibold text-zinc-500">Date d’échéance</p>
                   <p>{formatDate(documentDates.dueDate)}</p>
                 </div>
               </div>
@@ -99,7 +98,7 @@ function DocumentPreview({
 
             <section className="text-right">
               <p className="mb-2 font-semibold uppercase text-zinc-500">
-                À l'attention de
+                À l’attention de
               </p>
               <div className="space-y-0.5">
                 <p className="min-h-5 font-title text-lg font-semibold">
@@ -216,10 +215,12 @@ function DocumentPreview({
                   <b>IBAN: {activeCompany?.IBAN ?? ""} </b>
                   <span />
                 </p>
-                <p className="flex justify-between gap-4">
-                  <b>Banque: {activeCompany?.name ?? ""} </b>
-                  <span />
-                </p>
+                {activeCompany?.bank && (
+                  <p className="flex justify-between gap-4">
+                    <b>Banque: {activeCompany.bank} </b>
+                    <span />
+                  </p>
+                )}
                 <p className="flex justify-between gap-4">
                   <b>BIC: {activeCompany?.BIC ?? ""} </b>
                   <span />

@@ -73,6 +73,8 @@ export function startSuperPdpAuthorization(companyId: string) {
 }
 
 export type SuperPdpConnectionStatus = {
+  environment: "SANDBOX" | "PRODUCTION";
+  superPdpSandboxCompanyNumber: string | null;
   status:
     | "NOT_CONFIGURED"
     | "PENDING_AUTHORIZATION"
@@ -84,9 +86,29 @@ export type SuperPdpConnectionStatus = {
   lastError: string | null;
 } | null;
 
+export function configureSuperPdpSandbox(companyId: string, superPdpSandboxCompanyNumber: string) {
+  return apiClient<SuperPdpConnectionStatus>(
+    `api/electronic-invoicing/superpdp/oauth/companies/${companyId}/sandbox-configuration`,
+    { method: "PUT", body: JSON.stringify({ superPdpSandboxCompanyNumber }) },
+  );
+}
+
+export function getCompanySuperPdpDirectoryEntries(companyId: string) {
+  return apiClient<{ data: Array<{ identifier: string }> }>(
+    `api/electronic-invoicing/superpdp/oauth/companies/${companyId}/directory-entries`,
+  );
+}
+
 export function getSuperPdpConnectionStatus(companyId: string) {
   return apiClient<SuperPdpConnectionStatus>(
     `api/electronic-invoicing/superpdp/oauth/companies/${companyId}/status`,
+  );
+}
+
+export function verifySuperPdpConnection(companyId: string) {
+  return apiClient<{ providerCompanyId: string | null }>(
+    `api/electronic-invoicing/superpdp/oauth/companies/${companyId}/verify`,
+    { method: "POST" },
   );
 }
 
@@ -130,6 +152,13 @@ export type SuperPdpEreportingOverview = {
 export function getSuperPdpEreportingOverview(companyId: string) {
   return apiClient<SuperPdpEreportingOverview>(
     `api/electronic-invoicing/superpdp/companies/${companyId}/ereporting-overview`,
+  );
+}
+
+export function retrySuperPdpB2CTransaction(companyId: string, submissionId: string) {
+  return apiClient(
+    `api/electronic-invoicing/superpdp/companies/${companyId}/ereporting-submissions/${submissionId}/retry`,
+    { method: "POST" },
   );
 }
 

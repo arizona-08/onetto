@@ -38,6 +38,7 @@ import { useToast } from "@/app/components/context/ToastContext";
 import { useRouter } from "next/navigation";
 import GoCardlessReconnectModal from "../molecules/GoCardlessReconnectModal";
 import { isGoCardlessAccessTokenInactive } from "@/lib/gocardless/access-token";
+import { apiClient } from "@/lib/api";
 
 const statusMatcher: Record<string, { label: string; dotClassName: string }> = {
   DRAFT: { label: "Brouillon", dotClassName: "bg-zinc-400" },
@@ -79,6 +80,14 @@ function getDocumentIssueLabel(document: Document) {
     month: "short",
     year: "numeric",
   }).format(new Date(issuedAt))}`;
+}
+
+function getContractInvoiceLabel(document: Document) {
+  const stage = document.contractStageInvoice;
+  if (!stage) return null;
+  if (stage.kind === "BALANCE") return "Facture finale";
+  const depositCount = stage.plan?.stages.filter((item) => item.kind === "DEPOSIT").length;
+  return depositCount ? `Acompte ${stage.sequence}/${depositCount}` : `Acompte ${stage.sequence}`;
 }
 
 const invoiceStatusFilterMatcher: Partial<Record<InvoiceSelectStatus, string>> =
@@ -303,6 +312,42 @@ function DocumentsTable({
     }
   }
 
+  async function handleReconcileContractStage(document: Document) {
+    const stageId = document.contractStageInvoice?.id;
+    if (!stageId || reconcilingDocumentIds.includes(document.id)) return;
+    if (!document.contractStageInvoice?.payment?.providerPaymentId) {
+      showToast("Aucun prélèvement GoCardless n’a encore été créé pour cet acompte.", "error");
+      return;
+    }
+    setReconcilingDocumentIds((ids) => [...ids, document.id]);
+    try {
+      const response = await apiClient(
+        `api/contracts/stages/${encodeURIComponent(stageId)}/reconcile`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        if (isGoCardlessAccessTokenInactive(response.error)) {
+          setGoCardlessReconnectCompanyId(document.companyId);
+          return;
+        }
+        showToast(
+          typeof response.error.message === "string"
+            ? response.error.message
+            : "Impossible d’actualiser le paiement.",
+          "error",
+        );
+        return;
+      }
+      await loadDocumentsPage(currentPage);
+      router.refresh();
+      showToast("Paiement actualisé.", "success");
+    } catch {
+      showToast("Impossible d’actualiser le paiement.", "error");
+    } finally {
+      setReconcilingDocumentIds((ids) => ids.filter((id) => id !== document.id));
+    }
+  }
+
   function openManualPaymentModal(document: Document) {
     setManualPaymentDocument(document);
   }
@@ -467,8 +512,45 @@ function DocumentsTable({
     const isInstalments =
       document.invoicePaymentMode?.paymentMode === "INSTALMENTS";
     const isDraft = document.invoiceStatus === "DRAFT";
+    if (document.contractStageInvoice && !isDraft) {
+      const stage = document.contractStageInvoice;
+      const contractUrl = `/documents/${document.sourceDocumentId ?? document.id}`;
+      const actions: InvoiceMenuAction[] = [
+        {
+          label: "Gérer les acomptes",
+          icon: FileChartColumnIncreasing,
+          onSelect: () => router.push(contractUrl),
+        },
+      ];
+      if (
+        stage.kind === "DEPOSIT" &&
+        document.invoiceStatus === "PENDING" &&
+        !stage.payment &&
+        ["ACTIVE", "PENDING"].includes(stage.plan?.mandateStatus ?? "")
+      ) {
+        actions.push({
+          label: stage.plan?.mandateStatus === "ACTIVE" ? "Déclencher le prélèvement" : "Vérifier le mandat et déclencher",
+          icon: CirclePlusIcon,
+          onSelect: () => router.push(`${contractUrl}#acompte-${stage.id}`),
+        });
+      }
+      if (stage.payment?.providerPaymentId) {
+        actions.push({
+          label: "Actualiser le paiement",
+          icon: RefreshCw,
+          onSelect: () => void handleReconcileContractStage(document),
+        });
+      }
+      return (
+        <InvoiceActionsMenu
+          documentNumber={document.documentNumber}
+          actions={actions}
+          busy={reconcilingDocumentIds.includes(document.id)}
+        />
+      );
+    }
     const isOneTimePending =
-      !isInstalments && document.invoiceStatus === "PENDING";
+      !isInstalments && !document.contractStageInvoice && document.invoiceStatus === "PENDING";
     const hasUnsettledInstalment =
       isInstalments &&
       document.invoiceInstalmentPlan?.invoicePaymentInstalments.some(
@@ -525,14 +607,14 @@ function DocumentsTable({
         onSelect: () => openManualPaymentModal(document),
       });
     }
-    if (!isInstalments && document.invoiceStatus === "PAID_MANUALLY") {
+    if (!isInstalments && !document.contractStageInvoice && document.invoiceStatus === "PAID_MANUALLY") {
       actions.push({
         label: "Repasser en attente",
         icon: RotateCcw,
         onSelect: () => void handleManualPaymentStatus(document),
       });
     }
-    if (!isInstalments && document.invoiceStatus === "REJECTED") {
+    if (!isInstalments && !document.contractStageInvoice && document.invoiceStatus === "REJECTED") {
       actions.push({
         label: "Envoyer un nouveau lien",
         icon: RotateCcw,
@@ -649,6 +731,7 @@ function DocumentsTable({
     return (
       !isInvoiceType &&
       document.estimateStatus === "ACCEPTED" &&
+      !document.contractPaymentPlan &&
       !document.convertedDocuments?.length
     );
   }
@@ -768,6 +851,9 @@ function DocumentsTable({
                     <p className="text-xs text-zinc-500">
                       {getDocumentIssueLabel(document)}
                     </p>
+                    {getContractInvoiceLabel(document) && (
+                      <p className="text-xs font-medium text-primary">{getContractInvoiceLabel(document)}</p>
+                    )}
                   </div>
 
                   <div className="shrink-0 text-right">
@@ -865,6 +951,9 @@ function DocumentsTable({
                     <p className="mt-1 text-xs text-zinc-500">
                       {getDocumentIssueLabel(document)}
                     </p>
+                    {getContractInvoiceLabel(document) && (
+                      <p className="mt-1 text-xs font-medium text-primary">{getContractInvoiceLabel(document)}</p>
+                    )}
                   </td>
                   <td className="px-5 py-5 align-center">
                     <div className="flex items-center gap-3">

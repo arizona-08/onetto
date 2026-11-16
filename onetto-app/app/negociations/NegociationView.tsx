@@ -1,6 +1,7 @@
 "use client";
 
-import { PublicNegociation } from "@/app/types";
+import { DepositPlanInput, PublicNegociation } from "@/app/types";
+import DepositPlanEditor from "@/app/components/molecules/DepositPlanEditor";
 import { apiClient } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/shared/utils";
 import {
@@ -24,13 +25,36 @@ export default function NegociationView({
   const [status, setStatus] = useState<NegociationStatus>(negociation.status);
   const [showChanges, setShowChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isOpeningMandate, setIsOpeningMandate] = useState(false);
   const [error, setError] = useState("");
+  const [mandateMessage, setMandateMessage] = useState("");
   const { document } = negociation;
+  const [isMandateActive, setIsMandateActive] = useState(
+    document.contractPaymentPlan?.mandateStatus === "ACTIVE",
+  );
+  const [isAuthorisationComplete, setIsAuthorisationComplete] = useState(
+    negociation.status === "ACCEPTED" && Boolean(document.contractPaymentPlan?.providerMandateId),
+  );
+  const [acceptanceStarted, setAcceptanceStarted] = useState(
+    Boolean(document.contractPaymentPlan?.acceptanceRequestedAt),
+  );
+  const [proposedPlan, setProposedPlan] = useState<DepositPlanInput | null>(() =>
+    document.contractPaymentPlan ? {
+      deposits: document.contractPaymentPlan.stages
+        .filter((stage) => stage.kind === "DEPOSIT")
+        .map(({ percentage, triggerCondition }) => ({ percentage, triggerCondition })),
+      balanceCondition: document.contractPaymentPlan.stages.find((stage) => stage.kind === "BALANCE")?.triggerCondition ?? "À la livraison",
+    } : null,
+  );
   const { company } = document;
   const isInvoice = document.type === "INVOICE";
   const canNegotiate = negociation.canNegotiate;
 
   async function setDecision(nextStatus: "ACCEPTED" | "REJECTED") {
+    if (nextStatus === "ACCEPTED" && document.contractPaymentPlan) {
+      await openMandate(true);
+      return;
+    }
     setIsSaving(true);
     setError("");
     const response = await apiClient<{ success: true }>(
@@ -58,7 +82,13 @@ export default function NegociationView({
       `api/negociations/${encodeURIComponent(token)}/message`,
       {
         method: "PUT",
-        body: JSON.stringify({ message: message.trim() }),
+        body: JSON.stringify({
+          message: message.trim(),
+          ...(proposedPlan ? {
+            proposedDeposits: proposedPlan.deposits,
+            proposedBalanceCondition: proposedPlan.balanceCondition,
+          } : {}),
+        }),
       },
     );
     setIsSaving(false);
@@ -69,6 +99,40 @@ export default function NegociationView({
       return;
     }
     setStatus("RENEGOCIATED");
+  }
+
+  async function openMandate(accepting = false) {
+    const authorizationToken = document.contractPaymentPlan?.authorizationToken;
+    if (!authorizationToken) return;
+    setIsOpeningMandate(true);
+    setError("");
+    setMandateMessage("");
+    const response = await apiClient<{ url: string | null; message?: string; accepted?: boolean }>(
+      accepting
+        ? `api/negociations/${encodeURIComponent(token)}/accept-with-mandate`
+        : `api/public/contracts/${encodeURIComponent(authorizationToken)}/mandate`,
+      accepting ? { method: "POST" } : undefined,
+    );
+    setIsOpeningMandate(false);
+    if (!response.ok) {
+      setError("Le parcours d’autorisation est indisponible. Veuillez réessayer.");
+      return;
+    }
+    if (accepting) setAcceptanceStarted(true);
+    if (response.data.accepted) {
+      setStatus("ACCEPTED");
+      setIsAuthorisationComplete(true);
+    }
+    if (response.data.url) window.location.assign(response.data.url);
+    else if (response.data.message === "Le mandat est autorisé.") {
+      setIsMandateActive(true);
+      if (response.data.accepted || status === "ACCEPTED") setIsAuthorisationComplete(true);
+      setMandateMessage(response.data.message);
+    } else if (response.data.message === "Le mandat est en cours d’activation.") {
+      setMandateMessage(response.data.message);
+    } else {
+      setError(response.data.message ?? "Le mandat ne peut plus être autorisé.");
+    }
   }
 
   return (
@@ -213,6 +277,20 @@ export default function NegociationView({
                   <span>{formatCurrency(document.totalPrice)}</span>
                 </div>
               </div>
+              {document.contractPaymentPlan && (
+                <section className="mt-7 rounded-xl border border-primary/15 bg-primary/5 p-5">
+                  <h2 className="text-lg font-semibold">Acomptes et solde</h2>
+                  <p className="mt-1 text-sm text-zinc-600">Chaque prélèvement sera déclenché séparément après facturation. L’acceptation du devis ne déclenche aucun paiement.</p>
+                  <ul className="mt-4 space-y-3">
+                    {document.contractPaymentPlan.stages.map((stage) => (
+                      <li key={stage.id} className="flex flex-col gap-1 border-t border-primary/10 pt-3 text-sm sm:flex-row sm:justify-between">
+                        <div><strong>{stage.kind === "BALANCE" ? "Solde" : `Acompte ${stage.sequence}`}</strong> — {stage.percentage} %<p className="text-zinc-600">{stage.triggerCondition}</p></div>
+                        <span className="font-semibold">{formatCurrency(stage.amountInCents / 100)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </div>
           </article>
           {!isInvoice && (
@@ -226,20 +304,28 @@ export default function NegociationView({
                     Votre décision
                   </h1>
                   <p className="mt-2 text-sm leading-6 text-zinc-500">
-                    {canNegotiate
+                    {acceptanceStarted
+                      ? "L’acceptation sera enregistrée lorsque le parcours d’autorisation SEPA sera terminé."
+                      : canNegotiate
                       ? "Vous pouvez accepter ce devis, demander des ajustements ou le refuser."
                       : "Vous pouvez accepter ou refuser ce devis."}
                   </p>
                   <div className="mt-5 space-y-2">
                     <button
                       onClick={() => setDecision("ACCEPTED")}
-                      disabled={isSaving}
+                      disabled={isSaving || isOpeningMandate}
                       className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
                     >
                       <CircleCheck className="h-4 w-4" />
-                      Accepter le devis
+                      {isOpeningMandate
+                        ? "Ouverture de l’autorisation…"
+                        : document.contractPaymentPlan
+                          ? acceptanceStarted
+                            ? "Continuer l’autorisation du mandat SEPA"
+                            : "Accepter le devis et autoriser le mandat SEPA"
+                          : "Accepter le devis"}
                     </button>
-                    {canNegotiate ? (
+                    {!acceptanceStarted && (canNegotiate ? (
                       <button
                         onClick={() => setShowChanges(true)}
                         disabled={isSaving}
@@ -263,16 +349,18 @@ export default function NegociationView({
                           Passer au plan STARTER pour activer la négociation.
                         </p>
                       </div>
-                    )}
-                    <button
+                    ))}
+                    {!acceptanceStarted && <button
                       onClick={() => setDecision("REJECTED")}
                       disabled={isSaving}
                       className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-500 hover:bg-zinc-50"
                     >
                       <CircleX className="h-4 w-4" />
                       Refuser le devis
-                    </button>
+                    </button>}
                   </div>
+                  {error && <p className="mt-3 text-sm text-red-600" role="alert">{error}</p>}
+                  {mandateMessage && <p className="mt-3 text-sm text-zinc-600">{mandateMessage}</p>}
                 </>
               )}
               {status === "PENDING" && showChanges && (
@@ -291,6 +379,9 @@ export default function NegociationView({
                     placeholder="Par exemple : ajouter, modifier ou supprimer une prestation ; ajuster une quantité ; demander une remise sur une ligne ou sur le total du devis ; poser une question…"
                     className="mt-4 w-full resize-y rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm leading-6 outline-none transition placeholder:text-zinc-400 focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
                   />
+                  {proposedPlan && (
+                    <DepositPlanEditor value={proposedPlan} onChange={setProposedPlan} totalAmountInCents={document.contractPaymentPlan?.totalAmountInCents ?? 0} />
+                  )}
                   {error && (
                     <p className="mt-2 text-sm text-red-600">{error}</p>
                   )}
@@ -312,12 +403,26 @@ export default function NegociationView({
                 </form>
               )}
               {status === "ACCEPTED" && (
-                <DecisionResult
-                  icon={<CircleCheck className="h-6 w-6" />}
-                  title="Devis accepté"
-                  text="Votre acceptation a bien été enregistrée."
-                  tone="text-emerald-600"
-                />
+                <>
+                  <DecisionResult
+                    icon={<CircleCheck className="h-6 w-6" />}
+                    title="Devis accepté"
+                    text={document.contractPaymentPlan && !isAuthorisationComplete
+                      ? "Votre acceptation est enregistrée. Terminez l’autorisation du mandat SEPA pour permettre les prélèvements."
+                      : document.contractPaymentPlan && !isMandateActive
+                        ? "Votre devis est accepté et le mandat SEPA est en cours d’activation."
+                        : "Votre acceptation a bien été enregistrée."}
+                    tone="text-emerald-600"
+                  />
+                  {document.contractPaymentPlan && !document.contractPaymentPlan.cancelledAt && !isAuthorisationComplete && (
+                    <button type="button" disabled={isOpeningMandate} onClick={() => void openMandate()}
+                      className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
+                      {isOpeningMandate ? "Ouverture…" : "Continuer l’autorisation du mandat SEPA"}
+                    </button>
+                  )}
+                  {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+                  {mandateMessage && <p className="mt-2 text-sm text-zinc-600">{mandateMessage}</p>}
+                </>
               )}
               {status === "RENEGOCIATED" && (
                 <DecisionResult

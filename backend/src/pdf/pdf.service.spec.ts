@@ -39,6 +39,7 @@ describe('PdfService', () => {
         city: 'Paris',
         country: 'France',
         vatNumber: 'FR123',
+        bank: 'Banque de test',
         IBAN: 'FR761234',
         BIC: 'ABCDFRPP',
       },

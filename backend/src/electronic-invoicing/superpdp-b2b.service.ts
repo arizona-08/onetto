@@ -17,6 +17,7 @@ type ProviderEvent = {
   status_code?: string;
   status_text?: string;
   created_at?: string;
+  details?: Array<{ reported_data?: Array<{ id?: string }> }>;
   [key: string]: unknown;
 };
 
@@ -27,6 +28,75 @@ export class SuperPdpB2bService {
     private readonly oauth: SuperPdpOAuthService,
     private readonly facturX: FacturXService,
   ) {}
+
+  /** Reports a collected contract stage separately from invoice transmission. */
+  async reportContractStagePayment(documentId: string): Promise<void> {
+    const document = await this.prisma.document.findUnique({
+      where: { id: documentId },
+      include: {
+        company: true,
+        contractStageInvoice: { include: { payment: true } },
+        electronicInvoiceTransmissions: { where: { provider: 'SUPER_PDP', flow: 'B2B_FR' } },
+      },
+    });
+    if (!document?.contractStageInvoice || !['PAID', 'PAID_MANUALLY'].includes(document.invoiceStatus) ||
+      document.clientType !== 'BUSINESS' || document.company.vatExigibility !== 'ON_COLLECTION' ||
+      !['FR', 'FRA', 'FRANCE'].includes(document.clientCountry.trim().toUpperCase())) return;
+    const transmission = document.electronicInvoiceTransmissions[0];
+    if (!transmission?.providerInvoiceId || !['SENT', 'DELIVERED', 'ACCEPTED', 'COMPLETED'].includes(transmission.status)) return;
+    const payment = document.contractStageInvoice.payment;
+    const sourceReference = payment?.status === 'SUCCESS' && !payment.manualSettlementAt
+      ? `contract:${payment.id}` : `manual:${document.id}`;
+    const existing = await this.prisma.electronicInvoiceEvent.findUnique({
+      where: { transmissionId_sourceReference: { transmissionId: transmission.id, sourceReference } },
+    });
+    if (existing) return;
+    let reservation;
+    try {
+      reservation = await this.prisma.electronicInvoiceEvent.create({
+        data: {
+          transmissionId: transmission.id,
+          providerEventId: `pending:${randomUUID()}`,
+          sourceReference,
+          type: 'fr:212',
+          providerStatus: 'PENDING',
+          source: 'PAYMENT',
+          occurredAt: payment?.manualSettlementAt ?? payment?.updatedAt ?? new Date(),
+        },
+      });
+    } catch (error) {
+      // A concurrent webhook or reconciliation reserved the same report.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return;
+      throw error;
+    }
+    try {
+      const token = await this.oauth.getAccessToken(document.companyId);
+      const amount = Number(document.totalPrice).toFixed(2);
+      const collectionDate = payment?.manualSettlementAt ?? payment?.updatedAt ?? new Date();
+      const response = await fetch('https://api.superpdp.tech/v1.beta/invoice_events', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          invoice_id: Number(transmission.providerInvoiceId),
+          status_code: 'fr:212',
+          details: [{ reported_data: [{ amount, currency_code: document.currencyCode, date: collectionDate.toISOString().slice(0, 10), id: sourceReference }] }],
+        }),
+      });
+      if (!response.ok) throw new Error(`SuperPDP a refusé la déclaration d’encaissement (${response.status}).`);
+      const event = (await response.json()) as { id?: number | string; status_code?: string };
+      if (!event.id) throw new Error('SuperPDP n’a pas retourné l’identifiant de l’événement.');
+      await this.prisma.electronicInvoiceEvent.update({
+        where: { id: reservation.id },
+        data: { providerEventId: String(event.id), providerStatus: event.status_code ?? 'fr:212', payload: event as Prisma.InputJsonValue },
+      });
+    } catch (error) {
+      await this.prisma.electronicInvoiceEvent.update({
+        where: { id: reservation.id },
+        data: { providerStatus: 'UNCERTAIN', payload: { error: error instanceof Error ? error.message : 'Réponse SuperPDP incertaine' } },
+      });
+      throw new BadGatewayException('La déclaration d’encaissement SuperPDP doit être vérifiée. Aucun nouvel envoi automatique ne sera effectué.');
+    }
+  }
 
   async send(input: { companyId: string; documentId: string; user: User }) {
     const document = await this.findDocument(input);
@@ -79,7 +149,11 @@ export class SuperPdpB2bService {
       );
     }
 
-    if (existing?.providerInvoiceId) return this.sync(input);
+    if (existing?.providerInvoiceId) {
+      const state = await this.sync(input);
+      try { await this.reportContractStagePayment(document.id); } catch (error) { console.error('[SuperPDP B2B] Déclaration de paiement à vérifier:', error); }
+      return state;
+    }
 
     const transmission =
       existing ??
@@ -175,7 +249,9 @@ export class SuperPdpB2bService {
           lastError: null,
         },
       });
-      return this.sync(input);
+      const state = await this.sync(input);
+      try { await this.reportContractStagePayment(document.id); } catch (error) { console.error('[SuperPDP B2B] Déclaration de paiement à vérifier:', error); }
+      return state;
     } catch (error) {
       const message =
         error instanceof Error
@@ -267,6 +343,45 @@ export class SuperPdpB2bService {
     };
   }
 
+  /** Checks uncertain declarations at the provider without ever posting them again. */
+  async reconcileContractPaymentReports() {
+    const reports = await this.prisma.electronicInvoiceEvent.findMany({
+      where: {
+        source: 'PAYMENT',
+        providerStatus: { in: ['PENDING', 'UNCERTAIN'] },
+        receivedAt: { lt: new Date(Date.now() - 10 * 60_000) },
+        transmission: { provider: 'SUPER_PDP', providerInvoiceId: { not: null } },
+      },
+      include: { transmission: { include: { document: { select: { companyId: true } } } } },
+      orderBy: { receivedAt: 'asc' },
+      take: 100,
+    });
+    const results = await Promise.allSettled(reports.map(async (report) => {
+      const providerInvoiceId = report.transmission.providerInvoiceId;
+      if (!providerInvoiceId || !report.sourceReference) return false;
+      const token = await this.oauth.getAccessToken(report.transmission.document.companyId);
+      const events = await this.listAllProviderEvents(providerInvoiceId, { Authorization: `Bearer ${token}` });
+      const matching = events.find((event) => event.status_code === 'fr:212' &&
+        event.details?.some((detail) => detail.reported_data?.some((item) => item.id === report.sourceReference)));
+      if (!matching?.id) return false;
+      // A regular transmission poll may already have stored this provider event.
+      // Keep the original reservation so its sourceReference stays unique.
+      await this.prisma.electronicInvoiceEvent.update({
+        where: { id: report.id },
+        data: {
+          providerStatus: 'fr:212',
+          payload: matching as Prisma.InputJsonValue,
+        },
+      });
+      return true;
+    }));
+    return {
+      checked: reports.length,
+      confirmed: results.filter((result) => result.status === 'fulfilled' && result.value).length,
+      failed: results.filter((result) => result.status === 'rejected').length,
+    };
+  }
+
   private async syncTransmission(
     transmission: {
       id: string;
@@ -329,7 +444,7 @@ export class SuperPdpB2bService {
         if (!latest || occurredAt > new Date(latest.created_at ?? 0))
           latest = event;
       }
-      return this.prisma.electronicInvoiceTransmission.update({
+      const updated = await this.prisma.electronicInvoiceTransmission.update({
         where: { id: transmission.id },
         data: {
           status: this.mapStatus(latest?.status_code) ?? transmission.status,
@@ -339,6 +454,10 @@ export class SuperPdpB2bService {
         },
         include: { events: { orderBy: { occurredAt: 'desc' } } },
       });
+      if (updated.documentId) {
+        try { await this.reportContractStagePayment(updated.documentId); } catch (error) { console.error('[SuperPDP B2B] Déclaration de paiement à vérifier:', error); }
+      }
+      return updated;
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Erreur inconnue.';

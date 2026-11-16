@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Param,
+  Post,
   Req,
   UnauthorizedException,
   UseGuards,
@@ -22,5 +23,19 @@ export class SuperPdpEreportingController {
   ) {
     if (!req.user) throw new UnauthorizedException('Non authentifié');
     return this.ereporting.getOverview({ companyId, userId: req.user.id });
+  }
+
+  @Post('companies/:companyId/ereporting-submissions/:submissionId/retry')
+  retryRejectedTransaction(
+    @Param('companyId') companyId: string,
+    @Param('submissionId') submissionId: string,
+    @Req() req: ExtendedRequest,
+  ) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.ereporting.retryRejectedB2CTransaction({
+      companyId,
+      submissionId,
+      userId: req.user.id,
+    });
   }
 }

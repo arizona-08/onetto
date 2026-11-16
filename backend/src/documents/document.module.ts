@@ -15,6 +15,9 @@ import { PlanAccessModule } from 'src/plan-access/plan-access.module';
 import { ElectronicInvoicingModule } from 'src/electronic-invoicing/electronic-invoicing.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
 import { StorageModule } from 'src/storage/storage.module';
+import { ContractPaymentService } from './contract-payment.service';
+import { PublicContractController } from './public-contract.controller';
+import { ContractPaymentController } from './contract-payment.controller';
 
 @Module({
   imports: [
@@ -35,7 +38,9 @@ import { StorageModule } from 'src/storage/storage.module';
     DocumentController,
     NegociationController,
     PublicPaymentController,
+    PublicContractController,
+    ContractPaymentController,
   ],
-  providers: [DocumentService],
+  providers: [DocumentService, ContractPaymentService],
 })
 export class DocumentModule {}

@@ -10,6 +10,8 @@ describe('GoCardless billing request instalment schedule', () => {
   const prisma = {
     invoicePaymentLink: { updateMany: jest.fn() },
     invoiceInstalmentPlan: { findUnique: jest.fn(), update: jest.fn() },
+    contractPaymentPlan: { findUnique: jest.fn(), update: jest.fn() },
+    companyPaymentAccount: { findFirst: jest.fn() },
   };
   const client = {
     mandates: { find: jest.fn() },
@@ -32,7 +34,9 @@ describe('GoCardless billing request instalment schedule', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.contractPaymentPlan.findUnique.mockResolvedValue(null);
     Reflect.set(handler, 'prismaService', prisma);
+    Reflect.set(handler, 'notifications', { notifyCompany: jest.fn() });
     client.mandates.find.mockResolvedValue({
       next_possible_charge_date: '2099-11-10',
     });
@@ -93,5 +97,30 @@ describe('GoCardless billing request instalment schedule', () => {
     expect(
       client.instalmentSchedules.createWithSchedule,
     ).not.toHaveBeenCalled();
+  });
+
+  it('active un mandat contractuel sans créer d’échéancier ni paiement', async () => {
+    Reflect.set(handler, 'gocardlessOAuthService', {
+      getClientForProviderAccount: jest.fn().mockResolvedValue(client),
+    });
+    prisma.contractPaymentPlan.findUnique.mockResolvedValue({
+      id: 'plan-1', estimate: { id: 'estimate-1', companyId: 'company-1' },
+    });
+    prisma.companyPaymentAccount.findFirst.mockResolvedValue({ id: 'account-1' });
+    client.billingRequests.find.mockResolvedValue({
+      status: 'fulfilled', links: { mandate_request_mandate: 'MD1' },
+    });
+    client.mandates.find.mockResolvedValue({ status: 'active' });
+
+    await handler.handleWebhook({
+      id: 'EV2', action: 'fulfilled', organisation_id: 'ORG1',
+      links: { billing_request: 'BRQ1' },
+    } as never);
+
+    expect(prisma.contractPaymentPlan.update).toHaveBeenCalledWith({
+      where: { id: 'plan-1' },
+      data: { providerMandateId: 'MD1', mandateStatus: 'ACTIVE' },
+    });
+    expect(client.instalmentSchedules.createWithSchedule).not.toHaveBeenCalled();
   });
 });

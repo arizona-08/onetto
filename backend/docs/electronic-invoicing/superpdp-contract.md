@@ -23,6 +23,36 @@ SUPERPDP_TOKEN_ENCRYPTION_KEY=
 encodée en base64. Dès qu’un flag est activé, le backend refuse de démarrer si
 les quatre secrets/configurations OAuth nécessaires sont absents.
 
+## Identité sandbox et adresse de facturation
+
+- Le numéro de connexion de test est enregistré par entreprise dans
+  `ElectronicInvoicingConnection.superPdpSandboxCompanyNumber` et utilisé avec
+  `superpdp_company_number_scheme=sandbox`. Aucun fallback global n’est utilisé.
+- `Company.siren` reste l’identifiant légal dans les factures. En production,
+  il sert à la connexion OAuth avec le schéma `fr_siren`.
+- `Company.electronicAddress` contient uniquement l’adresse de facturation.
+  Pour `electronicAddressScheme=PEPPOL`, enregistrer l’adresse complète
+  `schéma:identifiant` ; la génération des documents sépare les deux parties.
+- Après OAuth et lors d’une vérification manuelle, `/companies/me` doit retourner
+  le numéro, le schéma et l’environnement attendus. Sinon, la connexion passe en
+  `ACTION_REQUIRED` et les appels authentifiés sont bloqués. Le rafraîchissement
+  d’un jeton ne valide pas à lui seul l’identité.
+- Le bouton « Charger mes adresses SuperPDP » consulte `/directory_entries`
+  du compte connecté. Seules les entrées Peppol créées et non `is_replyto` sont proposées.
+  Choisir une adresse puis enregistrer l’entreprise.
+
+Après la migration de séparation des identifiants, vérifier les connexions
+existantes depuis les paramètres. Le numéro sandbox n’est repris automatiquement
+que s’il était présent dans un profil SuperPDP sauvegardé, jamais depuis une
+adresse de routage. Pour le seed Burger Queen, le numéro OAuth est `000000002`.
+L’adresse Peppol réelle peut être fournie avec
+`SUPERPDP_SEED_SELLER_ELECTRONIC_ADDRESS` ; à défaut, une nouvelle entreprise est
+créée sans adresse et doit être configurée après connexion. Le seed ne remplace
+pas une adresse existante sans cette variable.
+
+Contrat de référence des champs `company.number`, `number_scheme`, `env` et des
+entrées d’annuaire : [OpenAPI SuperPDP](https://www.superpdp.tech/openapi/).
+
 ## Opérations confirmées
 
 | Besoin métier | Opération OpenAPI | État prévu |

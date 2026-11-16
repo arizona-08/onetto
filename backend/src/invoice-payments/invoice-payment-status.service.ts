@@ -4,6 +4,7 @@ import { MailService } from 'src/mail/mail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { SuperPdpEreportingService } from 'src/electronic-invoicing/superpdp-ereporting.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { SuperPdpB2bService } from 'src/electronic-invoicing/superpdp-b2b.service';
 
 @Injectable()
 export class InvoicePaymentStatusService {
@@ -12,7 +13,36 @@ export class InvoicePaymentStatusService {
     private readonly mailService: MailService,
     private readonly superPdpEreportingService: SuperPdpEreportingService,
     private readonly notifications: NotificationsService,
+    private readonly superPdpB2bService: SuperPdpB2bService,
   ) {}
+
+  async syncContractPaymentResult(
+    invoiceId: string,
+    previousStatus: string,
+    status: string,
+    paymentId: string,
+  ): Promise<void> {
+    if (status === 'SUCCESS') {
+      if (previousStatus !== 'SUCCESS') {
+        await this.sendPaymentReceipt(invoiceId);
+        await this.sendInvoicePaidConfirmation(invoiceId);
+        await this.notifyPayment(
+          invoiceId, 'PAYMENT_SUCCEEDED', 'Règlement reçu',
+          'Le prélèvement de la facture a été confirmé.', `contract:${paymentId}:success`,
+        );
+      }
+      await this.superPdpEreportingService.syncCollectedPaymentsForInvoice(invoiceId);
+      await this.superPdpB2bService.reportContractStagePayment(invoiceId);
+    } else if ((status === 'FAILED' || status === 'CANCELLED') && previousStatus !== status) {
+      await this.notifyPayment(
+        invoiceId, 'PAYMENT_FAILED', 'Prélèvement échoué',
+        previousStatus === 'SUCCESS'
+          ? 'Un prélèvement précédemment confirmé a échoué tardivement. Vérifiez les déclarations de paiement.'
+          : 'Le prélèvement de la facture a échoué.',
+        `contract:${paymentId}:${status.toLowerCase()}`,
+      );
+    }
+  }
 
   /**
    * Recalcule le statut d'une facture après la mise à jour d'une tentative de
@@ -82,6 +112,7 @@ export class InvoicePaymentStatusService {
   async refreshFromInstalment(
     invoiceId: string,
     paidInstalmentAmountInCents?: number,
+    paidInstalmentId?: string,
   ): Promise<void> {
     let justPaid = false;
     let synchronized = false;
@@ -122,6 +153,17 @@ export class InvoicePaymentStatusService {
     }
     if (justPaid) {
       await this.sendInvoicePaidConfirmation(invoiceId);
+    }
+    if (paidInstalmentAmountInCents !== undefined && paidInstalmentId) {
+      await this.notifyPayment(
+        invoiceId,
+        'PAYMENT_SUCCEEDED',
+        'Échéance réglée',
+        'Le règlement de l’échéance a été confirmé.',
+        `instalment:${paidInstalmentId}:confirmed`,
+        paidInstalmentId,
+      );
+    } else if (justPaid) {
       await this.notifyPayment(
         invoiceId,
         'PAYMENT_SUCCEEDED',
@@ -378,21 +420,70 @@ export class InvoicePaymentStatusService {
 
   private async notifyPayment(
     documentId: string,
-    type: 'PAYMENT_SUBMITTED' | 'PAYMENT_SUCCEEDED',
+    type: 'PAYMENT_SUBMITTED' | 'PAYMENT_SUCCEEDED' | 'PAYMENT_FAILED',
     title: string,
     message: string,
     key: string,
+    paidInstalmentId?: string,
   ): Promise<void> {
     const document = await this.prismaService.document.findUnique({
       where: { id: documentId },
-      select: { companyId: true, documentNumber: true },
+      select: {
+        companyId: true,
+        documentNumber: true,
+        totalPrice: true,
+        invoiceStatus: true,
+        contractStageInvoice: {
+          select: {
+            kind: true,
+            sequence: true,
+            percentage: true,
+            plan: { select: { estimate: { select: { documentNumber: true } } } },
+          },
+        },
+        invoiceInstalmentPlan: {
+          select: {
+            _count: { select: { invoicePaymentInstalments: true } },
+            invoicePaymentInstalments: {
+              where: { id: paidInstalmentId ?? '' },
+              select: { instalmentNumber: true, amountInCents: true },
+            },
+          },
+        },
+      },
     });
     if (!document) return;
+    if (type === 'PAYMENT_SUCCEEDED') {
+      const formatAmount = (amount: number) => amount.toLocaleString('fr-FR', {
+        style: 'currency', currency: 'EUR',
+      });
+      const stage = document.contractStageInvoice;
+      const instalmentPlan = document.invoiceInstalmentPlan;
+      const instalment = instalmentPlan?.invoicePaymentInstalments[0];
+      if (stage) {
+        const label = stage.kind === 'DEPOSIT' ? `de l’acompte n° ${stage.sequence} (${stage.percentage} %)` : 'du solde';
+        title = stage.kind === 'DEPOSIT' ? `Acompte n° ${stage.sequence} réglé` : 'Solde réglé';
+        message = `Le règlement ${label} de ${formatAmount(document.totalPrice)} a été confirmé pour la facture ${document.documentNumber}, relative au devis ${stage.plan.estimate.documentNumber}.`;
+      } else if (instalmentPlan && instalment) {
+        const total = instalmentPlan._count.invoicePaymentInstalments;
+        title = `Échéance n° ${instalment.instalmentNumber}/${total} réglée`;
+        message = `Le règlement de l’échéance n° ${instalment.instalmentNumber} sur ${total}, d’un montant de ${formatAmount(instalment.amountInCents / 100)}, a été confirmé pour la facture ${document.documentNumber}.`;
+        if (document.invoiceStatus === 'PAID') message += ' La facture est désormais intégralement réglée.';
+      } else if (instalmentPlan) {
+        title = 'Facture intégralement réglée';
+        message = `Toutes les échéances de la facture ${document.documentNumber} ont été réglées, pour un total de ${formatAmount(document.totalPrice)}.`;
+      } else {
+        title = 'Facture réglée — paiement unique';
+        message = `Le règlement unique de ${formatAmount(document.totalPrice)} a été confirmé pour la facture ${document.documentNumber}.`;
+      }
+    } else {
+      message = `${message} (${document.documentNumber})`;
+    }
     await this.notifications.notifyCompany({
       companyId: document.companyId,
       type,
       title,
-      message: `${message} (${document.documentNumber})`,
+      message,
       href: `/documents/${documentId}`,
       deduplicationKey: `payment:${documentId}:${key}`,
     });
