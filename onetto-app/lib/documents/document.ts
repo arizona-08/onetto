@@ -14,14 +14,18 @@ export async function createDocument(data: CreateDocumentDto) {
   });
 }
 
-export async function getMyDocuments(withServices: boolean = true) {
-  return apiClient<Document[]>(
+export async function getMyDocuments(
+  withServices: boolean = true,
+  signal?: AbortSignal,
+) {
+  return apiClient<{ estimates: Document[]; invoices: Document[] }>(
     `api/documents/mines?with-services=${withServices}`,
     {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
       },
+      signal,
     },
   );
 }

@@ -19,11 +19,13 @@ import { useEffect, useMemo, useState } from "react";
 interface InvoiceInstalmentProgressProps {
   document: Document;
   className?: string;
+  showProgress?: boolean;
 }
 
 export default function InvoiceInstalmentProgress({
   document,
   className = "",
+  showProgress = true,
 }: InvoiceInstalmentProgressProps) {
   const router = useRouter();
   const [capabilities, setCapabilities] = useState<
@@ -118,7 +120,7 @@ export default function InvoiceInstalmentProgress({
 
   return (
     <div className={className}>
-      <div className="mx-auto w-fit text-center md:hidden">
+      {showProgress && <div className="mx-auto w-fit text-center md:hidden">
         <p className="mb-2 text-xs font-semibold text-zinc-600">
           {paidInstalments}/{instalments.length} échéance
           {instalments.length > 1 ? "s" : ""} réglée
@@ -139,8 +141,8 @@ export default function InvoiceInstalmentProgress({
             />
           ))}
         </div>
-      </div>
-      <div
+      </div>}
+      {showProgress && <div
         className="hidden h-2 w-full gap-px overflow-visible rounded-full bg-zinc-100 md:flex"
         role="img"
         aria-label={
@@ -173,7 +175,7 @@ export default function InvoiceInstalmentProgress({
             </span>
           </span>
         ))}
-      </div>
+      </div>}
       {feedback && (
         <p
           role="status"

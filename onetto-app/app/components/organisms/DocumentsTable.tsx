@@ -3,10 +3,12 @@ import React from "react";
 
 import {
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CirclePlusIcon,
   FileChartColumnIncreasing,
+  Search,
   RotateCcw,
   Send,
   Trash,
@@ -17,13 +19,17 @@ import { Document, InvoiceStatus } from "@/app/types";
 import { formatDate } from "@/shared/utils";
 import DocumentSelector from "../molecules/DcumentSelector";
 import DocumentSorter from "../molecules/DocumentSorter";
-import InvoiceInstalmentProgress from "../molecules/InvoiceInstalmentProgress";
+import InvoicePaymentDetails, {
+  PaymentGauge,
+} from "./InvoicePaymentDetails";
+import { getInvoicePaymentSummary } from "./invoice-payment-summary";
 import InvoiceActionsMenu, {
   type InvoiceMenuAction,
 } from "../molecules/InvoiceActionsMenu";
 import {
   convertEstimateToInvoice,
   deleteDraftDocument,
+  getMyDocuments,
   getDocumentsPage,
   markInvoiceAsPaidManually,
   markInvoiceAsPendingManually,
@@ -39,6 +45,7 @@ import { useRouter } from "next/navigation";
 import GoCardlessReconnectModal from "../molecules/GoCardlessReconnectModal";
 import { isGoCardlessAccessTokenInactive } from "@/lib/gocardless/access-token";
 import { apiClient } from "@/lib/api";
+import { Input } from "../ui/Field";
 
 const statusMatcher: Record<string, { label: string; dotClassName: string }> = {
   DRAFT: { label: "Brouillon", dotClassName: "bg-zinc-400" },
@@ -125,7 +132,6 @@ interface DocumentsTableProps {
   type: "invoices" | "estimates";
   documents: Document[];
   currentDate: string;
-  canCreate: boolean;
   initialPagination?: {
     page: number;
     pageSize: number;
@@ -138,10 +144,10 @@ function DocumentsTable({
   type,
   documents,
   currentDate,
-  canCreate,
   initialPagination,
 }: DocumentsTableProps) {
   const isInvoiceType = type === "invoices";
+  const pageSize = initialPagination?.pageSize ?? 5;
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -180,6 +186,15 @@ function DocumentsTable({
     initialPagination?.total ?? documents.length,
   );
   const [isLoadingPage, setIsLoadingPage] = React.useState(false);
+  const [searchInput, setSearchInput] = React.useState("");
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [searchPage, setSearchPage] = React.useState(1);
+  const [allDocuments, setAllDocuments] = React.useState<Document[] | null>(null);
+  const [isLoadingSearch, setIsLoadingSearch] = React.useState(false);
+  const [searchFailed, setSearchFailed] = React.useState(false);
+  const [searchRetry, setSearchRetry] = React.useState(0);
+  const [selectedInvoiceId, setSelectedInvoiceId] = React.useState<string | null>(null);
+  const isClientMode = Boolean(searchTerm) || sortMethod === "amount";
 
   const [masterDocumentsList, setMasterDocumentsList] = React.useState<
     Document[]
@@ -190,13 +205,93 @@ function DocumentsTable({
     })),
   );
 
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setSearchTerm(searchInput.trim()), 250);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  React.useEffect(() => {
+    if (!isClientMode || allDocuments) return;
+    const controller = new AbortController();
+    let cancelled = false;
+    queueMicrotask(async () => {
+      if (cancelled) return;
+      setIsLoadingSearch(true);
+      setSearchFailed(false);
+      const response = await getMyDocuments(false, controller.signal);
+      if (cancelled) return;
+      setIsLoadingSearch(false);
+      if (!response.ok) {
+        setSearchFailed(true);
+        return;
+      }
+      setSearchFailed(false);
+      setAllDocuments(
+        isInvoiceType
+          ? response.data.invoices
+          : response.data.estimates.filter((document) => document.isLastVersion),
+      );
+    });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [isClientMode, allDocuments, isInvoiceType, searchRetry]);
+
+  const searchResults = React.useMemo(() => {
+    if (!isClientMode || !allDocuments) return [];
+    const normalize = (value: string) =>
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ")
+        .toLowerCase();
+    const query = normalize(searchTerm);
+    const technicalStatus = isInvoiceType
+      ? invoiceStatusFilterMatcher[selectedStatus as InvoiceSelectStatus]
+      : estimateStatusFilterMatcher[selectedStatus as EstimateSelectStatus];
+    return allDocuments.filter((document) => {
+      const matchesStatus = !technicalStatus ||
+        (isInvoiceType
+          ? technicalStatus === "PAID"
+            ? ["PAID", "PAID_MANUALLY"].includes(document.invoiceStatus)
+            : document.invoiceStatus === technicalStatus
+          : document.estimateStatus === technicalStatus);
+      if (!matchesStatus) return false;
+      const amount = document.totalPrice.toLocaleString("fr-FR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      return !query || normalize(`${document.documentNumber} ${document.clientName} ${amount} € ${document.totalPrice}`).includes(query);
+    });
+  }, [searchTerm, allDocuments, isInvoiceType, selectedStatus, isClientMode]);
+
+  const sortedDocuments = React.useMemo(() => {
+    const source = isClientMode ? searchResults : masterDocumentsList;
+    return sortMethod === "amount"
+      ? [...source].sort((first, second) => second.totalPrice - first.totalPrice)
+      : source;
+  }, [isClientMode, searchResults, masterDocumentsList, sortMethod]);
+  const visibleTotalPages = isClientMode
+    ? Math.max(1, Math.ceil(sortedDocuments.length / pageSize))
+    : totalPages;
+  const visibleCurrentPage = isClientMode ? searchPage : currentPage;
+  const visibleDocuments = isClientMode
+    ? sortedDocuments.slice((searchPage - 1) * pageSize, searchPage * pageSize)
+    : sortedDocuments;
+  const selectedInvoice = isInvoiceType
+    ? visibleDocuments.find((document) => document.id === selectedInvoiceId)
+    : undefined;
+  const isLoadingResults = isLoadingPage ||
+    (isClientMode && (isLoadingSearch || (!allDocuments && !searchFailed)));
+
   const hasCheckedDocuments = checkedDocuments.length > 0;
   const allChecked =
-    checkedDocuments.length === masterDocumentsList.length &&
-    masterDocumentsList.length > 0;
+    checkedDocuments.length === visibleDocuments.length &&
+    visibleDocuments.length > 0;
   const documentsToDelete = draftToDelete
     ? [draftToDelete]
-    : masterDocumentsList.filter((document) =>
+    : visibleDocuments.filter((document) =>
         checkedDocuments.includes(document.id),
       );
 
@@ -218,8 +313,20 @@ function DocumentsTable({
     if (allChecked) {
       setCheckedDocuments([]);
     } else {
-      setCheckedDocuments(masterDocumentsList.map((document) => document.id));
+      setCheckedDocuments(visibleDocuments.map((document) => document.id));
     }
+  }
+
+  function toggleInvoiceDetails(documentId: string) {
+    setSelectedInvoiceId((current) => current === documentId ? null : documentId);
+  }
+
+  function handleInvoiceRowClick(
+    event: React.MouseEvent<HTMLTableRowElement>,
+    documentId: string,
+  ) {
+    if ((event.target as HTMLElement).closest("a, button, input, select, textarea")) return;
+    toggleInvoiceDetails(documentId);
   }
 
   async function handleDeleteCheckedDocuments(checked: string[]) {
@@ -242,7 +349,7 @@ function DocumentsTable({
       setDraftToDelete(null);
 
       const nextTotal = Math.max(0, totalDocuments - checked.length);
-      const nextTotalPages = Math.max(1, Math.ceil(nextTotal / 5));
+      const nextTotalPages = Math.max(1, Math.ceil(nextTotal / pageSize));
       const nextPage = Math.min(currentPage, nextTotalPages);
 
       setCheckedDocuments([]);
@@ -396,7 +503,7 @@ function DocumentsTable({
       const response = await retryInvoicePayment(documentId);
       if (!response.ok) {
         if (isGoCardlessAccessTokenInactive(response.error)) {
-          const document = masterDocumentsList.find(
+          const document = visibleDocuments.find(
             (item) => item.id === documentId,
           );
           if (document) setGoCardlessReconnectCompanyId(document.companyId);
@@ -413,6 +520,14 @@ function DocumentsTable({
             : document,
         ),
       );
+      setAllDocuments((documents) =>
+        documents?.map((document) =>
+          document.id === documentId
+            ? { ...document, invoiceStatus: "PENDING" }
+            : document,
+        ) ?? null,
+      );
+      setSearchPage(1);
       showToast("Un nouveau lien de paiement a été envoyé au client.", "success");
     } catch {
       showToast("Impossible de générer un nouveau lien de paiement.", "error");
@@ -445,6 +560,12 @@ function DocumentsTable({
           item.id === document.id ? { ...item, invoiceStatus: nextStatus } : item,
         ),
       );
+      setAllDocuments((documents) =>
+        documents?.map((item) =>
+          item.id === document.id ? { ...item, invoiceStatus: nextStatus } : item,
+        ) ?? null,
+      );
+      setSearchPage(1);
       showToast(response.data.message, "success");
       return true;
     } catch {
@@ -660,6 +781,8 @@ function DocumentsTable({
   }
 
   async function loadDocumentsPage(page: number) {
+    setAllDocuments(null);
+    setSearchPage(1);
     setIsLoadingPage(true);
     const status = isInvoiceType
       ? invoiceStatusFilterMatcher[selectedStatus as InvoiceSelectStatus]
@@ -689,8 +812,13 @@ function DocumentsTable({
   }
 
   async function handlePageChange(nextPage: number) {
-    if (nextPage === currentPage || nextPage < 1 || nextPage > totalPages)
+    if (nextPage === visibleCurrentPage || nextPage < 1 || nextPage > visibleTotalPages)
       return;
+    setCheckedDocuments([]);
+    if (isClientMode) {
+      setSearchPage(nextPage);
+      return;
+    }
     await loadDocumentsPage(nextPage);
   }
 
@@ -698,6 +826,11 @@ function DocumentsTable({
     status: InvoiceSelectStatus | EstimateSelectStatus,
   ) {
     setSelectedStatus(status);
+    setCheckedDocuments([]);
+    if (isClientMode) {
+      setSearchPage(1);
+      return;
+    }
     const technicalStatus = isInvoiceType
       ? invoiceStatusFilterMatcher[status as InvoiceSelectStatus]
       : estimateStatusFilterMatcher[status as EstimateSelectStatus];
@@ -737,97 +870,124 @@ function DocumentsTable({
   }
 
   function getPaginationPages(): Array<number | "ellipsis"> {
-    if (totalPages <= 7) {
-      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    if (visibleTotalPages <= 7) {
+      return Array.from({ length: visibleTotalPages }, (_, index) => index + 1);
     }
 
-    if (currentPage <= 4) {
-      return [1, 2, 3, 4, "ellipsis", totalPages];
+    if (visibleCurrentPage <= 4) {
+      return [1, 2, 3, 4, "ellipsis", visibleTotalPages];
     }
 
-    if (currentPage >= totalPages - 3) {
+    if (visibleCurrentPage >= visibleTotalPages - 3) {
       return [
         1,
         "ellipsis",
-        totalPages - 3,
-        totalPages - 2,
-        totalPages - 1,
-        totalPages,
+        visibleTotalPages - 3,
+        visibleTotalPages - 2,
+        visibleTotalPages - 1,
+        visibleTotalPages,
       ];
     }
 
     return [
       1,
       "ellipsis",
-      currentPage - 1,
-      currentPage,
-      currentPage + 1,
+      visibleCurrentPage - 1,
+      visibleCurrentPage,
+      visibleCurrentPage + 1,
       "ellipsis",
-      totalPages,
+      visibleTotalPages,
     ];
   }
 
   return (
-    <div className="mt-3">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          {canCreate && (
-            <Link
-              href={
-                isInvoiceType
-                  ? "/documents/create?type=invoice"
-                  : "/documents/create"
-              }
-              className=" flex items-center justify-center gap-3 p-4 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors cursor-pointer"
-            >
-              <CirclePlusIcon />
-              <span className="text-sm font-medium">
-                {isInvoiceType ? "Créer une facture" : "Créer un devis"}
-              </span>
-            </Link>
-          )}
-        </div>
-        <div className="flex w-full flex-col-reverse items-stretch justify-start gap-4 sm:w-auto sm:flex-row sm:items-center sm:justify-between sm:flex-wrap sm:gap-5">
-          <div>
-            {hasCheckedDocuments && (
-              <button
-                className="flex items-center gap-3 bg-red-500 text-white px-3 py-2 rounded-md text-sm"
-                onClick={() => {
-                  setDraftToDelete(null);
-                  setIsDeleteModalOpen(true);
-                }}
-              >
-                <span className="block md:hidden xl:block">
-                  Supprimer les documents
-                </span>{" "}
-                <Trash className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-          <div className="flex w-full items-center justify-start gap-3 sm:w-auto sm:flex-wrap sm:gap-5">
+    <div className="mt-5">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <DocumentSelector
               type={isInvoiceType ? "invoices" : "estimates"}
               selectedStatus={selectedStatus}
               onSelectStatus={handleStatusChange}
             />
             <DocumentSorter
-              type={isInvoiceType ? "invoices" : "estimates"}
               sortMethod={sortMethod}
-              setSortMethod={setSortMethod}
+              setSortMethod={(method) => {
+                setSortMethod(method);
+                setSearchPage(1);
+                setCheckedDocuments([]);
+              }}
               isOpen={isSortOpen}
               setIsOpen={setIsSortOpen}
             />
           </div>
+          {hasCheckedDocuments && (
+            <button
+              type="button"
+              className="inline-flex min-h-10 items-center gap-2 rounded-ui-control bg-ui-danger px-3 py-2 text-sm font-semibold text-white hover:brightness-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary"
+              onClick={() => {
+                setDraftToDelete(null);
+                setIsDeleteModalOpen(true);
+              }}
+            >
+              Supprimer les documents <Trash className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+        <div className="relative w-full max-w-lg">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ui-secondary" aria-hidden="true" />
+          <Input
+            type="search"
+            value={searchInput}
+            onChange={(event) => {
+              setSearchInput(event.target.value);
+              setSearchPage(1);
+              setCheckedDocuments([]);
+            }}
+            aria-label={isInvoiceType ? "Rechercher une facture" : "Rechercher un devis"}
+            placeholder={`Rechercher ${isInvoiceType ? "une facture" : "un devis"} (client, numéro, montant…)`}
+            className="border-ui-border pl-10"
+          />
         </div>
       </div>
+
+      {searchFailed && isClientMode && (
+        <div role="alert" className="mt-4 flex flex-wrap items-center gap-3 rounded-ui-control bg-ui-danger-soft p-3 text-sm text-ui-danger">
+          Impossible de charger les documents pour la recherche ou le tri.
+          <button
+            type="button"
+            onClick={() => setSearchRetry((count) => count + 1)}
+            className="rounded-md font-semibold underline focus-visible:outline-2 focus-visible:outline-ui-primary"
+          >
+            Réessayer
+          </button>
+        </div>
+      )}
+      {isClientMode && !isLoadingResults && !searchFailed && (
+        <p role="status" className="mt-3 text-xs text-ui-secondary">
+          {sortedDocuments.length} résultat{sortedDocuments.length > 1 ? "s" : ""}
+        </p>
+      )}
 
       {/* list de factures pour mobile */}
       <div className="md:hidden">
         <ul className="mt-4 space-y-3">
-          {masterDocumentsList.map((document) => (
+          {visibleDocuments.length === 0 && (
+            <li className="rounded-ui-card border border-ui-border bg-ui-surface p-5 text-sm text-ui-secondary">
+              {searchFailed && isClientMode
+                ? "Recherche indisponible. Réessayez plus tard."
+                : isLoadingResults
+                ? "Chargement des documents…"
+                : searchTerm
+                  ? "Aucun document ne correspond à votre recherche."
+                  : isInvoiceType
+                    ? "Aucune facture trouvée"
+                    : "Aucun devis trouvé"}
+            </li>
+          )}
+          {visibleDocuments.map((document) => (
             <li key={document.id}>
-              <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+              <div className="rounded-ui-card border border-ui-border bg-ui-surface p-4 shadow-ui-card">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 space-y-1">
                     <p className="truncate text-sm font-semibold text-zinc-900">
@@ -878,14 +1038,23 @@ function DocumentsTable({
                   </div>
                 </div>
                 {isInvoiceType && (
-                  <div className="mt-3">
-                    <InvoiceInstalmentProgress
-                      document={document}
-                      className="w-full"
-                    />
+                  <div className="mt-4 border-t border-ui-border pt-4">
+                    <p className="mb-2 text-xs font-medium text-ui-secondary">Paiement confirmé</p>
+                    <PaymentGauge document={document} />
                   </div>
                 )}
-                <div className="mt-3 flex justify-end">
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  {isInvoiceType ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleInvoiceDetails(document.id)}
+                      aria-expanded={selectedInvoiceId === document.id}
+                      className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-ui-primary hover:bg-ui-primary-soft focus-visible:outline-2 focus-visible:outline-ui-primary"
+                    >
+                      Voir le suivi
+                      <ChevronDown className={`h-4 w-4 transition-transform ${selectedInvoiceId === document.id ? "rotate-180" : ""}`} aria-hidden="true" />
+                    </button>
+                  ) : <span />}
                   {renderDocumentActions(document)}
                 </div>
               </div>
@@ -895,13 +1064,14 @@ function DocumentsTable({
       </div>
 
       {/* Tableau de facture pour tablet et desktop */}
-      <div className="hidden md:block mt-3 overflow-x-auto rounded-2xl border border-zinc-200 bg-white">
-        <table className="min-w-185 w-full border-collapse text-left">
-          <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
+      <div className="mt-5 hidden overflow-x-auto rounded-ui-card border border-ui-border bg-ui-surface shadow-ui-card md:block">
+        <table className={`${isInvoiceType ? "min-w-[1100px]" : "min-w-185"} w-full border-collapse text-left`}>
+          <thead className="bg-ui-subtle text-xs uppercase tracking-wide text-ui-secondary">
             <tr>
               <th className="w-12 px-5 py-4">
                 <input
                   type="checkbox"
+                  aria-label="Sélectionner tous les documents de cette page"
                   className="h-4 w-4 rounded border-zinc-300"
                   checked={allChecked}
                   onChange={() => toggleCheckAll()}
@@ -913,27 +1083,49 @@ function DocumentsTable({
               <th className="px-5 py-4 font-semibold">Client</th>
               <th className="px-5 py-4 font-semibold">Date d&apos;échéance</th>
               <th className="px-5 py-4 font-semibold">Montant</th>
+              {isInvoiceType && <th className="px-5 py-4 font-semibold">Paiement</th>}
+              {isInvoiceType && <th className="px-5 py-4 font-semibold">Prochaine échéance</th>}
               <th className="px-5 py-4 font-semibold">Statut</th>
               <th className="px-5 py-4 text-right font-semibold">Action</th>
             </tr>
           </thead>
-          <tbody className="text-sm text-zinc-700">
-            {masterDocumentsList.length === 0 && (
-              <tr className="border-t border-zinc-100">
-                <td colSpan={7} className="px-5 py-5 text-center text-zinc-500">
-                  {isInvoiceType
-                    ? "Aucune facture trouvée"
-                    : "Aucun devis trouvé"}
+          <tbody className="text-sm text-ui-secondary">
+            {visibleDocuments.length === 0 && (
+              <tr className="border-t border-ui-border">
+                <td colSpan={isInvoiceType ? 9 : 7} className="px-5 py-5 text-center text-zinc-500">
+                  {searchFailed && isClientMode
+                    ? "Recherche indisponible. Réessayez plus tard."
+                    : isLoadingResults
+                    ? "Chargement des documents…"
+                    : searchTerm
+                      ? "Aucun document ne correspond à votre recherche."
+                      : isInvoiceType
+                        ? "Aucune facture trouvée"
+                        : "Aucun devis trouvé"}
                 </td>
               </tr>
             )}
 
-            {masterDocumentsList.length > 0 &&
-              masterDocumentsList.map((document) => (
-                <tr key={document.id} className="border-t border-zinc-100">
+            {visibleDocuments.length > 0 &&
+              visibleDocuments.map((document) => {
+                const payment = isInvoiceType
+                  ? getInvoicePaymentSummary(document)
+                  : null;
+                const nextDueDate = payment?.instalments?.length
+                  ? payment.nextInstalment?.dueDate
+                  : isInvoiceType && !["PAID", "PAID_MANUALLY", "DRAFT"].includes(document.invoiceStatus)
+                    ? document.paymentDueAt
+                    : null;
+                return (
+                <tr
+                  key={document.id}
+                  onClick={isInvoiceType ? (event) => handleInvoiceRowClick(event, document.id) : undefined}
+                  className={`border-t border-ui-border transition-colors ${isInvoiceType ? "cursor-pointer hover:bg-ui-subtle/50" : "hover:bg-ui-subtle/50"} ${selectedInvoiceId === document.id ? "bg-ui-primary-soft/40" : ""}`}
+                >
                   <td className="px-5 py-5 align-center">
                     <input
                       type="checkbox"
+                      aria-label={`Sélectionner ${document.documentNumber ?? "ce document"}`}
                       checked={isChecked(document.id)}
                       onChange={() => handleCheckedDocumentByID(document.id)}
                       className="h-4 w-4 rounded border-zinc-300"
@@ -942,7 +1134,7 @@ function DocumentsTable({
                   <td className="px-5 py-5 align-center">
                     <Link
                       href={`/documents/${document.id}`}
-                      className="underline text-zinc-900 hover:text-primary"
+                      className="rounded text-ui-text underline decoration-ui-border underline-offset-4 hover:text-ui-primary focus-visible:outline-2 focus-visible:outline-ui-primary"
                     >
                       <p className="font-semibold ">
                         {document.documentNumber}
@@ -957,7 +1149,7 @@ function DocumentsTable({
                   </td>
                   <td className="px-5 py-5 align-center">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ui-primary-soft text-xs font-semibold text-ui-primary">
                         {document.clientName
                           .split(" ")
                           .map((n) => n[0])
@@ -997,6 +1189,28 @@ function DocumentsTable({
                       currency: "EUR",
                     })}
                   </td>
+                  {isInvoiceType && (
+                    <td className="px-5 py-5 align-middle">
+                      <PaymentGauge document={document} />
+                    </td>
+                  )}
+                  {isInvoiceType && (
+                    <td className="px-5 py-5 align-middle">
+                      {nextDueDate ? (
+                        <div>
+                          <p className="font-medium text-ui-text">{formatDate(nextDueDate)}</p>
+                          {payment?.nextInstalment && (
+                            <p className="mt-1 text-xs text-ui-secondary">
+                              Échéance {payment.nextInstalment.instalmentNumber}/{payment.instalments?.length}
+                            </p>
+                          )}
+                          {new Date(nextDueDate) < new Date(currentDate) && (
+                            <p className="mt-1 text-xs text-ui-danger">Échue</p>
+                          )}
+                        </div>
+                      ) : <span aria-label="Aucune échéance à venir">—</span>}
+                    </td>
+                  )}
                   <td className="px-5 py-5 align-center">
                     <div className="flex items-center gap-2">
                       <div className="flex min-w-28 flex-col items-start gap-2">
@@ -1012,27 +1226,43 @@ function DocumentsTable({
                             ).label
                           }
                         </span>
-                        {isInvoiceType && (
-                          <InvoiceInstalmentProgress
-                            document={document}
-                            className="w-full"
-                          />
-                        )}
                       </div>
                     </div>
                   </td>
                   <td className="px-5 py-5 align-center">
-                    <div className="flex justify-end">
+                    <div className="flex items-center justify-end gap-2">
+                      {isInvoiceType && (
+                        <button
+                          type="button"
+                          onClick={() => toggleInvoiceDetails(document.id)}
+                          aria-label={`Voir le suivi du paiement de ${document.documentNumber}`}
+                          aria-expanded={selectedInvoiceId === document.id}
+                          className="inline-flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-ui-primary hover:bg-ui-primary-soft focus-visible:outline-2 focus-visible:outline-ui-primary"
+                        >
+                          Suivi
+                          <ChevronDown className={`h-4 w-4 transition-transform ${selectedInvoiceId === document.id ? "rotate-180" : ""}`} aria-hidden="true" />
+                        </button>
+                      )}
                       {renderDocumentActions(document)}
                     </div>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
           </tbody>
         </table>
       </div>
 
-      {totalPages > 1 && (
+      {selectedInvoice && (
+        <InvoicePaymentDetails
+          document={selectedInvoice}
+          statusLabel={getStatusPresentation(selectedInvoice.invoiceStatus).label}
+          statusDotClassName={getStatusPresentation(selectedInvoice.invoiceStatus).dotClassName}
+          onClose={() => setSelectedInvoiceId(null)}
+        />
+      )}
+
+      {visibleTotalPages > 1 && (
         <nav
           className="mt-6 flex justify-center"
           aria-label="Pagination des documents"
@@ -1040,9 +1270,9 @@ function DocumentsTable({
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => void handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1 || isLoadingPage}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-600 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-30"
+              onClick={() => void handlePageChange(visibleCurrentPage - 1)}
+              disabled={visibleCurrentPage === 1 || isLoadingResults}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-ui-secondary hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-30"
               aria-label="Page précédente"
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -1051,7 +1281,7 @@ function DocumentsTable({
               page === "ellipsis" ? (
                 <span
                   key={`ellipsis-${index}`}
-                  className="inline-flex h-9 w-8 items-center justify-center text-sm text-zinc-500"
+                  className="inline-flex h-9 w-8 items-center justify-center text-sm text-ui-secondary"
                 >
                   …
                 </span>
@@ -1060,9 +1290,9 @@ function DocumentsTable({
                   key={page}
                   type="button"
                   onClick={() => void handlePageChange(page)}
-                  disabled={isLoadingPage}
-                  aria-current={page === currentPage ? "page" : undefined}
-                  className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium transition-colors disabled:cursor-not-allowed ${page === currentPage ? "bg-zinc-100 text-zinc-900" : "text-zinc-600 hover:bg-zinc-100"}`}
+                  disabled={isLoadingResults}
+                  aria-current={page === visibleCurrentPage ? "page" : undefined}
+                  className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed ${page === visibleCurrentPage ? "bg-ui-primary-soft text-ui-primary" : "text-ui-secondary hover:bg-ui-subtle"}`}
                 >
                   {page}
                 </button>
@@ -1070,9 +1300,9 @@ function DocumentsTable({
             )}
             <button
               type="button"
-              onClick={() => void handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages || isLoadingPage}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-zinc-600 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-30"
+              onClick={() => void handlePageChange(visibleCurrentPage + 1)}
+              disabled={visibleCurrentPage === visibleTotalPages || isLoadingResults}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full text-ui-secondary hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-30"
               aria-label="Page suivante"
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -1088,14 +1318,14 @@ function DocumentsTable({
           aria-modal="true"
           aria-labelledby="manual-payment-title"
         >
-          <div className="w-full max-w-md rounded-lg bg-white p-6">
+          <div className="w-full max-w-md rounded-ui-card border border-ui-border bg-ui-surface p-6 shadow-ui-popover">
             <h2
               id="manual-payment-title"
-              className="font-title text-xl font-semibold text-zinc-900"
+              className="font-title text-xl font-semibold text-ui-text"
             >
               Confirmer le paiement manuel
             </h2>
-            <p className="mt-3 text-sm text-zinc-600">
+            <p className="mt-3 text-sm text-ui-secondary">
               Confirmez que la facture{" "}
               <span className="font-semibold text-zinc-800">
                 {manualPaymentDocument.documentNumber}
@@ -1109,7 +1339,7 @@ function DocumentsTable({
                 disabled={updatingManualPaymentIds.includes(
                   manualPaymentDocument.id,
                 )}
-                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-11 rounded-ui-control border border-ui-border px-4 py-2 text-sm font-semibold text-ui-text hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Annuler
               </button>
@@ -1119,7 +1349,7 @@ function DocumentsTable({
                 disabled={updatingManualPaymentIds.includes(
                   manualPaymentDocument.id,
                 )}
-                className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-11 rounded-ui-control bg-ui-primary px-4 py-2 text-sm font-semibold text-white hover:bg-ui-primary-hover focus-visible:outline-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Confirmer le paiement
               </button>
@@ -1135,16 +1365,16 @@ function DocumentsTable({
           aria-modal="true"
           aria-labelledby="delete-documents-title"
         >
-          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col rounded-lg bg-white p-6">
+          <div className="flex max-h-[calc(100vh-2rem)] w-full max-w-md flex-col rounded-ui-card border border-ui-border bg-ui-surface p-6 shadow-ui-popover">
             <h2
               id="delete-documents-title"
-              className="font-title text-xl font-semibold text-zinc-900"
+              className="font-title text-xl font-semibold text-ui-text"
             >
               {draftToDelete
                 ? "Supprimer ce brouillon ?"
                 : "Supprimer les documents sélectionnés ?"}
             </h2>
-            <p className="mt-3 text-sm text-zinc-600">
+            <p className="mt-3 text-sm text-ui-secondary">
               Cette action est irréversible. Les documents suivants seront
               supprimés :
             </p>
@@ -1161,7 +1391,7 @@ function DocumentsTable({
                   setIsDeleteModalOpen(false);
                   setDraftToDelete(null);
                 }}
-                className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-11 rounded-ui-control border border-ui-border px-4 py-2 text-sm font-semibold text-ui-text hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Annuler
               </button>
@@ -1173,7 +1403,7 @@ function DocumentsTable({
                     draftToDelete ? [draftToDelete.id] : checkedDocuments,
                   )
                 }
-                className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="min-h-11 rounded-ui-control bg-ui-danger px-4 py-2 text-sm font-semibold text-white hover:brightness-90 focus-visible:outline-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isDeleting ? "Suppression…" : "Supprimer définitivement"}
               </button>

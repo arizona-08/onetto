@@ -1,58 +1,79 @@
+"use client";
+
 import { SortDesc } from "lucide-react";
 import React from "react";
 
 interface DocumentSorterProps {
-  type: "invoices" | "estimates";
   sortMethod: "date" | "amount";
   setSortMethod: (sort: "date" | "amount") => void;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
 }
 
-function DocumentSorter({
+export default function DocumentSorter({
   sortMethod,
   setSortMethod,
   isOpen,
   setIsOpen,
 }: DocumentSorterProps) {
-  function closeSort() {
-    setIsOpen(false);
-  }
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) setIsOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isOpen, setIsOpen]);
+
   return (
-    <div className={`relative `}>
-      <div
-        className="flex items-center gap-1 w-fit"
+    <div ref={containerRef} className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
+        aria-controls="document-sort-options"
+        className="inline-flex min-h-10 items-center gap-2 rounded-ui-control bg-ui-background px-3 py-2 text-sm font-medium text-ui-secondary transition-colors hover:text-ui-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary"
       >
-        <SortDesc className="text-zinc-400 cursor-pointer" />
-        <span className="text-zinc-400 text-sm">Trier</span>
-      </div>
-      <div
-        className={`${isOpen ? "block" : "hidden"} absolute top-full right-0 p-1 min-w-35 rounded-lg bg-white text-sm border border-gray-100`}
-      >
-        <ul className="space-y-1">
-          <li
-            className={`px-3 py-1 rounded-md hover:bg-gray-200 ${sortMethod === "date" ? "bg-gray-200" : ""}`}
-            onClick={() => {
-              setSortMethod("date");
-              closeSort();
-            }}
-          >
-            Date
-          </li>
-          <li
-            className={`px-3 py-1 rounded-md hover:bg-gray-200 ${sortMethod === "amount" ? "bg-gray-200" : ""}`}
-            onClick={() => {
-              setSortMethod("amount");
-              closeSort();
-            }}
-          >
-            Montant
-          </li>
-        </ul>
-      </div>
+        <SortDesc className="h-4 w-4" aria-hidden="true" />
+        Trier
+      </button>
+      {isOpen && (
+        <div
+          id="document-sort-options"
+          className="absolute right-0 top-full z-30 mt-2 min-w-36 rounded-ui-control border border-ui-border bg-ui-surface p-1.5 shadow-ui-popover"
+          role="group"
+          aria-label="Trier les documents"
+        >
+          {([["date", "Date"], ["amount", "Montant"]] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={sortMethod === value}
+              onClick={() => {
+                setSortMethod(value);
+                setIsOpen(false);
+              }}
+              className={`block min-h-10 w-full rounded-lg px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-ui-primary ${sortMethod === value ? "bg-ui-primary-soft font-semibold text-ui-primary" : "bg-ui-background text-ui-secondary hover:text-ui-text"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
-
-export default DocumentSorter;

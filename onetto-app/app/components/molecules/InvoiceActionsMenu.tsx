@@ -90,7 +90,7 @@ export default function InvoiceActionsMenu({
         aria-label={`Actions de la facture ${documentNumber}`}
         aria-haspopup="menu"
         aria-expanded={Boolean(position)}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-700 transition-colors hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-ui-border bg-ui-surface text-ui-secondary transition-colors hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-50"
       >
         {busy ? (
           <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -105,7 +105,7 @@ export default function InvoiceActionsMenu({
             role="menu"
             aria-label={`Actions de la facture ${documentNumber}`}
             style={{ top: position.top, left: position.left }}
-            className="fixed z-[100] w-64 rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl"
+            className="fixed z-[100] w-64 rounded-ui-control border border-ui-border bg-ui-surface p-1.5 shadow-ui-popover"
             onKeyDown={(event) => {
               if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
               const items = Array.from(
@@ -132,7 +132,7 @@ export default function InvoiceActionsMenu({
                     closeMenu();
                     action.onSelect();
                   }}
-                  className={`flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${action.danger ? "text-red-700 hover:bg-red-50" : "text-zinc-700 hover:bg-zinc-50"}`}
+                  className={`flex min-h-11 w-full items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-50 ${action.danger ? "text-ui-danger hover:bg-ui-danger-soft" : "text-ui-text hover:bg-ui-subtle"}`}
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <span>{action.label}</span>

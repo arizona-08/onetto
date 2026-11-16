@@ -29,7 +29,7 @@ const toneClass: Record<Tone, string> = {
   paid: "bg-emerald-50 text-emerald-600",
   pending: "bg-amber-50 text-amber-600",
   overdue: "bg-red-50 text-red-600",
-  draft: "bg-zinc-100 text-zinc-600",
+  draft: "bg-ui-subtle text-ui-secondary",
 };
 
 export default function InvoiceStatsOverview({
@@ -44,7 +44,7 @@ export default function InvoiceStatsOverview({
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}
-        className="flex min-h-12 w-full items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 text-left text-sm font-semibold text-zinc-800 sm:hidden"
+        className="flex min-h-12 w-full items-center justify-between rounded-ui-control border border-ui-border bg-ui-surface px-4 text-left text-sm font-semibold text-ui-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary sm:hidden"
         aria-expanded={isOpen}
         aria-controls="invoice-stats"
       >
@@ -63,12 +63,12 @@ export default function InvoiceStatsOverview({
           return (
             <article
               key={stat}
-              className="rounded-2xl border border-zinc-200 bg-white p-5"
+              className="min-w-0 rounded-ui-card border border-ui-border bg-ui-surface p-5 shadow-ui-card sm:p-6"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-zinc-500">{label}</p>
-                  <p className="mt-2 font-title text-3xl font-semibold text-zinc-900">
+                  <p className="text-sm font-medium text-ui-secondary">{label}</p>
+                  <p className="mt-3 font-title text-2xl font-semibold tracking-tight text-ui-text [font-variant-numeric:tabular-nums] sm:text-[26px]">
                     {value.totalAmount.toLocaleString("fr-FR", {
                       style: "currency",
                       currency: "EUR",
@@ -81,7 +81,7 @@ export default function InvoiceStatsOverview({
                   <Icon className="h-5 w-5" aria-hidden="true" />
                 </span>
               </div>
-              <p className="mt-5 text-sm text-zinc-500">
+              <p className="mt-5 text-sm text-ui-secondary">
                 {value.count} {value.count > 1 ? "factures" : "facture"}
               </p>
             </article>

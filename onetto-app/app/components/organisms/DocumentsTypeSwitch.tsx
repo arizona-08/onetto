@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 
 interface DocumentsTypeSwitchProps {
   estimates: ReactNode;
@@ -23,29 +23,33 @@ export default function DocumentsTypeSwitch({
   const [activeType, setActiveType] = useState<DocumentType>("invoices");
 
   return (
-    <div className="mt-6">
+    <div className="mt-7">
       <div
-        className="inline-flex rounded-xl bg-zinc-100 p-1"
+        className="inline-flex items-center rounded-ui-control bg-ui-background p-1"
         role="group"
         aria-label="Type de documents à afficher"
       >
-        {options.map((option) => {
+        {options.map((option, index) => {
           const isActive = activeType === option.value;
 
           return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setActiveType(option.value)}
-              aria-pressed={isActive}
-              className={`rounded-lg px-5 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
-                isActive
-                  ? "bg-white text-zinc-900"
-                  : "text-zinc-500 hover:text-zinc-900"
-              }`}
-            >
-              {option.label}
-            </button>
+            <Fragment key={option.value}>
+              {index > 0 && (
+                <span aria-hidden="true" className="mx-2 h-5 w-px shrink-0 bg-ui-control/40" />
+              )}
+              <button
+                type="button"
+                onClick={() => setActiveType(option.value)}
+                aria-pressed={isActive}
+                className={`min-h-10 rounded-lg px-5 py-2 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary ${
+                  isActive
+                    ? "bg-ui-primary-soft text-ui-primary shadow-[inset_0_-2px_0_0_currentColor]"
+                    : "bg-ui-background text-ui-secondary hover:text-ui-text"
+                }`}
+              >
+                {option.label}
+              </button>
+            </Fragment>
           );
         })}
       </div>

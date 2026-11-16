@@ -5,6 +5,7 @@ import {
   Archive,
   Bell,
   Building,
+  ChevronDown,
   FileChartColumnIncreasing,
   LayoutDashboardIcon,
   LogOut,
@@ -26,22 +27,34 @@ import {
 } from "@/lib/companies/company-events";
 import { useToast } from "./context/ToastContext";
 
-const userLinks = [
+const salesLinks = [
+  { name: "Devis & factures", href: "/documents" },
+  { name: "Mes clients", href: "/customers" },
+  { name: "Produits & services", href: "/services" },
+];
+
+type NavigationLink = {
+  name: string;
+  href: string;
+  icon: React.ReactNode;
+  children?: typeof salesLinks;
+};
+
+const userLinks: NavigationLink[] = [
   { name: "Dashboard", href: "/dashboard", icon: <LayoutDashboardIcon /> },
   {
-    name: "Factures & Devis",
+    name: "Ventes",
     href: "/documents",
     icon: <FileChartColumnIncreasing />,
+    children: salesLinks,
   },
   { name: "Mes entreprises", href: "/my-companies", icon: <Building /> },
-  { name: "Mes Clients", href: "/customers", icon: <UserIcon /> },
-  { name: "Mes Biens & Services", href: "/services", icon: <Waypoints /> },
   { name: "Notifications", href: "/notifications", icon: <Bell /> },
   { name: "Archives", href: "/archives", icon: <Archive /> },
   { name: "Paramètres", href: "/settings/account", icon: <SettingsIcon /> },
 ];
 
-const adminLinks = [
+const adminLinks: NavigationLink[] = [
   { name: "Dashboard", href: "/admin", icon: <LayoutDashboardIcon /> },
   { name: "Utilisateurs", href: "/admin/users", icon: <UserIcon /> },
   { name: "Entreprises", href: "/admin/companies", icon: <Building /> },
@@ -63,6 +76,11 @@ function TopSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const appUserRole = user?.appUserRole;
+  const [isSalesOpen, setIsSalesOpen] = React.useState(() =>
+    salesLinks.some((link) =>
+      pathname === link.href || pathname.startsWith(link.href + "/"),
+    ),
+  );
 
   async function handleLogout() {
     const response = await logout();
@@ -265,6 +283,47 @@ function TopSidebar() {
         <nav className="mt-2" aria-label="Navigation principale">
           <ul className="px-2 lg:px-0">
             {links.map((link) => {
+              if ("children" in link && link.children) {
+                const hasCurrentSalesPage = link.children.some(
+                  (child) =>
+                    pathname === child.href ||
+                    pathname.startsWith(child.href + "/"),
+                );
+                return (
+                  <li key={link.name} className="mb-1">
+                    <button
+                      type="button"
+                      aria-expanded={isSalesOpen}
+                      aria-controls="sales-navigation"
+                      onClick={() => setIsSalesOpen((open) => !open)}
+                      className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary ${hasCurrentSalesPage ? "font-semibold text-ui-text" : "font-medium text-ui-text hover:bg-ui-subtle"}`}
+                    >
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center [&_svg]:h-5 [&_svg]:w-5 [&_svg]:stroke-[1.75]">{link.icon}</span>
+                      <span className="min-w-0 flex-1 truncate">{link.name}</span>
+                      <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${isSalesOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+                    </button>
+                    {isSalesOpen && (
+                      <ul id="sales-navigation" className="mt-1 space-y-1 pl-8">
+                        {link.children.map((child) => {
+                          const isCurrent = pathname === child.href || pathname.startsWith(child.href + "/");
+                          return (
+                            <li key={child.href}>
+                              <Link
+                                href={child.href}
+                                aria-current={isCurrent ? "page" : undefined}
+                                onClick={() => setIsOpen(false)}
+                                className={`block min-h-10 rounded-xl px-3 py-2 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary ${isCurrent ? "bg-ui-primary-soft font-semibold text-ui-primary" : "text-ui-secondary hover:bg-ui-subtle hover:text-ui-text"}`}
+                              >
+                                {child.name}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                );
+              }
               const isCurrentPathName = hasAdminAccess
                 ? pathname === link.href ||
                   (link.href !== "/admin" &&
