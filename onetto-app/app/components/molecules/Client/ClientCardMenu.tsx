@@ -46,17 +46,19 @@ function ClientCardMenu({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+        className="flex h-8 w-8 items-center justify-center rounded-lg bg-ui-subtle text-ui-secondary transition-colors hover:bg-ui-primary-soft hover:text-ui-primary focus-visible:outline-2 focus-visible:outline-ui-primary"
         aria-label="Actions du client"
+        aria-expanded={isOpen}
       >
         <EllipsisVertical className="h-5 w-5" />
       </button>
 
       <div
-        className={`${isOpen ? "block" : "hidden"} absolute right-0 top-full z-10 mt-1 w-40 rounded-xl border border-zinc-200 bg-white p-1`}
+        className={`${isOpen ? "block" : "hidden"} absolute right-0 top-full z-20 mt-1 w-40 rounded-ui-control border border-ui-border bg-ui-surface p-1 shadow-ui-popover`}
       >
         <button
-          className="block w-full text-left px-4 py-2 text-sm text-zinc-700 rounded-md hover:bg-zinc-100"
+          type="button"
+          className="block w-full rounded-lg px-4 py-2 text-left text-sm text-ui-text hover:bg-ui-subtle"
           onClick={() => {
             setIsOpen(false);
             triggerEdit?.(clientId);
@@ -65,7 +67,8 @@ function ClientCardMenu({
           Modifier
         </button>
         <button
-          className="block w-full text-left px-4 py-2 text-sm text-red-500 rounded-md hover:bg-zinc-100"
+          type="button"
+          className="block w-full rounded-lg px-4 py-2 text-left text-sm text-ui-danger hover:bg-ui-danger-soft"
           onClick={() => {
             setIsOpen(false);
             triggerDelete?.(clientId);

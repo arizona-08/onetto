@@ -4,6 +4,7 @@ import {
   getMyCompaniesServer,
 } from "@/lib/companies/companies.server";
 import React from "react";
+import { Wrench } from "lucide-react";
 
 async function services() {
   const [companiesResponse, servicesResponse] = await Promise.all([
@@ -30,15 +31,20 @@ async function services() {
     : [];
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-4">
-      <h1 className="text-4xl font-semibold font-title">
-        Mon catalogue de services
-      </h1>
-
-      <p className="text-gray-500 max-w-90 mt-3">
-        Gérer vos services et gagnez du temps lors de la création de vos
-        factures.
-      </p>
+    <div className="mx-auto w-full max-w-[1440px] px-4 py-7 sm:px-7 lg:px-9">
+      <header className="flex items-start gap-4">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-ui-control bg-ui-primary-soft text-ui-primary">
+          <Wrench className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <div>
+          <h1 className="font-title text-3xl font-semibold tracking-tight text-ui-text sm:text-4xl">
+            Mon catalogue de services
+          </h1>
+          <p className="mt-1 text-sm text-ui-secondary sm:text-base">
+            Gérez vos produits et services et gagnez du temps lors de la création de vos factures.
+          </p>
+        </div>
+      </header>
 
       {!canCreate && (
         <p className="mt-4 rounded-lg border border-red-100 bg-red-50/70 p-4 text-sm text-zinc-700">

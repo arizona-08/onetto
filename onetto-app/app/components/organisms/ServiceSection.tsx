@@ -1,6 +1,5 @@
 "use client";
 import { Service } from "@/app/types";
-import { Plus } from "lucide-react";
 import React from "react";
 import ServiceCard from "../molecules/Service/ServiceCard";
 import AddServiceForm from "../molecules/Service/AddServiceForm";
@@ -11,6 +10,7 @@ import {
   updateActiveCompanyService,
 } from "@/lib/companies/catalog";
 import { useToast } from "../context/ToastContext";
+import CatalogToolbar, { type CatalogView } from "../molecules/CatalogToolbar";
 
 interface ServiceSectionProps {
   services: Service[];
@@ -28,7 +28,34 @@ function ServiceSection({ services, canCreate }: ServiceSectionProps) {
     null,
   );
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  const deferredSearch = React.useDeferredValue(search);
+  const [filter, setFilter] = React.useState("all");
+  const [sort, setSort] = React.useState("name-asc");
+  const [view, setView] = React.useState<CatalogView>("grid");
   const { showToast } = useToast();
+  const collator = React.useMemo(() => new Intl.Collator("fr", { sensitivity: "base" }), []);
+  const searchedServices = React.useMemo(() => {
+    const query = deferredSearch.trim().toLocaleLowerCase("fr");
+    return masterServiceList
+      .filter((service) => !query || [service.name, service.description, service.category, service.unit]
+        .some((value) => value?.toLocaleLowerCase("fr").includes(query)));
+  }, [masterServiceList, deferredSearch]);
+  const filters = React.useMemo(() => [
+    { value: "all", label: "Tout", count: searchedServices.length },
+    { value: "SERVICES", label: "Services", count: searchedServices.filter((service) => service.itemType === "SERVICES").length },
+    { value: "GOODS", label: "Produits", count: searchedServices.filter((service) => service.itemType === "GOODS").length },
+  ], [searchedServices]);
+  const visibleServices = React.useMemo(() => {
+    return searchedServices
+      .filter((service) => filter === "all" || service.itemType === filter)
+      .sort((a, b) => {
+        if (sort === "price-asc" || sort === "price-desc") {
+          return (sort === "price-asc" ? 1 : -1) * (Number(a.unitPrice) - Number(b.unitPrice));
+        }
+        return (sort === "name-desc" ? -1 : 1) * collator.compare(a.name, b.name);
+      });
+  }, [searchedServices, filter, sort, collator]);
 
   async function handleAddService(newService: Service) {
     const response = await createActiveCompanyService(newService);
@@ -103,6 +130,7 @@ function ServiceSection({ services, canCreate }: ServiceSectionProps) {
   return (
     <>
       <AddServiceForm
+        key={serviceToEdit?.id ?? "new-service"}
         isActive={isAddFormActive}
         setIsActive={setIsAddFormActive}
         onClose={() => setServiceToEdit(null)}
@@ -126,32 +154,52 @@ function ServiceSection({ services, canCreate }: ServiceSectionProps) {
         </div>
       )}
       <div>
-        <button
-          onClick={() => {
+        <CatalogToolbar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Rechercher un produit ou un service…"
+          filters={filters}
+          filter={filter}
+          onFilterChange={setFilter}
+          sort={sort}
+          sortOptions={[
+            { value: "name-asc", label: "Trier par : Nom (A → Z)" },
+            { value: "name-desc", label: "Trier par : Nom (Z → A)" },
+            { value: "price-asc", label: "Trier par : Prix croissant" },
+            { value: "price-desc", label: "Trier par : Prix décroissant" },
+          ]}
+          onSortChange={setSort}
+          view={view}
+          onViewChange={setView}
+          resultCount={visibleServices.length}
+          resultName="produit ou service"
+          resultPlural="produits ou services"
+          addLabel="Ajouter un produit ou service"
+          onAdd={() => {
             setServiceToEdit(null);
             setIsAddFormActive(true);
           }}
-          disabled={!canCreate}
-          title={canCreate ? undefined : "L’entreprise active est fermée"}
-          aria-disabled={!canCreate}
-          className={`font-medium py-2 px-4 rounded flex items-center gap-2 mt-6 ${canCreate ? "bg-primary hover:bg-primary-hover text-white" : "cursor-not-allowed bg-zinc-200 text-zinc-500"}`}
-        >
-          <Plus className="w-4 h-4" />
-          Ajouter un service
-        </button>
+          canCreate={canCreate}
+        />
 
-        <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-          {/* Render your list of services here */}
-          {masterServiceList.map((service) => (
-            <li key={service.id} className="h-full">
-              <ServiceCard
-                service={service}
-                triggerEdit={handleTriggerEdit}
-                triggerDelete={handleTriggerDelete}
-              />
-            </li>
-          ))}
-        </ul>
+        {visibleServices.length === 0 ? (
+          <div className="mt-6 rounded-ui-card border border-ui-border bg-ui-surface p-8 text-center text-sm text-ui-secondary">
+            {masterServiceList.length === 0 ? "Aucun produit ou service dans ce catalogue." : "Aucun résultat ne correspond à votre recherche."}
+          </div>
+        ) : (
+          <ul className={`mt-5 grid gap-4 ${view === "grid" ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+            {visibleServices.map((service) => (
+              <li key={service.id} className="h-full">
+                <ServiceCard
+                  service={service}
+                  triggerEdit={handleTriggerEdit}
+                  triggerDelete={handleTriggerDelete}
+                  view={view}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </>
   );

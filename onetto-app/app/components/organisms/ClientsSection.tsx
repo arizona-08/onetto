@@ -1,6 +1,5 @@
 "use client";
 import { Client } from "@/app/types";
-import { Plus } from "lucide-react";
 import React from "react";
 import ClientCard from "../molecules/Client/ClientCard";
 import AddClientForm from "../molecules/Client/AddClientForm";
@@ -11,6 +10,7 @@ import {
   updateActiveCompanyClient,
 } from "@/lib/companies/catalog";
 import { useToast } from "../context/ToastContext";
+import CatalogToolbar, { type CatalogView } from "../molecules/CatalogToolbar";
 
 interface ClientSectionProps {
   clients: Client[];
@@ -26,7 +26,26 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
     null,
   );
   const [isDeleting, setIsDeleting] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  const deferredSearch = React.useDeferredValue(search);
+  const [filter, setFilter] = React.useState("all");
+  const [sort, setSort] = React.useState("name-asc");
+  const [view, setView] = React.useState<CatalogView>("grid");
   const { showToast } = useToast();
+  const collator = React.useMemo(() => new Intl.Collator("fr", { sensitivity: "base" }), []);
+  const filters = React.useMemo(() => [
+    { value: "all", label: "Tous", count: masterClientList.length },
+    { value: "BUSINESS", label: "Entreprise", count: masterClientList.filter((client) => client.clientType === "BUSINESS").length },
+    { value: "CLIENT", label: "Particulier", count: masterClientList.filter((client) => client.clientType === "CLIENT").length },
+  ], [masterClientList]);
+  const visibleClients = React.useMemo(() => {
+    const query = deferredSearch.trim().toLocaleLowerCase("fr");
+    return masterClientList
+      .filter((client) => filter === "all" || client.clientType === filter)
+      .filter((client) => !query || [client.name, client.email, client.city, client.siren, client.vatNumber]
+        .some((value) => value?.toLocaleLowerCase("fr").includes(query)))
+      .sort((a, b) => (sort === "name-desc" ? -1 : 1) * collator.compare(a.name, b.name));
+  }, [masterClientList, deferredSearch, filter, sort, collator]);
 
   async function handleAddClient(newClient: Client) {
     const response = await createActiveCompanyClient(newClient);
@@ -97,6 +116,7 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
   return (
     <>
       <AddClientForm
+        key={clientToEdit?.id ?? "new-client"}
         isActive={isAddFormActive}
         setIsActive={setIsAddFormActive}
         onClose={() => setClientToEdit(null)}
@@ -120,32 +140,46 @@ function ClientSection({ clients, canCreate }: ClientSectionProps) {
         </div>
       )}
       <div>
-        <button
-          onClick={() => {
+        <CatalogToolbar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Rechercher un client…"
+          filters={filters}
+          filter={filter}
+          onFilterChange={setFilter}
+          sort={sort}
+          sortOptions={[{ value: "name-asc", label: "Trier par : Nom (A → Z)" }, { value: "name-desc", label: "Trier par : Nom (Z → A)" }]}
+          onSortChange={setSort}
+          view={view}
+          onViewChange={setView}
+          resultCount={visibleClients.length}
+          resultName="client"
+          addLabel="Ajouter un client"
+          onAdd={() => {
             setClientToEdit(null);
             setIsAddFormActive(true);
           }}
-          disabled={!canCreate}
-          title={canCreate ? undefined : "L’entreprise active est fermée"}
-          aria-disabled={!canCreate}
-          className={`font-medium py-2 px-4 rounded flex items-center gap-2 mt-6 ${canCreate ? "bg-primary hover:bg-primary-hover text-white" : "cursor-not-allowed bg-zinc-200 text-zinc-500"}`}
-        >
-          <Plus className="w-4 h-4" />
-          Ajouter un client
-        </button>
+          canCreate={canCreate}
+        />
 
-        <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-          {/* Render your list of clients here */}
-          {masterClientList.map((client) => (
-            <li key={client.id} className="h-full">
-              <ClientCard
-                client={client}
-                triggerEdit={handleTriggerEdit}
-                triggerDelete={handleTriggerDelete}
-              />
-            </li>
-          ))}
-        </ul>
+        {visibleClients.length === 0 ? (
+          <div className="mt-6 rounded-ui-card border border-ui-border bg-ui-surface p-8 text-center text-sm text-ui-secondary">
+            {masterClientList.length === 0 ? "Aucun client dans ce catalogue." : "Aucun client ne correspond à votre recherche."}
+          </div>
+        ) : (
+          <ul className={`mt-5 grid gap-4 ${view === "grid" ? "sm:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
+            {visibleClients.map((client) => (
+              <li key={client.id} className="h-full">
+                <ClientCard
+                  client={client}
+                  triggerEdit={handleTriggerEdit}
+                  triggerDelete={handleTriggerDelete}
+                  view={view}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </>
   );
