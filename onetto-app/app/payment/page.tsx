@@ -27,8 +27,8 @@ export default async function PaymentPage({
 
 function PaymentError({ message }: { message: string }) {
   return (
-    <main className="grid min-h-screen place-items-center bg-zinc-50 p-6">
-      <p className="rounded-xl bg-white px-5 py-4 text-sm text-zinc-600">
+    <main className="grid min-h-dvh place-items-center bg-ui-background p-6">
+      <p role="alert" className="rounded-ui-card border border-ui-border bg-ui-surface px-6 py-5 text-sm text-ui-secondary shadow-ui-card">
         {message}
       </p>
     </main>

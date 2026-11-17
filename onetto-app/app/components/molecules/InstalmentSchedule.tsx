@@ -32,32 +32,32 @@ export default function InstalmentSchedule({
 
   return (
     <section
-      className={`rounded-xl border border-zinc-200 bg-zinc-50 p-4 ${className}`}
+      className={`rounded-ui-control border border-ui-border bg-ui-subtle p-4 sm:p-5 ${className}`}
     >
-      <h2 className="font-semibold text-zinc-900">
+      <h2 className="font-title text-sm font-semibold text-ui-text">
         Échéancier des prélèvements
       </h2>
-      <div className="mt-3 space-y-2 text-sm">
+      <div className="mt-3 divide-y divide-ui-border text-sm">
         {instalments.map((instalment) => (
           <div
             key={instalment.instalmentNumber}
-            className={`grid gap-1 border-t border-zinc-200 pt-2 sm:items-center sm:gap-4 ${
+            className={`grid gap-1 py-3 first:pt-0 last:pb-0 sm:items-center sm:gap-4 ${
               showStatus
                 ? "sm:grid-cols-[minmax(7rem,1fr)_minmax(10rem,1.4fr)_auto_auto]"
                 : "sm:grid-cols-[minmax(7rem,1fr)_minmax(10rem,1.4fr)_auto]"
             }`}
           >
-            <span className="font-medium text-zinc-800">
+            <span className="font-semibold text-ui-text">
               Échéance {instalment.instalmentNumber}
             </span>
-            <span className="text-zinc-600">
+            <span className="text-ui-secondary">
               Prélèvement prévu le {formatDate(instalment.dueDate)}
             </span>
-            <span className="font-semibold text-zinc-900">
+            <span className="font-semibold tabular-nums text-ui-text">
               {formatCurrency(instalment.amountInCents / 100)}
             </span>
             {showStatus && instalment.instalmentStatus && (
-              <span className="text-zinc-600">
+              <span className="text-ui-secondary">
                 {statusLabels[instalment.instalmentStatus]}
               </span>
             )}
