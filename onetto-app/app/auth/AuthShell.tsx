@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
 import React from "react";
+import AuthBrand from "./AuthBrand";
 
 interface AuthShellProps {
   title: string;
@@ -18,12 +18,7 @@ function AuthShell({ title, subtitle, children, appearance = "default" }: AuthSh
     >
       <div className={modern ? "mx-auto flex min-h-[calc(100dvh-5rem)] w-full items-center justify-center" : "mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-6xl items-center justify-center"}>
         <section className={modern ? "w-full max-w-xl" : "w-full max-w-2xl"}>
-          <Link
-            href="/"
-            className={modern ? "mb-8 flex items-center justify-center gap-2.5 font-title text-3xl font-semibold tracking-tight text-ui-text" : "mb-5 block font-title text-center text-3xl font-bold text-primary"}
-          >
-            {modern ? <><Image src="/logos/Onetto logo purple.svg" alt="" width={42} height={42} unoptimized />Onetto</> : "ONETTO"}
-          </Link>
+          {modern ? <AuthBrand /> : <Link href="/" className="mb-5 block font-title text-center text-3xl font-bold text-primary">ONETTO</Link>}
 
           <div className={modern ? "rounded-ui-card border border-ui-border bg-ui-surface p-6 shadow-ui-popover sm:p-8" : "rounded-lg bg-white p-6 sm:p-8"}>
             <div className={modern ? "mb-6" : "mb-8"}>

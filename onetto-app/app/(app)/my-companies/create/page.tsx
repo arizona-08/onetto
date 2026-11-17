@@ -9,21 +9,21 @@ function CreateCompanyPage() {
   const router = useRouter();
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-4">
+    <div className="mx-auto w-full max-w-5xl px-4 py-7 sm:px-7 lg:px-9">
       <Link
         href="/my-companies"
-        className="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-primary"
+        className="inline-flex items-center gap-2 text-sm font-medium text-ui-secondary hover:text-ui-primary"
       >
         <ArrowLeft className="h-4 w-4" /> Retour aux entreprises
       </Link>
-      <div className="mt-5 max-w-4xl">
-        <h1 className="font-title text-2xl font-semibold">
+      <div className="mt-5">
+        <h1 className="font-title text-3xl font-semibold tracking-tight text-ui-text">
           Ajouter une entreprise
         </h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-ui-secondary">
           Cette entreprise deviendra votre entreprise active après sa création.
         </p>
-        <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50">
+        <div className="mt-6">
           <CreateCompanyForm
             onCancel={() => router.push("/my-companies")}
             onSuccess={() => {

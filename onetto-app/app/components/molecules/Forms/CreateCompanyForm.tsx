@@ -20,6 +20,8 @@ import { notifyCompanyUpdated } from "@/lib/companies/company-events";
 import { useToast } from "../../context/ToastContext";
 import { refreshAuthenticationCookies } from "@/lib/auth/auth";
 import React, { useEffect, useState } from "react";
+import { BadgePercent, Building2, FileText, Landmark, MapPin } from "lucide-react";
+import CompanyFormSection from "./CompanyFormSection";
 
 interface CreateCompanyFormProps {
   companyToEdit?: Company;
@@ -75,9 +77,9 @@ function CreateCompanyForm({
   const [error, setError] = useState<string | null>(null);
 
   const inputClassName =
-    "rounded-md border border-zinc-200 bg-custom-gray-light px-4 py-3 text-sm text-zinc-800 outline-none transition-colors focus:border-primary focus:bg-white";
+    "min-h-11 w-full rounded-ui-control border border-ui-border bg-ui-surface px-3.5 py-2 text-sm text-ui-text outline-none transition-colors placeholder:text-ui-secondary/70 focus:border-ui-primary focus:ring-2 focus:ring-ui-primary/15 disabled:cursor-not-allowed disabled:bg-ui-subtle disabled:text-ui-secondary";
   const labelClassName =
-    "font-title text-xs font-semibold uppercase tracking-wide text-zinc-600";
+    "text-sm font-medium text-ui-text";
 
   useEffect(() => {
     if (!companyToEdit) return;
@@ -296,13 +298,10 @@ function CreateCompanyForm({
   }
 
   return (
-    <form className="space-y-5 p-6 bg-white rounded-md" onSubmit={handleSubmit}>
-      <h2 className="text-lg font-semibold text-zinc-800">
-        Renseignez les informations de votre entreprise
-      </h2>
+    <form className="space-y-5" onSubmit={handleSubmit}>
 
       {companyToEdit && (
-        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+        <div className="rounded-ui-card border border-ui-primary/20 bg-ui-primary-soft p-5 shadow-ui-card">
           <p className="text-sm font-semibold text-zinc-800">
             Facturation électronique
           </p>
@@ -454,12 +453,13 @@ function CreateCompanyForm({
       {error && (
         <p
           role="alert"
-          className="rounded-md bg-red-50 p-3 text-sm text-red-700"
+          className="rounded-ui-control bg-ui-danger-soft p-3 text-sm text-ui-danger"
         >
           {error}
         </p>
       )}
 
+      <CompanyFormSection title="Informations générales" description="Identité et coordonnées de votre entreprise." icon={Building2}>
       <div className="flex flex-col gap-2">
         <label htmlFor="name" className={labelClassName}>
           Nom de l&apos;entreprise
@@ -509,7 +509,9 @@ function CreateCompanyForm({
           />
         </div>
       </div>
+      </CompanyFormSection>
 
+      <CompanyFormSection title="Identifiants et facturation" description="Informations légales et adresse de facturation électronique." icon={FileText}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <label htmlFor="electronicAddress" className={labelClassName}>
@@ -525,10 +527,10 @@ function CreateCompanyForm({
             placeholder={companyInfos.electronicAddressScheme === "PEPPOL" ? "Ex. : 0225:123456789" : "Adresse enregistrée dans l’annuaire"}
             className={inputClassName}
           />
-          <p className="text-xs text-zinc-500">Utilisez l’adresse de facturation de votre entreprise. Pour Peppol, conservez le schéma suivi de « : » et de l’identifiant.</p>
+          <p className="text-xs leading-5 text-ui-secondary">Utilisez l’adresse de facturation de votre entreprise. Pour Peppol, conservez le schéma suivi de « : » et de l’identifiant.</p>
           {companyToEdit && superPdpConnection?.status === "ACTIVE" && (
             <button type="button" onClick={() => void loadSuperPdpAddresses()} disabled={isLoadingDirectory}
-              className="text-left text-sm font-semibold text-primary disabled:opacity-60">
+              className="text-left text-sm font-semibold text-ui-primary hover:text-ui-primary-hover disabled:opacity-60">
               {isLoadingDirectory ? "Chargement…" : "Charger mes adresses SuperPDP"}
             </button>
           )}
@@ -636,7 +638,9 @@ function CreateCompanyForm({
           />
         </div>
       </div>
+      </CompanyFormSection>
 
+      <CompanyFormSection title="Adresse de l’entreprise" description="Adresse affichée sur vos documents commerciaux." icon={MapPin}>
       <div className="flex flex-col gap-2">
         <label htmlFor="address" className={labelClassName}>
           Adresse
@@ -702,28 +706,30 @@ function CreateCompanyForm({
           />
         </div>
       </div>
+      </CompanyFormSection>
 
-      <label className="flex items-start gap-2 text-xs leading-5 text-zinc-500">
+      <CompanyFormSection title="TVA" description="Précisez les règles applicables à votre entreprise." icon={BadgePercent}>
+      <label className="flex w-fit max-w-full items-start gap-3 text-sm leading-5 text-ui-secondary">
         <input
           id="subjectToVat"
           name="subjectToVat"
           type="checkbox"
           checked={companyInfos.subjectToVat}
           onChange={handleInputChange}
-          className="mt-1 h-4 w-4 rounded border-zinc-300 accent-primary"
+          className="mt-0.5 h-4 w-4 shrink-0 rounded border-ui-border accent-ui-primary"
         />
         <span>Cette entreprise est assujettie à la TVA.</span>
       </label>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="flex items-start gap-2 text-xs leading-5 text-zinc-500">
+        <label className="flex w-fit max-w-full items-start gap-3 self-start justify-self-start text-sm leading-5 text-ui-secondary">
           <input
             id="isVatExempt"
             name="isVatExempt"
             type="checkbox"
             checked={companyInfos.isVatExempt}
             onChange={handleInputChange}
-            className="mt-1 h-4 w-4 rounded border-zinc-300 accent-primary"
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-ui-border accent-ui-primary"
           />
           <span>Cette entreprise bénéficie d&apos;une exonération de TVA.</span>
         </label>
@@ -743,7 +749,7 @@ function CreateCompanyForm({
             <option value="ON_COLLECTION">À l’encaissement</option>
             <option value="ON_DEBITS">Sur les débits / à la facturation</option>
           </select>
-          <p className="text-xs leading-5 text-zinc-500">
+          <p className="text-xs leading-5 text-ui-secondary">
             Ce choix sert uniquement à savoir si les paiements doivent être
             déclarés. En cas de doute, vérifiez auprès de votre
             expert-comptable.
@@ -768,7 +774,9 @@ function CreateCompanyForm({
           />
         </div>
       )}
+      </CompanyFormSection>
 
+      <CompanyFormSection title="Coordonnées bancaires" description="Utilisées pour les règlements et les documents de facturation." icon={Landmark}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <label htmlFor="bank" className={labelClassName}>
@@ -816,13 +824,14 @@ function CreateCompanyForm({
           />
         </div>
       </div>
+      </CompanyFormSection>
 
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-3 rounded-ui-card border border-ui-border bg-ui-surface p-5 shadow-ui-card sm:flex-row sm:justify-end">
         {onCancel && (
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700"
+            className="min-h-11 rounded-ui-control border border-ui-border px-4 py-2 text-sm font-semibold text-ui-text transition-colors hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-ui-primary"
           >
             Annuler
           </button>
@@ -830,7 +839,7 @@ function CreateCompanyForm({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="rounded-md bg-primary px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+          className="min-h-11 rounded-ui-control bg-ui-primary px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-ui-primary-hover focus-visible:outline-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting
             ? "Enregistrement…"

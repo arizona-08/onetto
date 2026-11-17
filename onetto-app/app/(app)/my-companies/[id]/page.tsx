@@ -296,7 +296,7 @@ function MyCompanyPage() {
               <p className="mt-1 text-sm text-zinc-500">
                 Mettez à jour les informations de votre entreprise.
               </p>
-              <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50">
+              <div className="mt-4">
                 <CreateCompanyForm
                   companyToEdit={company}
                   onCancel={() => router.push("/my-companies")}
