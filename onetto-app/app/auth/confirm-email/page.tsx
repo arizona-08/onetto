@@ -21,9 +21,6 @@ function ConfirmEmailContent() {
 
   useEffect(() => {
     if (!token) {
-      setMessage(
-        "Ce lien de confirmation est incomplet. Demandez-en un nouveau.",
-      );
       return;
     }
 
@@ -39,12 +36,13 @@ function ConfirmEmailContent() {
 
   return (
     <AuthShell
+      appearance="modern"
       title={isConfirmed ? "Adresse confirmée" : "Confirmation de l’e-mail"}
-      subtitle={message}
+      subtitle={token ? message : "Ce lien de confirmation est incomplet. Demandez-en un nouveau."}
     >
       <Link
         href={isConfirmed ? "/auth/login" : "/auth/check-email"}
-        className="block w-full rounded-md bg-primary px-4 py-3 text-center text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+        className="flex h-11 w-full items-center justify-center rounded-ui-control bg-ui-primary px-4 text-center text-sm font-semibold text-white shadow-ui-card transition-colors hover:bg-ui-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary"
       >
         {isConfirmed ? "Se connecter" : "Demander un nouveau lien"}
       </Link>

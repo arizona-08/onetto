@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import AuthShell from "../AuthShell";
 import { resendEmailVerification } from "@/lib/auth/auth";
 import { ApiError } from "@/lib/api";
+import { AuthFeedback } from "../AuthFormUI";
 
 function getErrorMessage(error: ApiError): string {
   return Array.isArray(error.message) ? error.message.join(" ") : error.message;
@@ -41,13 +42,14 @@ function CheckEmailContent() {
 
   return (
     <AuthShell
+      appearance="modern"
       title="Confirmez votre e-mail"
       subtitle="Nous vous avons envoyé un lien d’activation."
     >
-      <div className="space-y-5 text-sm text-zinc-600">
+      <div className="space-y-5 text-sm text-ui-secondary">
         <p>
           Ouvrez l’e-mail envoyé à{" "}
-          <strong className="text-zinc-800">
+          <strong className="font-semibold text-ui-text">
             {email || "votre adresse e-mail"}
           </strong>
           , puis cliquez sur le lien pour activer votre compte.
@@ -56,23 +58,17 @@ function CheckEmailContent() {
           type="button"
           disabled={isLoading}
           onClick={resend}
-          className="w-full rounded-md border border-primary px-4 py-3 font-semibold text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-70"
+          className="h-11 w-full rounded-ui-control border border-ui-primary bg-ui-surface px-4 font-semibold text-ui-primary transition-colors hover:bg-ui-primary-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isLoading ? "Envoi en cours..." : "Renvoyer l’e-mail"}
         </button>
-        {status && (
-          <p className="rounded-md bg-green-50 px-4 py-3 text-green-700">
-            {status}
-          </p>
-        )}
-        {error && (
-          <p className="rounded-md bg-red-50 px-4 py-3 text-red-700">{error}</p>
-        )}
+        {status && <AuthFeedback kind="success">{status}</AuthFeedback>}
+        {error && <AuthFeedback kind="error">{error}</AuthFeedback>}
         <p>
           Une fois votre adresse confirmée, vous pourrez{" "}
           <Link
             href="/auth/login"
-            className="font-semibold text-primary hover:text-primary-hover"
+            className="font-semibold text-ui-primary hover:text-ui-primary-hover focus-visible:outline-2 focus-visible:outline-ui-primary"
           >
             vous connecter
           </Link>
