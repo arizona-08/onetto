@@ -401,7 +401,7 @@ function DocumentCreator({
         </div>
       )}
 
-      <div className={useEditorLayout ? "grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.22fr)_minmax(0,1fr)] xl:items-start" : ""}>
+      <div className={useEditorLayout ? "grid min-w-0 gap-5 min-[1644px]:grid-cols-[minmax(0,1.22fr)_minmax(0,1fr)] min-[1644px]:items-start" : ""}>
       <fieldset disabled={!canEditDocument} className="min-w-0 space-y-5">
         {(isInvoice || isCreatingInvoice) && (
           <div className={useEditorLayout ? "rounded-ui-card border border-ui-border bg-ui-surface p-5 shadow-ui-card" : "mx-auto mb-5 flex max-w-2xl flex-col gap-1"}>

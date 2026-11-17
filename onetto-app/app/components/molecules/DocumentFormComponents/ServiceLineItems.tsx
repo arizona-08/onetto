@@ -76,6 +76,63 @@ function ServiceLineItems({
     ));
   }
 
+  function renderQuickInput(
+    lineItem: ServiceLineItem,
+    index: number,
+    field: "quantity" | "unitPrice" | "taxRate",
+    fullWidth = false,
+  ) {
+    const labels = {
+      quantity: `Quantité de la ligne ${index + 1}`,
+      unitPrice: `Prix unitaire hors taxe de la ligne ${index + 1} en euros`,
+      taxRate: `TVA de la ligne ${index + 1} en pourcentage`,
+    };
+    const widths = { quantity: "w-11", unitPrice: "w-16", taxRate: "w-11" };
+
+    return (
+      <input
+        type="number"
+        inputMode={field === "quantity" ? "numeric" : "decimal"}
+        min={field === "quantity" ? 1 : 0}
+        max={field === "taxRate" ? 100 : undefined}
+        step={field === "quantity" ? 1 : "0.01"}
+        value={lineItem[field]}
+        disabled={disabled}
+        onChange={(event) => updateLineItem(index, field, event.target.value)}
+        aria-label={labels[field]}
+        className={`quick-line-input ${fullWidth ? "w-full" : widths[field]} rounded-ui-control border border-ui-control bg-ui-surface text-center text-sm text-ui-text focus-visible:outline-2 focus-visible:outline-ui-primary disabled:opacity-50`}
+      />
+    );
+  }
+
+  function renderActions(lineItem: ServiceLineItem, index: number) {
+    return (
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          disabled={disabled}
+          aria-label={`Modifier tous les détails de la ligne ${index + 1}`}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-ui-primary hover:bg-ui-primary-soft focus-visible:outline-2 focus-visible:outline-ui-primary disabled:opacity-50"
+          onClick={() => {
+            setLineItemToModify({ item: lineItem, index });
+            setIsModalVisible(true);
+          }}
+        >
+          <Edit size={16} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          aria-label={`Supprimer la ligne ${index + 1}`}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-ui-danger hover:bg-ui-danger-soft focus-visible:outline-2 focus-visible:outline-ui-danger disabled:opacity-50"
+          onClick={() => deleteLineItem(index)}
+        >
+          <Trash2 size={16} aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <>
       <AddLineItemModal
@@ -114,31 +171,22 @@ function ServiceLineItems({
             </div>
           </header>
 
-          <div className="overflow-x-auto">
-            <table className={`w-full border-collapse text-left ${editorLayout ? "min-w-[790px]" : "min-w-140"}`}>
-              <thead className="border-b border-gray-200  text-sm text-gray-500">
-                <tr className="">
-                  <th className="min-w-[210px] px-3 pb-5 font-semibold font-title tracking-wide">
-                    Description
-                  </th>
-                  <th className="min-w-[80px] px-3 pb-5 font-semibold font-title tracking-wide whitespace-nowrap">
-                    Quantité
-                  </th>
-                  <th className="min-w-[160px] px-3 pb-5 font-semibold font-title tracking-wide whitespace-nowrap">
-                    Prix unitaire
-                  </th>
-                  <th className="min-w-[85px] px-3 pb-5 font-semibold font-title tracking-wide">
-                    TVA
-                  </th>
-                  <th className="min-w-[95px] px-3 pb-5 font-semibold font-title tracking-wide whitespace-nowrap">
-                    Total HT
-                  </th>
-                  <th className="min-w-[95px] px-3 pb-5 font-semibold font-title tracking-wide whitespace-nowrap">
-                    Total TTC
-                  </th>
-                  <th className="min-w-[65px] px-3 pb-5 font-semibold font-title tracking-wide">
-                    Actions
-                  </th>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[680px] table-fixed border-collapse text-left text-xs text-ui-text">
+              <colgroup>
+                <col className="w-[25%]" />
+                <col className="w-[10%]" />
+                <col className="w-[18%]" />
+                <col className="w-[10%]" />
+                <col className="w-[13%]" />
+                <col className="w-[13%]" />
+                <col className="w-[11%]" />
+              </colgroup>
+              <thead className="border-b border-ui-border text-ui-secondary">
+                <tr>
+                  {["Description", "Quantité", "Prix unitaire", "TVA", "Total HT", "Total TTC", "Actions"].map((label) => (
+                    <th key={label} scope="col" className="px-1.5 pb-3 font-semibold whitespace-nowrap">{label}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -146,93 +194,66 @@ function ServiceLineItems({
                   const totalHT = lineItem.unitPrice * lineItem.quantity;
                   const totalTTC = totalHT + totalHT * (lineItem.taxRate / 100);
                   return (
-                    <tr key={index}>
-                      <td className="border-b border-gray-200 px-3 py-4 font-semibold">
-                        {lineItem.description}
-                      </td>
-                      <td className="border-b border-gray-200 px-3 py-4">
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={1}
-                          step={1}
-                          value={lineItem.quantity}
-                          disabled={disabled}
-                          onChange={(event) => updateLineItem(index, "quantity", event.target.value)}
-                          aria-label={`Quantité de la ligne ${index + 1}`}
-                          className="quick-line-input w-12 rounded-ui-control border border-ui-control bg-ui-surface text-center text-sm text-ui-text focus-visible:outline-2 focus-visible:outline-ui-primary disabled:opacity-50"
-                        />
-                      </td>
-                      <td className="border-b border-gray-200 px-3 py-4">
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            min={0}
-                            step="0.01"
-                            value={lineItem.unitPrice}
-                            disabled={disabled}
-                            onChange={(event) => updateLineItem(index, "unitPrice", event.target.value)}
-                            aria-label={`Prix unitaire hors taxe de la ligne ${index + 1} en euros`}
-                            className="quick-line-input w-20 shrink-0 rounded-ui-control border border-ui-control bg-ui-surface text-center text-sm text-ui-text focus-visible:outline-2 focus-visible:outline-ui-primary disabled:opacity-50"
-                          />
-                          <span className="text-xs leading-tight text-ui-secondary">€ / {lineItem.unit}</span>
-                        </div>
-                      </td>
-                      <td className="border-b border-gray-200 px-3 py-4">
+                    <tr key={index} className="border-b border-ui-border align-middle">
+                      <td className="break-words px-1.5 py-3 font-semibold">{lineItem.description}</td>
+                      <td className="px-1.5 py-3">{renderQuickInput(lineItem, index, "quantity")}</td>
+                      <td className="px-1.5 py-3">
                         <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            min={0}
-                            max={100}
-                            step="0.01"
-                            value={lineItem.taxRate}
-                            disabled={disabled}
-                            onChange={(event) => updateLineItem(index, "taxRate", event.target.value)}
-                            aria-label={`TVA de la ligne ${index + 1} en pourcentage`}
-                            className="quick-line-input w-12 shrink-0 rounded-ui-control border border-ui-control bg-ui-surface text-center text-sm text-ui-text focus-visible:outline-2 focus-visible:outline-ui-primary disabled:opacity-50"
-                          />
-                          <span className="text-xs text-ui-secondary">%</span>
+                          {renderQuickInput(lineItem, index, "unitPrice")}
+                          <span className="min-w-0 break-words text-[11px] leading-tight text-ui-secondary">€ / {lineItem.unit}</span>
                         </div>
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-4 whitespace-nowrap">
-                        {totalHT} €
+                      <td className="px-1.5 py-3">
+                        <div className="flex items-center gap-1">
+                          {renderQuickInput(lineItem, index, "taxRate")}
+                          <span className="text-ui-secondary">%</span>
+                        </div>
                       </td>
-                      <td className="border-b border-gray-200 px-3 py-4 font-semibold whitespace-nowrap">
-                        {totalTTC} €
-                      </td>
-                      <td className="border-b border-gray-200 px-3 py-4 whitespace-nowrap">
-                        <button
-                          type="button"
-                          disabled={disabled}
-                          aria-label={`Modifier tous les détails de la ligne ${index + 1}`}
-                          className="text-primary hover:text-primary-hover"
-                          onClick={() => {
-                            setLineItemToModify({ item: lineItem, index });
-                            setIsModalVisible(true);
-                          }}
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={disabled}
-                          aria-label={`Supprimer la ligne ${index + 1}`}
-                          className="text-danger hover:text-danger-hover ml-2"
-                          onClick={() => deleteLineItem(index)}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </td>
+                      <td className="px-1.5 py-3 whitespace-nowrap">{totalHT} €</td>
+                      <td className="px-1.5 py-3 font-semibold whitespace-nowrap">{totalTTC} €</td>
+                      <td className="px-1.5 py-3">{renderActions(lineItem, index)}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
+
+          <div className="space-y-4 md:hidden">
+            {lineItems.map((lineItem, index) => {
+              const totalHT = lineItem.unitPrice * lineItem.quantity;
+              const totalTTC = totalHT + totalHT * (lineItem.taxRate / 100);
+              return (
+                <article key={index} className="rounded-ui-control border border-ui-border bg-ui-surface p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="min-w-0 break-words text-sm font-semibold text-ui-text">{lineItem.description}</h3>
+                    {renderActions(lineItem, index)}
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+                    <label className="min-w-0 text-xs font-medium text-ui-secondary">
+                      Quantité
+                      <span className="mt-1.5 block">{renderQuickInput(lineItem, index, "quantity", true)}</span>
+                    </label>
+                    <label className="min-w-0 text-xs font-medium text-ui-secondary">
+                      Prix unitaire HT (€)
+                      <span className="mt-1.5 block">{renderQuickInput(lineItem, index, "unitPrice", true)}</span>
+                    </label>
+                    <label className="min-w-0 text-xs font-medium text-ui-secondary">
+                      TVA (%)
+                      <span className="mt-1.5 block">{renderQuickInput(lineItem, index, "taxRate", true)}</span>
+                    </label>
+                  </div>
+                  <div className="mt-3 text-xs text-ui-secondary">Unité : {lineItem.unit || "—"}</div>
+                  <div className="mt-4 flex flex-wrap justify-between gap-x-4 gap-y-2 border-t border-ui-border pt-3 text-xs">
+                    <span className="text-ui-secondary">Total HT <strong className="ml-1 text-ui-text">{totalHT} €</strong></span>
+                    <span className="text-ui-secondary">Total TTC <strong className="ml-1 text-ui-text">{totalTTC} €</strong></span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
         </div>
-        <div className={editorLayout ? "mt-5 flex justify-end border-t border-ui-border pt-5" : "mt-10 flex justify-end gap-4"}>
+        <div className={editorLayout ? "mt-5 flex justify-end pt-5" : "mt-10 flex justify-end gap-4"}>
           <div className={editorLayout ? "flex w-full max-w-64 flex-col rounded-ui-control bg-ui-subtle p-4" : "bg-primary/10 p-5 rounded-md flex flex-col items-center gap-5 w-full max-w-100 mx-auto md:mx-0"}>
             <div className="flex flex-col gap-2 w-full">
               <label htmlFor="document-due-date" className="uppercase text-xs font-semibold tracking-wide text-primary/80">

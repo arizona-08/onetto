@@ -49,7 +49,7 @@ function DocumentPreview({
   const totalTTC = totalHT + totalTVA;
 
   return (
-    <div className={editorLayout ? "min-w-0 rounded-ui-card border border-ui-border bg-ui-primary-soft/20 p-4 shadow-ui-card xl:sticky xl:top-5" : "mt-10"}>
+    <div className={editorLayout ? "min-w-0 rounded-ui-card border border-ui-border bg-ui-primary-soft/20 p-4 shadow-ui-card min-[1644px]:sticky min-[1644px]:top-5" : "mt-10"}>
       <div className={editorLayout ? "mb-4 flex items-center justify-between border-b border-ui-border pb-3 text-sm font-semibold text-ui-primary" : "mb-4 flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-sm text-primary"}>
         {!editorLayout && <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />}
         <span>Aperçu {type === "invoice" ? "de la facture" : "du devis"}</span>

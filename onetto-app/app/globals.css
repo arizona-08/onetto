@@ -63,27 +63,52 @@ body {
   overflow-x: hidden;
 }
 
-.document-editor input:not([type="radio"]):not([type="checkbox"]),
-.document-editor select {
-  min-height: 40px;
-  border: 1px solid var(--onetto-border-control);
+.document-editor input:not([type="radio"]):not([type="checkbox"]):not(.quick-line-input),
+.document-editor select,
+.document-editor textarea {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid var(--onetto-border);
   border-radius: 12px;
   background: var(--onetto-surface);
-  padding: 8px 12px;
+  padding: 8px 16px;
   color: var(--onetto-text);
+  font-size: 14px;
+  box-shadow: var(--onetto-shadow-card);
+  outline: none;
+  transition: border-color 150ms, box-shadow 150ms, background-color 150ms;
 }
 
-.document-editor input:focus-visible,
-.document-editor select:focus-visible {
-  outline: 2px solid var(--onetto-primary);
-  outline-offset: 2px;
+.document-editor textarea {
+  min-height: 80px;
+  height: auto;
+  resize: vertical;
+}
+
+.document-editor input::placeholder,
+.document-editor textarea::placeholder {
+  color: var(--onetto-text-secondary);
+  opacity: 0.7;
 }
 
 .document-editor input.quick-line-input:not([type="radio"]):not([type="checkbox"]) {
   min-height: 30px;
+  border: 1px solid var(--onetto-border);
   border-radius: 8px;
+  background: var(--onetto-surface);
   padding: 4px 6px;
+  color: var(--onetto-text);
+  font-size: 14px;
+  box-shadow: var(--onetto-shadow-card);
   appearance: textfield;
+}
+
+.document-editor input:not([type="radio"]):not([type="checkbox"]):focus,
+.document-editor select:focus,
+.document-editor textarea:focus {
+  border-color: var(--onetto-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--onetto-primary) 15%, transparent), var(--onetto-shadow-card);
+  outline: none;
 }
 
 .document-editor input.quick-line-input::-webkit-inner-spin-button,
