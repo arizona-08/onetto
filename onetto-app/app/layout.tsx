@@ -22,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className={`${poppins.variable} antialiased`}>
+    <html lang="fr" data-scroll-behavior="smooth" className={`${poppins.variable} antialiased`}>
       <body className="font-body relative">
         <ToastProvider>
           <AuthUserProvider>
