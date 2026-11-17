@@ -79,6 +79,18 @@ body {
   outline-offset: 2px;
 }
 
+.document-editor input.quick-line-input:not([type="radio"]):not([type="checkbox"]) {
+  min-height: 30px;
+  border-radius: 8px;
+  padding: 4px 6px;
+  appearance: textfield;
+}
+
+.document-editor input.quick-line-input::-webkit-inner-spin-button,
+.document-editor input.quick-line-input::-webkit-outer-spin-button {
+  appearance: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;

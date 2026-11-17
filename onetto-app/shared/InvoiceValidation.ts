@@ -90,6 +90,17 @@ export function verifyLineItems(
     return err(errors);
   }
 
+  lineItems.forEach((item, index) => {
+    if (
+      !Number.isInteger(item.quantity) || item.quantity < 1 ||
+      !Number.isFinite(item.unitPrice) || item.unitPrice < 0 ||
+      !Number.isFinite(item.taxRate) || item.taxRate < 0 || item.taxRate > 100
+    ) {
+      errors.general ??= [];
+      errors.general.push(`Vérifiez la quantité, le prix unitaire et la TVA de la ligne ${index + 1}.`);
+    }
+  });
+
   const hasErrors = Object.keys(errors).length > 0;
 
   if (hasErrors) {

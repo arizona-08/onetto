@@ -1,6 +1,6 @@
 import { DocumentDates, ServiceLineItem } from "@/app/types";
 import { Edit, Plus, Trash2 } from "lucide-react";
-import React, { useEffect } from "react";
+import React from "react";
 import AddLineItemModal from "./AddLineItemModal";
 import {
   DocumentDateError,
@@ -27,19 +27,7 @@ function ServiceLineItems({
   disabled = false,
   editorLayout = false,
 }: ServiceLineItemsProps) {
-  const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([]);
-
-  useEffect(() => {
-    if (hydratedLineItems) {
-      setLineItems(
-        hydratedLineItems
-          ? hydratedLineItems.map((lineItem) => ({
-              ...lineItem,
-            }))
-          : [],
-      );
-    }
-  }, [hydratedLineItems]);
+  const lineItems = hydratedLineItems ?? [];
 
   const [isModalVisible, setIsModalVisible] = React.useState(false);
 
@@ -59,7 +47,6 @@ function ServiceLineItems({
   }
 
   function handleOnAddLineItem(lineItem: ServiceLineItem) {
-    setLineItems((prev) => [...prev, lineItem]);
     setIsModalVisible(false);
     onLineItemsChange([...lineItems, lineItem]);
   }
@@ -67,7 +54,6 @@ function ServiceLineItems({
   function handleOnEditLineItem(lineItem: ServiceLineItem, index: number) {
     const newLineItems = [...lineItems];
     newLineItems[index] = lineItem;
-    setLineItems(newLineItems);
     onLineItemsChange(newLineItems);
 
     setLineItemToModify(null);
@@ -77,8 +63,17 @@ function ServiceLineItems({
   function deleteLineItem(index: number) {
     const newLineItems = [...lineItems];
     newLineItems.splice(index, 1);
-    setLineItems(newLineItems);
     onLineItemsChange(newLineItems);
+  }
+
+  function updateLineItem(
+    index: number,
+    field: "quantity" | "unitPrice" | "taxRate",
+    value: string,
+  ) {
+    onLineItemsChange(lineItems.map((item, itemIndex) =>
+      itemIndex === index ? { ...item, [field]: Number(value) } : item,
+    ));
   }
 
   return (
@@ -120,28 +115,28 @@ function ServiceLineItems({
           </header>
 
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left min-w-140">
+            <table className={`w-full border-collapse text-left ${editorLayout ? "min-w-[790px]" : "min-w-140"}`}>
               <thead className="border-b border-gray-200  text-sm text-gray-500">
                 <tr className="">
-                  <th className="pb-5 font-semibold font-title tracking-wide">
+                  <th className="min-w-[210px] px-3 pb-5 font-semibold font-title tracking-wide">
                     Description
                   </th>
-                  <th className="pb-5 font-semibold font-title tracking-wide">
+                  <th className="min-w-[80px] px-3 pb-5 font-semibold font-title tracking-wide whitespace-nowrap">
                     Quantité
                   </th>
-                  <th className="pb-5 font-semibold font-title tracking-wide">
+                  <th className="min-w-[160px] px-3 pb-5 font-semibold font-title tracking-wide whitespace-nowrap">
                     Prix unitaire
                   </th>
-                  <th className="pb-5 font-semibold font-title tracking-wide">
+                  <th className="min-w-[85px] px-3 pb-5 font-semibold font-title tracking-wide">
                     TVA
                   </th>
-                  <th className="pb-5 font-semibold font-title tracking-wide">
+                  <th className="min-w-[95px] px-3 pb-5 font-semibold font-title tracking-wide whitespace-nowrap">
                     Total HT
                   </th>
-                  <th className="pb-5 font-semibold font-title tracking-wide">
+                  <th className="min-w-[95px] px-3 pb-5 font-semibold font-title tracking-wide whitespace-nowrap">
                     Total TTC
                   </th>
-                  <th className="pb-5 font-semibold font-title tracking-wide">
+                  <th className="min-w-[65px] px-3 pb-5 font-semibold font-title tracking-wide">
                     Actions
                   </th>
                 </tr>
@@ -152,27 +147,66 @@ function ServiceLineItems({
                   const totalTTC = totalHT + totalHT * (lineItem.taxRate / 100);
                   return (
                     <tr key={index}>
-                      <td className="py-4 border-b border-gray-200 font-semibold">
+                      <td className="border-b border-gray-200 px-3 py-4 font-semibold">
                         {lineItem.description}
                       </td>
-                      <td className="py-4 border-b border-gray-200">
-                        {lineItem.quantity}
+                      <td className="border-b border-gray-200 px-3 py-4">
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          step={1}
+                          value={lineItem.quantity}
+                          disabled={disabled}
+                          onChange={(event) => updateLineItem(index, "quantity", event.target.value)}
+                          aria-label={`Quantité de la ligne ${index + 1}`}
+                          className="quick-line-input w-12 rounded-ui-control border border-ui-control bg-ui-surface text-center text-sm text-ui-text focus-visible:outline-2 focus-visible:outline-ui-primary disabled:opacity-50"
+                        />
                       </td>
-                      <td className="py-4 border-b border-gray-200">
-                        {lineItem.unitPrice} € / {lineItem.unit}
+                      <td className="border-b border-gray-200 px-3 py-4">
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step="0.01"
+                            value={lineItem.unitPrice}
+                            disabled={disabled}
+                            onChange={(event) => updateLineItem(index, "unitPrice", event.target.value)}
+                            aria-label={`Prix unitaire hors taxe de la ligne ${index + 1} en euros`}
+                            className="quick-line-input w-20 shrink-0 rounded-ui-control border border-ui-control bg-ui-surface text-center text-sm text-ui-text focus-visible:outline-2 focus-visible:outline-ui-primary disabled:opacity-50"
+                          />
+                          <span className="text-xs leading-tight text-ui-secondary">€ / {lineItem.unit}</span>
+                        </div>
                       </td>
-                      <td className="py-4 border-b border-gray-200">
-                        {lineItem.taxRate}%
+                      <td className="border-b border-gray-200 px-3 py-4">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            max={100}
+                            step="0.01"
+                            value={lineItem.taxRate}
+                            disabled={disabled}
+                            onChange={(event) => updateLineItem(index, "taxRate", event.target.value)}
+                            aria-label={`TVA de la ligne ${index + 1} en pourcentage`}
+                            className="quick-line-input w-12 shrink-0 rounded-ui-control border border-ui-control bg-ui-surface text-center text-sm text-ui-text focus-visible:outline-2 focus-visible:outline-ui-primary disabled:opacity-50"
+                          />
+                          <span className="text-xs text-ui-secondary">%</span>
+                        </div>
                       </td>
-                      <td className="py-4 border-b border-gray-200">
+                      <td className="border-b border-gray-200 px-3 py-4 whitespace-nowrap">
                         {totalHT} €
                       </td>
-                      <td className="py-4 border-b border-gray-200 font-semibold">
+                      <td className="border-b border-gray-200 px-3 py-4 font-semibold whitespace-nowrap">
                         {totalTTC} €
                       </td>
-                      <td className="py-4 border-b border-gray-200">
+                      <td className="border-b border-gray-200 px-3 py-4 whitespace-nowrap">
                         <button
+                          type="button"
                           disabled={disabled}
+                          aria-label={`Modifier tous les détails de la ligne ${index + 1}`}
                           className="text-primary hover:text-primary-hover"
                           onClick={() => {
                             setLineItemToModify({ item: lineItem, index });
@@ -182,7 +216,9 @@ function ServiceLineItems({
                           <Edit size={16} />
                         </button>
                         <button
+                          type="button"
                           disabled={disabled}
+                          aria-label={`Supprimer la ligne ${index + 1}`}
                           className="text-danger hover:text-danger-hover ml-2"
                           onClick={() => deleteLineItem(index)}
                         >

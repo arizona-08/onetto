@@ -7,7 +7,6 @@ import React from "react";
 import { useActiveCompany } from "../../context/ActiveCompanyContext";
 import { useAuthUser } from "../../context/AuthUserContext";
 import DocumentVersionSelector from "../DocumentVersionSelector";
-import InstalmentSchedule from "../InstalmentSchedule";
 
 interface DocumentDisplayComponentProps {
   document: Document;
@@ -59,8 +58,6 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
   const companyIban = activeCompany?.IBAN ?? fallbackCompany.iban;
   const companyBic = activeCompany?.BIC ?? fallbackCompany.bic;
   const contactEmail = document.author?.email ?? user?.email ?? "";
-  const instalments =
-    document.invoiceInstalmentPlan?.invoicePaymentInstalments ?? [];
 
   const totalHT = services.reduce((sum, serviceLine) => {
     const { quantity, unitPrice } = getServiceValues(serviceLine);
@@ -292,14 +289,6 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
               </div>
             </div>
           </div>
-
-          {isInvoice && (
-            <InstalmentSchedule
-              instalments={instalments}
-              showStatus
-              className="mt-7"
-            />
-          )}
 
           <footer className="mt-7 grid gap-6 border-t border-zinc-200 pt-5 md:grid-cols-[1.1fr,0.9fr]">
             <section>

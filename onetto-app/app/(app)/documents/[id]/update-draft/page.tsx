@@ -15,7 +15,7 @@ async function UpdateDraftPage({
   const documentResult = await getDocumentByIdServer(id);
   if (!documentResult.ok) {
     return (
-      <div className="mx-auto w-full max-w-6xl p-4">
+      <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
         <div
           className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
           role="alert"
@@ -36,9 +36,24 @@ async function UpdateDraftPage({
   }
 
   const document = documentResult.data;
+  const isInvoice = document.type === "INVOICE";
   return (
-    <div className="mx-auto w-full max-w-6xl p-4">
-      <DocumentCreator mode="update" document={document} />
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mb-6 flex flex-wrap items-center gap-4 sm:gap-6">
+        <div>
+          <p className="mb-1 text-sm font-medium text-ui-secondary">Ventes / Modifier un document</p>
+          <h1 className="font-title text-2xl font-semibold text-ui-text sm:text-3xl">
+            Modifier {isInvoice ? "la facture" : "le devis"}
+          </h1>
+          <p className="mt-1 text-sm text-ui-secondary">
+            Modifiez les informations autorisées et consultez l’aperçu en direct.
+          </p>
+        </div>
+        <span className="inline-flex items-center rounded-ui-control border border-ui-border bg-ui-primary-soft px-4 py-2 text-sm font-semibold text-ui-primary">
+          {isInvoice ? "Facture" : "Devis"} · {document.documentNumber}
+        </span>
+      </div>
+      <DocumentCreator mode="update" document={document} editorLayout />
     </div>
   );
 }

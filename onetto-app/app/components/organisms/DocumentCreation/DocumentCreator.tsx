@@ -58,13 +58,16 @@ interface DocumentCreateProps {
   document?: Document;
   mode: "create" | "update";
   documentType?: "ESTIMATE" | "INVOICE";
+  editorLayout?: boolean;
 }
 
 function DocumentCreator({
   document,
   mode,
   documentType = "ESTIMATE",
+  editorLayout,
 }: DocumentCreateProps) {
+  const useEditorLayout = editorLayout ?? (mode === "create");
   const [client, setClient] = React.useState<Client | null>(null);
   const [lineItems, setLineItems] = React.useState<ServiceLineItem[]>([]);
   const operationNature = React.useMemo<"GOODS" | "SERVICES" | "MIXED">(() => {
@@ -380,11 +383,11 @@ function DocumentCreator({
   }
 
   return (
-    <div className={mode === "create" ? "document-editor flex w-full flex-col gap-5" : "relative mx-auto w-full max-w-6xl overflow-hidden rounded-md bg-white p-4"}>
-      {mode !== "create" && <div className="absolute top-0 left-0 w-full h-1 bg-primary opacity-75" />}
+    <div className={useEditorLayout ? "document-editor flex w-full flex-col gap-5" : "relative mx-auto w-full max-w-6xl overflow-hidden rounded-md bg-white p-4"}>
+      {!useEditorLayout && <div className="absolute top-0 left-0 w-full h-1 bg-primary opacity-75" />}
 
       {document && (
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className={useEditorLayout ? "flex flex-col gap-3 rounded-ui-card border border-ui-border bg-ui-surface p-4 shadow-ui-card empty:hidden sm:flex-row sm:items-center sm:justify-between" : "mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"}>
           <DocumentVersionSelector
             documentId={document.id}
             versionNumber={document.versionNumber}
@@ -398,10 +401,10 @@ function DocumentCreator({
         </div>
       )}
 
-      <div className={mode === "create" ? "grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.22fr)_minmax(0,1fr)] xl:items-start" : ""}>
+      <div className={useEditorLayout ? "grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.22fr)_minmax(0,1fr)] xl:items-start" : ""}>
       <fieldset disabled={!canEditDocument} className="min-w-0 space-y-5">
         {(isInvoice || isCreatingInvoice) && (
-          <div className={mode === "create" ? "rounded-ui-card border border-ui-border bg-ui-surface p-5 shadow-ui-card" : "mx-auto mb-5 flex max-w-2xl flex-col gap-1"}>
+          <div className={useEditorLayout ? "rounded-ui-card border border-ui-border bg-ui-surface p-5 shadow-ui-card" : "mx-auto mb-5 flex max-w-2xl flex-col gap-1"}>
             <p className="text-sm font-semibold text-zinc-700">
               Nature de l’opération
             </p>
@@ -451,7 +454,7 @@ function DocumentCreator({
           onNumberOfInstalmentsChange={setNumberOfInstalments}
           onFirstDueDateChange={setFirstDueDate}
           lockInvoiceContent={isInvoiceContentLocked}
-          editorLayout={mode === "create"}
+          editorLayout={useEditorLayout}
         />
       </fieldset>
 
@@ -468,11 +471,11 @@ function DocumentCreator({
         paymentMode={paymentMode}
         numberOfInstalments={numberOfInstalments}
         depositPlan={depositPlan}
-        editorLayout={mode === "create"}
+        editorLayout={useEditorLayout}
       />
       </div>
 
-      <div className={mode === "create" ? "order-first rounded-ui-card border border-ui-border bg-ui-surface p-4 shadow-ui-card sm:p-5" : "mx-auto mt-12 w-full max-w-2xl"}>
+      <div className={useEditorLayout ? "order-first rounded-ui-card border border-ui-border bg-ui-surface p-4 shadow-ui-card sm:p-5" : "mx-auto mt-12 w-full max-w-2xl"}>
         {isSendingBlocked && (
           <p
             role="alert"
@@ -483,7 +486,7 @@ function DocumentCreator({
             Rendez-vous dans « Mes entreprises » pour les finaliser.
           </p>
         )}
-        <div className={mode === "create" ? "flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end" : "flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row-reverse sm:items-center"}>
+        <div className={useEditorLayout ? "flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end" : "flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row-reverse sm:items-center"}>
           <button
             type="button"
             disabled={
@@ -494,7 +497,7 @@ function DocumentCreator({
               isSendingBlocked
             }
             onClick={handleConfirmAndSend}
-            className={mode === "create" ? "flex min-h-10 items-center justify-center gap-2 rounded-ui-control bg-ui-primary px-4 py-2 font-semibold text-white transition-colors hover:bg-ui-primary-hover focus-visible:outline-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-50 sm:order-2" : "flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"}
+            className={useEditorLayout ? "flex min-h-10 items-center justify-center gap-2 rounded-ui-control bg-ui-primary px-4 py-2 font-semibold text-white transition-colors hover:bg-ui-primary-hover focus-visible:outline-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-50 sm:order-2" : "flex items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"}
           >
             {isSending ? (
               <>
@@ -515,7 +518,7 @@ function DocumentCreator({
           <button
             type="button"
             disabled={isSending || isSent || !canEditDocument}
-            className={mode === "create" ? "min-h-10 rounded-ui-control border border-ui-border bg-ui-surface px-4 py-2 font-semibold text-ui-text transition-colors hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-45 sm:order-1" : "disabled:cursor-not-allowed disabled:opacity-45 rounded-md border border-primary bg-white px-3 py-2 font-semibold text-primary transition-colors duration-150 hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"}
+            className={useEditorLayout ? "min-h-10 rounded-ui-control border border-ui-border bg-ui-surface px-4 py-2 font-semibold text-ui-text transition-colors hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary disabled:cursor-not-allowed disabled:opacity-45 sm:order-1" : "disabled:cursor-not-allowed disabled:opacity-45 rounded-md border border-primary bg-white px-3 py-2 font-semibold text-primary transition-colors duration-150 hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"}
             onClick={handleSaveDraft}
           >
             Enregistrer en tant que brouillon

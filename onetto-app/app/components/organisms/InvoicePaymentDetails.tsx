@@ -58,11 +58,13 @@ export default function InvoicePaymentDetails({
   onClose,
   statusLabel,
   statusDotClassName,
+  layout = "table",
 }: {
   document: Document;
-  onClose: () => void;
+  onClose?: () => void;
   statusLabel: string;
   statusDotClassName: string;
+  layout?: "table" | "sidebar";
 }) {
   const summary = getInvoicePaymentSummary(document);
   const isInstalments =
@@ -72,11 +74,12 @@ export default function InvoicePaymentDetails({
     : Math.max(0, summary.total - summary.collected);
   const instalmentCount =
     summary.instalments?.length ?? document.invoicePaymentMode?.numberOfInstalments;
+  const isSidebar = layout === "sidebar";
 
   return (
     <section
       aria-label={`Suivi du paiement de ${document.documentNumber}`}
-      className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]"
+      className={isSidebar ? "space-y-5" : "mt-5 grid gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]"}
     >
       <div className="rounded-ui-card border border-ui-border bg-ui-surface p-5 shadow-ui-card sm:p-6">
         <div className="flex items-start justify-between gap-3">
@@ -92,14 +95,16 @@ export default function InvoicePaymentDetails({
               {statusLabel}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fermer le suivi du paiement"
-            className="rounded-lg p-2 text-ui-secondary hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-ui-primary"
-          >
-            <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fermer le suivi du paiement"
+              className="rounded-lg p-2 text-ui-secondary hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-ui-primary"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
         </div>
         <p className="mt-5 font-title text-2xl font-semibold text-ui-text">
           {formatCurrency(summary.total)}
@@ -130,12 +135,14 @@ export default function InvoicePaymentDetails({
           </div>
         </dl>
         <div className="mt-5"><PaymentGauge document={document} /></div>
-        <Link
-          href={`/documents/${document.id}`}
-          className="mt-5 inline-flex min-h-10 items-center rounded-ui-control border border-ui-border px-3 py-2 text-sm font-semibold text-ui-text hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-ui-primary"
-        >
-          Voir la facture
-        </Link>
+        {!isSidebar && (
+          <Link
+            href={`/documents/${document.id}`}
+            className="mt-5 inline-flex min-h-10 items-center rounded-ui-control border border-ui-border px-3 py-2 text-sm font-semibold text-ui-text hover:bg-ui-subtle focus-visible:outline-2 focus-visible:outline-ui-primary"
+          >
+            Voir la facture
+          </Link>
+        )}
       </div>
 
       <div className="rounded-ui-card border border-ui-border bg-ui-surface p-5 shadow-ui-card sm:p-6">

@@ -25,6 +25,7 @@ import {
   Trash,
 } from "lucide-react";
 import DocumentDisplayComponent from "../molecules/DocumentDisplayComponent/DocumentDisplayComponent";
+import DocumentDetailsSidebar from "./DocumentDetailsSidebar";
 import Link from "next/link";
 import { useToast } from "../context/ToastContext";
 import { useEffect, useRef, useState } from "react";
@@ -697,7 +698,12 @@ function ShowDocument({ document }: ShowDocumentProps) {
         </section>
       )}
 
-      <DocumentDisplayComponent document={document} />
+      <div className="grid min-w-0 items-start gap-6 min-[1150px]:grid-cols-[minmax(0,1fr)_300px] 2xl:grid-cols-[minmax(0,1fr)_320px]">
+        <DocumentDisplayComponent document={document} />
+        <div className="mx-auto w-full max-w-2xl min-w-0 min-[1150px]:mt-6 min-[1150px]:max-w-none">
+          <DocumentDetailsSidebar document={document} />
+        </div>
+      </div>
     </div>
   );
 }
