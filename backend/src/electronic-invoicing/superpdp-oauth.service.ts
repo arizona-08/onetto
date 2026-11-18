@@ -2,6 +2,7 @@ import {
   BadGatewayException,
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -31,6 +32,8 @@ type SuperPdpCompanyProfile = {
 
 @Injectable()
 export class SuperPdpOAuthService {
+  private readonly logger = new Logger(SuperPdpOAuthService.name);
+  private readonly pendingRefreshes = new Map<string, Promise<string>>();
   private readonly authorizationEndpoint =
     'https://api.superpdp.tech/oauth2/authorize';
   private readonly tokenEndpoint = 'https://api.superpdp.tech/oauth2/token';
@@ -252,48 +255,126 @@ export class SuperPdpOAuthService {
       return this.tokenCryptoService.decrypt(connection.accessTokenEncrypted);
     }
 
+    const pending = this.pendingRefreshes.get(companyId);
+    if (pending) return pending;
+
+    const refresh = this.refreshAccessToken(companyId, forVerification);
+    this.pendingRefreshes.set(companyId, refresh);
     try {
-      const refreshed = await this.getClient()
-        .createToken({
-          refresh_token: this.tokenCryptoService.decrypt(
-            connection.refreshTokenEncrypted,
-          ),
-        })
-        .refresh();
-      const token = refreshed.token as SuperPdpToken;
+      return await refresh;
+    } finally {
+      if (this.pendingRefreshes.get(companyId) === refresh) {
+        this.pendingRefreshes.delete(companyId);
+      }
+    }
+  }
+
+  private async refreshAccessToken(
+    companyId: string,
+    forVerification: boolean,
+  ): Promise<string> {
+    const result = await this.prismaService.$transaction(async (tx) => {
+      // The row lock also serializes refreshes across backend instances.
+      await tx.$queryRaw`
+        SELECT id FROM "ElectronicInvoicingConnection"
+        WHERE "companyId" = ${companyId} FOR UPDATE
+      `;
+      const connection = await tx.electronicInvoicingConnection.findUnique({
+        where: { companyId },
+        select: {
+          status: true,
+          environment: true,
+          accessTokenEncrypted: true,
+          refreshTokenEncrypted: true,
+          accessTokenExpiresAt: true,
+        },
+      });
+      if (!connection?.accessTokenEncrypted || !connection.refreshTokenEncrypted) {
+        throw new BadRequestException('Cette entreprise n’est pas connectée à SuperPDP.');
+      }
+      if (
+        !forVerification &&
+        (connection.status !== 'ACTIVE' || connection.environment !== this.getEnvironment())
+      ) {
+        throw new BadRequestException('Vérifiez l’identité de l’entreprise SuperPDP avant de poursuivre.');
+      }
+      if (
+        connection.accessTokenExpiresAt &&
+        connection.accessTokenExpiresAt.getTime() > Date.now() + 60_000
+      ) {
+        return { accessToken: this.tokenCryptoService.decrypt(connection.accessTokenEncrypted) };
+      }
+
+      let token: SuperPdpToken;
+      try {
+        const refreshed = await this.getClient()
+          .createToken({
+            refresh_token: this.tokenCryptoService.decrypt(connection.refreshTokenEncrypted),
+          })
+          .refresh({}, { timeout: 10_000 });
+        token = refreshed.token as SuperPdpToken;
+      } catch (error) {
+        const failure = this.getRefreshFailure(error);
+        this.logger.warn(
+          `Renouvellement SuperPDP échoué pour ${companyId} : HTTP ${failure.statusCode ?? 'inconnu'}, OAuth ${failure.oauthError ?? 'inconnu'}.`,
+        );
+        if (failure.oauthError === 'invalid_grant') {
+          // Return normally so ACTION_REQUIRED is committed before the caller sees the error.
+          await tx.electronicInvoicingConnection.update({
+            where: { companyId },
+            data: {
+              status: 'ACTION_REQUIRED',
+              lastError: 'L’autorisation SuperPDP a expiré ou été révoquée.',
+            },
+          });
+          return { authorizationRequired: true as const };
+        }
+        throw new BadGatewayException('Le renouvellement de la connexion SuperPDP est temporairement indisponible.');
+      }
       if (!token.access_token || !token.refresh_token || !token.expires_at) {
-        throw new Error('Incomplete token response');
+        throw new BadGatewayException('SuperPDP a retourné des jetons incomplets.');
       }
       const expiresAt = new Date(token.expires_at);
       if (Number.isNaN(expiresAt.valueOf())) {
-        throw new Error('Invalid expiration date');
+        throw new BadGatewayException('SuperPDP a retourné une date d’expiration invalide.');
       }
-      await this.prismaService.electronicInvoicingConnection.update({
+      await tx.electronicInvoicingConnection.update({
         where: { companyId },
         data: {
-          accessTokenEncrypted: this.tokenCryptoService.encrypt(
-            token.access_token,
-          ),
-          refreshTokenEncrypted: this.tokenCryptoService.encrypt(
-            token.refresh_token,
-          ),
+          accessTokenEncrypted: this.tokenCryptoService.encrypt(token.access_token),
+          refreshTokenEncrypted: this.tokenCryptoService.encrypt(token.refresh_token),
           accessTokenExpiresAt: expiresAt,
           lastSyncedAt: new Date(),
+          lastError: null,
         },
       });
-      return token.access_token;
-    } catch {
-      await this.prismaService.electronicInvoicingConnection.update({
-        where: { companyId },
-        data: {
-          status: 'ACTION_REQUIRED',
-          lastError: 'Le jeton SuperPDP ne peut pas être renouvelé.',
-        },
-      });
-      throw new BadGatewayException(
-        'La connexion SuperPDP doit être autorisée de nouveau.',
-      );
+      return { accessToken: token.access_token };
+    }, { maxWait: 15_000, timeout: 30_000 });
+
+    if ('authorizationRequired' in result) {
+      throw new BadGatewayException('La connexion SuperPDP doit être autorisée de nouveau.');
     }
+    return result.accessToken;
+  }
+
+  private getRefreshFailure(error: unknown): { statusCode?: number; oauthError?: string } {
+    if (!error || typeof error !== 'object') return {};
+    const response = error as {
+      output?: { statusCode?: number };
+      data?: { payload?: unknown };
+    };
+    const payload = response.data?.payload;
+    let parsed: unknown = payload;
+    if (typeof payload === 'string') {
+      try {
+        parsed = JSON.parse(payload) as unknown;
+      } catch {
+        parsed = null;
+      }
+    }
+    const oauthError = parsed && typeof parsed === 'object' && 'error' in parsed &&
+      typeof parsed.error === 'string' ? parsed.error : undefined;
+    return { statusCode: response.output?.statusCode, oauthError };
   }
 
   async verifyConnection(input: { companyId: string; userId: string }) {

@@ -21,6 +21,14 @@ type ProviderEvent = {
   [key: string]: unknown;
 };
 
+class SuperPdpStatusReadError extends Error {
+  constructor(resource: 'facture' | 'événements', status: number) {
+    super(
+      `Lecture SuperPDP des ${resource === 'facture' ? 'données de facture' : 'événements'} : HTTP ${status}.`,
+    );
+  }
+}
+
 @Injectable()
 export class SuperPdpB2bService {
   constructor(
@@ -330,16 +338,32 @@ export class SuperPdpB2bService {
         take: 100,
       });
 
-    const results = await Promise.allSettled(
-      transmissions.map((transmission) =>
-        this.syncTransmission(transmission, transmission.document.companyId),
-      ),
+    const byCompany = new Map<string, typeof transmissions>();
+    for (const transmission of transmissions) {
+      const companyId = transmission.document.companyId;
+      const companyTransmissions = byCompany.get(companyId) ?? [];
+      companyTransmissions.push(transmission);
+      byCompany.set(companyId, companyTransmissions);
+    }
+    const results = await Promise.all(
+      [...byCompany].map(async ([companyId, companyTransmissions]) => {
+        let synchronized = 0;
+        let failed = 0;
+        for (const transmission of companyTransmissions) {
+          try {
+            await this.syncTransmission(transmission, companyId);
+            synchronized++;
+          } catch {
+            failed++;
+          }
+        }
+        return { synchronized, failed };
+      }),
     );
     return {
       checked: transmissions.length,
-      synchronized: results.filter((result) => result.status === 'fulfilled')
-        .length,
-      failed: results.filter((result) => result.status === 'rejected').length,
+      synchronized: results.reduce((total, result) => total + result.synchronized, 0),
+      failed: results.reduce((total, result) => total + result.failed, 0),
     };
   }
 
@@ -401,9 +425,7 @@ export class SuperPdpB2bService {
         { headers },
       );
       if (!invoiceResponse.ok)
-        throw new Error(
-          'SuperPDP ne permet pas encore de lire le statut de cette facture.',
-        );
+        throw new SuperPdpStatusReadError('facture', invoiceResponse.status);
       const invoice = (await invoiceResponse.json()) as {
         events?: ProviderEvent[];
       };
@@ -469,7 +491,9 @@ export class SuperPdpB2bService {
       await this.prisma.electronicInvoiceTransmission.update({
         where: { id: transmission.id },
         data: {
-          lastError: 'Le statut ne peut pas être mis à jour pour le moment.',
+          lastError: error instanceof SuperPdpStatusReadError
+            ? error.message
+            : 'Le statut ne peut pas être mis à jour pour le moment.',
           lastSyncedAt: new Date(),
         },
       });
@@ -493,9 +517,7 @@ export class SuperPdpB2bService {
         url.searchParams.set('starting_after_id', startingAfterId);
       const response = await fetch(url, { headers });
       if (!response.ok)
-        throw new Error(
-          'SuperPDP ne permet pas encore de lire le statut de cette facture.',
-        );
+        throw new SuperPdpStatusReadError('événements', response.status);
       const page = (await response.json()) as {
         data?: ProviderEvent[];
         has_after?: boolean;

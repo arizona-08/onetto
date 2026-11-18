@@ -77,6 +77,10 @@ describe('SuperPdpOAuthService', () => {
       }),
       update: jest.fn(),
     };
+    const transaction = {
+      $queryRaw: jest.fn(),
+      electronicInvoicingConnection: connection,
+    };
     const tokenCrypto = {
       decrypt: jest.fn((value: string) => value.replace('encrypted-', '')),
       encrypt: jest.fn((value: string) => `encrypted-${value}`),
@@ -85,7 +89,10 @@ describe('SuperPdpOAuthService', () => {
       {
         get: jest.fn((name: string) => config[name as keyof typeof config]),
       } as never,
-      { electronicInvoicingConnection: connection } as never,
+      {
+        electronicInvoicingConnection: connection,
+        $transaction: jest.fn(async (callback) => callback(transaction)),
+      } as never,
       tokenCrypto as never,
     );
     jest.spyOn(service as never, 'getClient').mockReturnValue({
@@ -110,6 +117,126 @@ describe('SuperPdpOAuthService', () => {
       }),
     });
     expect(connection.update.mock.calls[0][0].data).not.toHaveProperty('status');
+    expect(transaction.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes only once for simultaneous requests from the same process', async () => {
+    const expired = {
+      status: 'ACTIVE', environment: 'SANDBOX',
+      accessTokenEncrypted: 'old-access', refreshTokenEncrypted: 'old-refresh',
+      accessTokenExpiresAt: new Date(Date.now() - 60_000),
+    };
+    const connection = {
+      findUnique: jest.fn().mockResolvedValue(expired),
+      update: jest.fn(),
+    };
+    const transaction = { $queryRaw: jest.fn(), electronicInvoicingConnection: connection };
+    const prisma = {
+      electronicInvoicingConnection: connection,
+      $transaction: jest.fn(async (callback) => callback(transaction)),
+    };
+    const service = new SuperPdpOAuthService(
+      { get: (name: string) => config[name as keyof typeof config] } as never,
+      prisma as never,
+      { decrypt: (value: string) => value, encrypt: (value: string) => value } as never,
+    );
+    const refresh = jest.fn().mockResolvedValue({ token: {
+      access_token: 'new-access', refresh_token: 'new-refresh',
+      expires_at: new Date(Date.now() + 3600_000).toISOString(),
+    } });
+    jest.spyOn(service as never, 'getClient').mockReturnValue({
+      createToken: jest.fn().mockReturnValue({ refresh }),
+    });
+
+    await expect(Promise.all([
+      service.getAccessToken('company-1'),
+      service.getAccessToken('company-1'),
+    ])).resolves.toEqual(['new-access', 'new-access']);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(connection.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses a token refreshed by another instance while waiting for the row lock', async () => {
+    const expired = {
+      status: 'ACTIVE', environment: 'SANDBOX',
+      accessTokenEncrypted: 'old-access', refreshTokenEncrypted: 'old-refresh',
+      accessTokenExpiresAt: new Date(Date.now() - 60_000),
+    };
+    const renewed = {
+      ...expired,
+      accessTokenEncrypted: 'new-access', refreshTokenEncrypted: 'new-refresh',
+      accessTokenExpiresAt: new Date(Date.now() + 3600_000),
+    };
+    const connection = {
+      findUnique: jest.fn().mockResolvedValueOnce(expired).mockResolvedValueOnce(renewed),
+      update: jest.fn(),
+    };
+    const transaction = { $queryRaw: jest.fn(), electronicInvoicingConnection: connection };
+    const service = new SuperPdpOAuthService(
+      { get: (name: string) => config[name as keyof typeof config] } as never,
+      { electronicInvoicingConnection: connection, $transaction: async (callback) => callback(transaction) } as never,
+      { decrypt: (value: string) => value } as never,
+    );
+    const getClient = jest.spyOn(service as never, 'getClient');
+
+    await expect(service.getAccessToken('company-1')).resolves.toBe('new-access');
+    expect(transaction.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(getClient).not.toHaveBeenCalled();
+    expect(connection.update).not.toHaveBeenCalled();
+  });
+
+  it('keeps the connection active after a temporary refresh failure', async () => {
+    const connection = {
+      findUnique: jest.fn().mockResolvedValue({
+        status: 'ACTIVE', environment: 'SANDBOX',
+        accessTokenEncrypted: 'old-access', refreshTokenEncrypted: 'old-refresh',
+        accessTokenExpiresAt: new Date(Date.now() - 60_000),
+      }),
+      update: jest.fn(),
+    };
+    const transaction = { $queryRaw: jest.fn(), electronicInvoicingConnection: connection };
+    const service = new SuperPdpOAuthService(
+      { get: (name: string) => config[name as keyof typeof config] } as never,
+      { electronicInvoicingConnection: connection, $transaction: async (callback) => callback(transaction) } as never,
+      { decrypt: (value: string) => value } as never,
+    );
+    jest.spyOn(service as never, 'getClient').mockReturnValue({
+      createToken: jest.fn().mockReturnValue({
+        refresh: jest.fn().mockRejectedValue({ output: { statusCode: 503 } }),
+      }),
+    });
+
+    await expect(service.getAccessToken('company-1')).rejects.toThrow('temporairement indisponible');
+    expect(connection.update).not.toHaveBeenCalled();
+  });
+
+  it('requires a new authorization only when the refresh grant is invalid', async () => {
+    const connection = {
+      findUnique: jest.fn().mockResolvedValue({
+        status: 'ACTIVE', environment: 'SANDBOX',
+        accessTokenEncrypted: 'old-access', refreshTokenEncrypted: 'old-refresh',
+        accessTokenExpiresAt: new Date(Date.now() - 60_000),
+      }),
+      update: jest.fn(),
+    };
+    const transaction = { $queryRaw: jest.fn(), electronicInvoicingConnection: connection };
+    const service = new SuperPdpOAuthService(
+      { get: (name: string) => config[name as keyof typeof config] } as never,
+      { electronicInvoicingConnection: connection, $transaction: async (callback) => callback(transaction) } as never,
+      { decrypt: (value: string) => value } as never,
+    );
+    jest.spyOn(service as never, 'getClient').mockReturnValue({
+      createToken: jest.fn().mockReturnValue({
+        refresh: jest.fn().mockRejectedValue({
+          output: { statusCode: 400 }, data: { payload: { error: 'invalid_grant' } },
+        }),
+      }),
+    });
+
+    await expect(service.getAccessToken('company-1')).rejects.toThrow('autorisée de nouveau');
+    expect(connection.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'ACTION_REQUIRED' }),
+    }));
   });
 
   it('never uses an electronic address or the global fallback as the sandbox identity', async () => {
