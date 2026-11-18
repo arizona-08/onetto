@@ -18,6 +18,11 @@ type InvoicePdfData = {
   clientVatNumber?: string | null;
   totalPrice: number;
   totalPriceExcludingTax: number;
+  invoicePaymentMode?: {
+    paymentMode: 'ONE_TIME' | 'INSTALMENTS';
+    numberOfInstalments: number | null;
+    firstDueDate: Date | null;
+  } | null;
   services: Array<{
     description: string;
     quantity: number;
@@ -242,6 +247,24 @@ export class PdfService {
           .map((item) => item.invoice!.documentNumber)
           .join(', ');
         pdf.fontSize(8).fillColor(muted).text(`Factures d’acompte déjà encaissées : ${references}`, 42, data.company.bank ? pdf.y + 12 : bankY + 68, { width: 510 });
+      }
+      if (!isInvoice && data.invoicePaymentMode?.paymentMode === 'INSTALMENTS') {
+        const paymentTermsY = data.company.bank ? bankY + 82 : bankY + 68;
+        pdf
+          .font('Helvetica-Bold')
+          .fontSize(9)
+          .fillColor('#18181B')
+          .text('CONDITIONS DE PAIEMENT', 42, paymentTermsY);
+        pdf
+          .font('Helvetica')
+          .fontSize(9)
+          .fillColor(muted)
+          .text(
+            `Paiement en ${data.invoicePaymentMode.numberOfInstalments} échéances hebdomadaires${data.invoicePaymentMode.firstDueDate ? `, à partir du ${date(data.invoicePaymentMode.firstDueDate)}` : ''}.`,
+            42,
+            paymentTermsY + 16,
+            { width: 510 },
+          );
       }
       pdf.end();
     });

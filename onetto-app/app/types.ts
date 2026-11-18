@@ -244,6 +244,7 @@ export type PublicNegociation = {
     | "sentAt"
     | "paymentDueAt"
     | "contractPaymentPlan"
+    | "invoicePaymentMode"
   > & {
     totalPriceExcludingTax: number;
     services: DocumentService[];
@@ -268,6 +269,13 @@ export type DocumentNegociation = {
   message: string;
   status: "PENDING" | "ACCEPTED" | "RENEGOCIATED" | "REJECTED";
   createdAt: string;
+  proposedPaymentStages?: Array<{
+    sequence: number;
+    kind: "DEPOSIT" | "BALANCE";
+    percentage: number;
+    amountInCents: number;
+    triggerCondition: string;
+  }> | null;
 };
 
 export type DocumentVersion = {

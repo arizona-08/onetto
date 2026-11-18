@@ -30,8 +30,8 @@ export default function DepositPlanEditor({ value, onChange, totalAmountInCents 
   }
 
   return (
-    <div className="mt-4 space-y-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-      <label className="block text-sm font-medium text-zinc-800" htmlFor="deposit-count">
+    <div className="mt-5 space-y-4 border-t border-ui-border pt-5">
+      <label className="block text-sm font-semibold text-ui-text" htmlFor="deposit-count">
         Nombre d’acomptes
       </label>
       <select
@@ -43,16 +43,16 @@ export default function DepositPlanEditor({ value, onChange, totalAmountInCents 
             ? [value.deposits[0], value.deposits[1] ?? { percentage: 25, triggerCondition: "Après la première phase des travaux" }]
             : [value.deposits[0]],
         })}
-        className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+        className="w-full rounded-ui-control border border-ui-control bg-ui-surface px-4 py-2 text-sm text-ui-text shadow-ui-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary sm:max-w-xs"
       >
         <option value="1">1 acompte + solde</option>
         <option value="2">2 acomptes + solde</option>
       </select>
 
       {value.deposits.map((deposit, index) => (
-        <div key={index} className="grid gap-3 rounded-md border border-zinc-200 bg-white p-4 sm:grid-cols-[135px_1fr]">
+        <div key={index} className="grid gap-4 rounded-ui-control border border-ui-border bg-ui-subtle p-4 sm:grid-cols-[135px_1fr]">
           <div>
-            <label htmlFor={`deposit-percent-${index}`} className="text-sm font-medium text-zinc-800">
+            <label htmlFor={`deposit-percent-${index}`} className="text-sm font-medium text-ui-text">
               {index + 1}{index === 0 ? "er" : "e"} acompte (%)
             </label>
             <input
@@ -63,12 +63,12 @@ export default function DepositPlanEditor({ value, onChange, totalAmountInCents 
               step={5}
               value={deposit.percentage}
               onChange={(event) => updateDeposit(index, { percentage: Number(event.target.value) })}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="mt-2 w-full rounded-ui-control border border-ui-control bg-ui-surface px-3 py-2 text-sm text-ui-text shadow-ui-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary"
             />
-            <p className="mt-1 text-xs text-zinc-500">{euros(depositAmounts[index])}</p>
+            <p className="mt-1 text-xs text-ui-secondary">{euros(depositAmounts[index])}</p>
           </div>
           <div>
-            <label htmlFor={`deposit-condition-${index}`} className="text-sm font-medium text-zinc-800">
+            <label htmlFor={`deposit-condition-${index}`} className="text-sm font-medium text-ui-text">
               Condition de déclenchement
             </label>
             <input
@@ -76,31 +76,31 @@ export default function DepositPlanEditor({ value, onChange, totalAmountInCents 
               maxLength={500}
               value={deposit.triggerCondition}
               onChange={(event) => updateDeposit(index, { triggerCondition: event.target.value })}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              className="mt-2 w-full rounded-ui-control border border-ui-control bg-ui-surface px-3 py-2 text-sm text-ui-text shadow-ui-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary"
             />
           </div>
         </div>
       ))}
 
-      <div className="grid gap-3 rounded-md border border-zinc-200 bg-white p-4 sm:grid-cols-[135px_1fr]">
+      <div className="grid gap-4 rounded-ui-control border border-ui-border bg-ui-subtle p-4 sm:grid-cols-[135px_1fr]">
         <div>
-          <p className="text-sm font-medium text-zinc-800">Solde (%)</p>
-          <p className="mt-1 text-lg font-semibold text-primary">{balancePercentage} %</p>
-          <p className="text-xs text-zinc-500">{euros(balanceAmount)}</p>
+          <p className="text-sm font-medium text-ui-text">Solde (%)</p>
+          <p className="mt-1 text-lg font-semibold text-ui-primary">{balancePercentage} %</p>
+          <p className="text-xs text-ui-secondary">{euros(balanceAmount)}</p>
         </div>
         <div>
-          <label htmlFor="balance-condition" className="text-sm font-medium text-zinc-800">Condition de déclenchement</label>
+          <label htmlFor="balance-condition" className="text-sm font-medium text-ui-text">Condition de déclenchement</label>
           <input
             id="balance-condition"
             maxLength={500}
             value={value.balanceCondition}
             onChange={(event) => onChange({ ...value, balanceCondition: event.target.value })}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            className="mt-2 w-full rounded-ui-control border border-ui-control bg-ui-surface px-3 py-2 text-sm text-ui-text shadow-ui-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ui-primary"
           />
         </div>
       </div>
-      {!valid && <p role="alert" className="text-sm text-red-600">Chaque acompte doit être un multiple de 5 % d’au moins 20 %, le solde doit être d’au moins 5 %, et chaque étape doit avoir une condition.</p>}
-      <p className="text-xs text-zinc-500">Les conditions décrivent les jalons du contrat. Aucun prélèvement n’est automatique.</p>
+      {!valid && <p role="alert" className="text-sm text-ui-danger">Chaque acompte doit être un multiple de 5 % d’au moins 20 %, le solde doit être d’au moins 5 %, et chaque étape doit avoir une condition.</p>}
+      <p className="text-xs text-ui-secondary">Les conditions décrivent les jalons du contrat. Aucun prélèvement n’est automatique.</p>
     </div>
   );
 }

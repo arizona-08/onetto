@@ -267,11 +267,15 @@ export async function getDocumentVersions(documentId: string) {
   });
 }
 
-export async function createNewDocumentVersion(documentId: string) {
+export async function createNewDocumentVersion(
+  documentId: string,
+  planChoice?: "ORIGINAL" | "CLIENT",
+) {
   return apiClient<{ document: Document }>(
     `api/documents/${documentId}/create-version`,
     {
       method: "POST",
+      body: planChoice ? JSON.stringify({ planChoice }) : undefined,
     },
   );
 }

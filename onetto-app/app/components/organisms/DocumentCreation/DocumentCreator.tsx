@@ -156,13 +156,15 @@ function DocumentCreator({
             .map(({ percentage, triggerCondition }) => ({ percentage, triggerCondition })),
           balanceCondition: document.contractPaymentPlan.stages.find((stage) => stage.kind === "BALANCE")?.triggerCondition ?? "À la livraison",
         });
+      } else {
+        setDepositPlan(null);
       }
+      setPaymentMode(document.invoicePaymentMode?.paymentMode ?? "ONE_TIME");
       if (
         document.invoicePaymentMode?.paymentMode === "INSTALMENTS"
       ) {
-        setPaymentMode("INSTALMENTS");
         setNumberOfInstalments(
-          document.invoicePaymentMode.numberOfInstalments as 2 | 3,
+          document.invoicePaymentMode.numberOfInstalments === 3 ? 3 : 2,
         );
         const savedFirstDueDate =
           document.invoicePaymentMode.firstDueDate ??
@@ -305,7 +307,7 @@ function DocumentCreator({
         lineItems,
         documentDates,
         instalmentsDetails:
-          documentType === "INVOICE" && paymentMode === "INSTALMENTS"
+          paymentMode === "INSTALMENTS"
             ? { numberOfInstalments, firstDueDate }
             : undefined,
         depositPlan: documentType === "ESTIMATE" ? depositPlan ?? undefined : undefined,
@@ -317,7 +319,7 @@ function DocumentCreator({
         lineItems,
         documentDates,
         instalmentsDetails:
-          isInvoice && paymentMode === "INSTALMENTS"
+          paymentMode === "INSTALMENTS"
             ? { numberOfInstalments, firstDueDate }
             : undefined,
         depositPlan: !isInvoice ? depositPlan ?? undefined : undefined,
@@ -435,12 +437,12 @@ function DocumentCreator({
           client={client}
           lineItems={lineItems}
           documentDates={documentDates}
-          showDepositPlan={isInCreationEstimate && canEditDocument}
+          showEstimatePayment={isInCreationEstimate && canEditDocument}
           depositPlan={depositPlan}
           onDepositPlanChange={setDepositPlan}
           totalAmountInCents={totalPriceInCents}
-          showPaymentMode={isCreatingInvoice || isDraftInvoice}
           canUseInstalments={canUseInstalments}
+          showPaymentMode={isCreatingInvoice || isDraftInvoice}
           paymentMode={paymentMode}
           numberOfInstalments={numberOfInstalments}
           firstDueDate={firstDueDate}

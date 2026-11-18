@@ -21,6 +21,13 @@ import type { ExtendedRequest, User } from 'src/types/extended-request.types';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { GoCardlessInstalmentRetryService } from 'src/Adapters/PaymentAdapters/gocardless/gocardless-instalment-retry.service';
 import { GoCardlessReconciliationService } from 'src/Adapters/PaymentAdapters/gocardless/gocardless-reconciliation.service';
+import { IsIn, IsOptional } from 'class-validator';
+
+class CreateDocumentVersionDto {
+  @IsOptional()
+  @IsIn(['ORIGINAL', 'CLIENT'])
+  planChoice?: 'ORIGINAL' | 'CLIENT';
+}
 
 @UseGuards(AuthGuard)
 @Controller('api/documents')
@@ -306,6 +313,7 @@ export class DocumentController {
   @Post(':documentId/create-version')
   async createDocumentVersion(
     @Param('documentId') documentId: string,
+    @Body() body: CreateDocumentVersionDto,
     @Req() req: ExtendedRequest,
   ) {
     const user = req.user;
@@ -316,6 +324,7 @@ export class DocumentController {
     return await this.documentService.createNewDocumentVersion(
       documentId,
       user,
+      body?.planChoice,
     );
   }
 

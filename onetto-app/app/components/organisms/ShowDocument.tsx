@@ -34,13 +34,22 @@ import GoCardlessReconnectModal from "../molecules/GoCardlessReconnectModal";
 import { isGoCardlessAccessTokenInactive } from "@/lib/gocardless/access-token";
 import { useActiveCompany } from "../context/ActiveCompanyContext";
 import { apiClient } from "@/lib/api";
+import NegotiatedDepositPlans, { type DepositPlanChoice } from "../molecules/NegotiatedDepositPlans";
 
 interface ShowDocumentProps {
   document: Document;
 }
 
 function ShowDocument({ document }: ShowDocumentProps) {
-  const [negociations, setNegociations] = useState<DocumentNegociation[]>([]);
+  const [negociationLoad, setNegociationLoad] = useState<{
+    documentId: string;
+    state: "loading" | "ready" | "error";
+    entries: DocumentNegociation[];
+  }>({ documentId: document.id, state: "loading", entries: [] });
+  const [planSelection, setPlanSelection] = useState<{
+    documentId: string;
+    choice: DepositPlanChoice;
+  } | null>(null);
   const [isCreatingVersion, setIsCreatingVersion] = useState(false);
   const [isRetryingPayment, setIsRetryingPayment] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -92,8 +101,27 @@ function ShowDocument({ document }: ShowDocumentProps) {
 
   const { showToast } = useToast();
   const { activeCompany } = useActiveCompany();
+  const negociations = negociationLoad.documentId === document.id ? negociationLoad.entries : [];
+  const negociationsState = negociationLoad.documentId === document.id ? negociationLoad.state : "loading";
+  const selectedDepositPlan = planSelection?.documentId === document.id ? planSelection.choice : null;
   const isSendingBlocked = activeCompany?.hasRequiredAction === true;
   const contractStages = document.contractPaymentPlan?.stages ?? [];
+  const revisedNegociation = isSupersededEstimate && document.contractPaymentPlan
+    ? negociations.find((negociation) => negociation.status === "RENEGOCIATED")
+    : undefined;
+  const hasRevisedDepositPlan = Boolean(
+    revisedNegociation &&
+    Array.isArray(revisedNegociation.proposedPaymentStages) &&
+    revisedNegociation.proposedPaymentStages.length > 0 &&
+    (
+      revisedNegociation.proposedPaymentStages.length !== contractStages.length ||
+      revisedNegociation.proposedPaymentStages.some((stage, index) =>
+        stage.kind !== contractStages[index]?.kind ||
+        stage.percentage !== contractStages[index]?.percentage ||
+        stage.triggerCondition.trim() !== contractStages[index]?.triggerCondition.trim(),
+      )
+    ),
+  );
   const invoicedInCents = contractStages.reduce((sum, stage) =>
     sum + (stage.invoice && stage.invoice.invoiceStatus !== "DRAFT" ? stage.amountInCents : 0), 0);
   const collectedInCents = contractStages.reduce((sum, stage) =>
@@ -101,14 +129,19 @@ function ShowDocument({ document }: ShowDocumentProps) {
   const euroCents = (amount: number) => (amount / 100).toLocaleString("fr-FR", { style: "currency", currency: "EUR" });
 
   useEffect(() => {
+    let active = true;
     async function loadNegociations() {
       const response = await getDocumentNegociations(document.id);
-      if (response.ok) {
-        setNegociations(response.data);
-      }
+      if (!active) return;
+      setNegociationLoad({
+        documentId: document.id,
+        state: response.ok ? "ready" : "error",
+        entries: response.ok ? response.data : [],
+      });
     }
 
     void loadNegociations();
+    return () => { active = false; };
   }, [document.id]);
 
   useEffect(() => {
@@ -163,12 +196,24 @@ function ShowDocument({ document }: ShowDocumentProps) {
   }
 
   async function handleCreateNewVersion() {
+    if (hasRevisedDepositPlan && !selectedDepositPlan) {
+      showToast("Choisissez le plan d’acomptes du nouveau devis.", "error");
+      return;
+    }
     setIsCreatingVersion(true);
-    const response = await createNewDocumentVersion(document.id);
+    const response = await createNewDocumentVersion(
+      document.id,
+      hasRevisedDepositPlan ? selectedDepositPlan ?? undefined : undefined,
+    );
     setIsCreatingVersion(false);
 
     if (!response.ok) {
-      showToast("Impossible de créer une nouvelle version du devis.", "error");
+      showToast(
+        typeof response.error?.message === "string"
+          ? response.error.message
+          : "Impossible de créer une nouvelle version du devis.",
+        "error",
+      );
       return;
     }
 
@@ -478,10 +523,15 @@ function ShowDocument({ document }: ShowDocumentProps) {
             <button
               className="inline-flex min-h-10 items-center justify-center gap-1 rounded-md border border-primary bg-primary px-4 py-2 text-center text-white transition-all duration-150 hover:bg-primary/90 disabled:opacity-50"
               onClick={handleCreateNewVersion}
-              disabled={isCreatingVersion}
+              disabled={isCreatingVersion || negociationsState !== "ready"}
             >
-              {isCreatingVersion ? "Création…" : "Créer une nouvelle version"}
+              {isCreatingVersion ? "Création…" : negociationsState === "loading" ? "Chargement des négociations…" : "Créer une nouvelle version"}
             </button>
+          )}
+          {isSupersededEstimate && negociationsState === "error" && (
+            <p role="alert" className="text-sm text-ui-danger">
+              Impossible de charger les négociations. Actualisez la page pour réessayer.
+            </p>
           )}
 
           {isRejectedInvoice && !document.contractStageInvoice && (
@@ -695,6 +745,14 @@ function ShowDocument({ document }: ShowDocumentProps) {
               </div>
             ))}
           </div>
+          {hasRevisedDepositPlan && revisedNegociation?.proposedPaymentStages && document.contractPaymentPlan && (
+            <NegotiatedDepositPlans
+              originalStages={document.contractPaymentPlan.stages}
+              proposedStages={revisedNegociation.proposedPaymentStages}
+              selected={selectedDepositPlan}
+              onSelect={(choice) => setPlanSelection({ documentId: document.id, choice })}
+            />
+          )}
         </section>
       )}
 

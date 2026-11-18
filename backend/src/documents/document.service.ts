@@ -63,16 +63,15 @@ export class DocumentService {
           'instalments',
         );
       }
-      if (data.depositPlan && (type !== 'ESTIMATE' || data.instalmentsDetails)) {
+      if (data.depositPlan && type !== 'ESTIMATE') {
         throw new BadRequestException('Le plan d’acomptes est réservé aux devis.');
       }
-      const documentNumber = await this.createDocumentNumber(type, companyId);
-
-      if (type !== 'INVOICE' && data.instalmentsDetails) {
+      if (data.depositPlan && data.instalmentsDetails) {
         throw new BadRequestException(
-          'Un échéancier ne peut être défini que pour une facture.',
+          'Choisissez soit des acomptes, soit un paiement en plusieurs fois.',
         );
       }
+      const documentNumber = await this.createDocumentNumber(type, companyId);
 
       const totalPriceExludingTax = lineItems.reduce((acc, item) => {
         const basePrice = item.unitPrice * item.quantity;
@@ -138,7 +137,7 @@ export class DocumentService {
           });
         }
 
-        if (type === 'INVOICE') {
+        if (type === 'INVOICE' || data.instalmentsDetails) {
           await this.syncInvoiceInstalmentPlan(
             prisma,
             createdDocument,
@@ -195,13 +194,13 @@ export class DocumentService {
         );
       }
 
-      if (document.type !== 'INVOICE' && data.instalmentsDetails) {
-        throw new BadRequestException(
-          'Un échéancier ne peut être défini que pour une facture.',
-        );
-      }
       if (data.depositPlan && document.type !== 'ESTIMATE') {
         throw new BadRequestException('Le plan d’acomptes est réservé aux devis.');
+      }
+      if (data.depositPlan && data.instalmentsDetails) {
+        throw new BadRequestException(
+          'Choisissez soit des acomptes, soit un paiement en plusieurs fois.',
+        );
       }
       if (document.type === 'ESTIMATE' && document.estimateStatus !== 'DRAFT') {
         throw new BadRequestException('Un devis déjà envoyé ne peut plus être modifié.');
@@ -341,13 +340,11 @@ export class DocumentService {
             }
           }
 
-          if (updatedDocument.type === 'INVOICE') {
-            await this.syncInvoiceInstalmentPlan(
-              prisma,
-              updatedDocument,
-              data.instalmentsDetails,
-            );
-          }
+          await this.syncInvoiceInstalmentPlan(
+            prisma,
+            updatedDocument,
+            data.instalmentsDetails,
+          );
           if (updatedDocument.type === 'ESTIMATE') {
             await this.syncContractPaymentPlan(
               prisma,
@@ -375,6 +372,8 @@ export class DocumentService {
     }
   }
 
+  // InvoicePaymentMode is linked to Document: on an estimate it stores the
+  // proposed terms; the operational schedule exists only for a sent invoice.
   private async syncInvoiceInstalmentPlan(
     prisma: Prisma.TransactionClient,
     invoice: {
@@ -515,6 +514,7 @@ export class DocumentService {
         include: {
           services: true,
           contractPaymentPlan: { select: { id: true } },
+          invoicePaymentMode: true,
           convertedDocuments: {
             where: { type: 'INVOICE' },
             select: { id: true },
@@ -540,49 +540,60 @@ export class DocumentService {
         );
       }
 
+      const estimatePaymentMode = document.invoicePaymentMode;
+      if (
+        estimatePaymentMode?.paymentMode === 'INSTALMENTS' &&
+        (!estimatePaymentMode.firstDueDate ||
+          (estimatePaymentMode.numberOfInstalments !== 2 &&
+            estimatePaymentMode.numberOfInstalments !== 3))
+      ) {
+        throw new BadRequestException(
+          'Les détails du paiement en plusieurs fois du devis sont incomplets.',
+        );
+      }
+
       const invoiceNumber = await this.createDocumentNumber(
         'INVOICE',
         companyId,
       );
 
-      const invoice = await this.prismaService.document.create({
-        data: {
-          clientName: document.clientName,
-          clientEmail: document.clientEmail,
-          clientAddress: document.clientAddress,
-          clientCity: document.clientCity,
-          clientCountry: document.clientCountry,
-          clientPostalCode: document.clientPostalCode,
-          clientType: document.clientType,
-          clientSiren: document.clientSiren,
-          clientVatNumber: document.clientVatNumber,
-          clientElectronicAddress: document.clientElectronicAddress,
-          clientElectronicAddressScheme: document.clientElectronicAddressScheme,
-          operationNature: document.operationNature,
-          clientIsVatTaxable: document.clientIsVatTaxable,
-          clientForeignIdentifier: document.clientForeignIdentifier,
-          deliveryAddress: document.deliveryAddress,
-          deliveryCity: document.deliveryCity,
-          deliveryPostalCode: document.deliveryPostalCode,
-          deliveryCountry: document.deliveryCountry,
-          currencyCode: document.currencyCode,
-          isVatExempt: document.isVatExempt,
-          vatExemptionReason: document.vatExemptionReason,
-          totalPriceExcludingTax: document.totalPriceExcludingTax,
-          totalPrice: document.totalPrice,
-          documentNumber: invoiceNumber,
-          type: 'INVOICE',
-          isFromEstimate: true,
-          sourceDocumentId: document.id,
-          estimateStatus: 'ACCEPTED',
-          invoiceStatus: 'DRAFT',
-          companyId,
-          createdAt: new Date(),
-          paymentDueAt: document.paymentDueAt,
-        },
-      });
-
-      await this.prismaService.$transaction(async (prisma) => {
+      const invoice = await this.prismaService.$transaction(async (prisma) => {
+        const created = await prisma.document.create({
+          data: {
+            clientName: document.clientName,
+            clientEmail: document.clientEmail,
+            clientAddress: document.clientAddress,
+            clientCity: document.clientCity,
+            clientCountry: document.clientCountry,
+            clientPostalCode: document.clientPostalCode,
+            clientType: document.clientType,
+            clientSiren: document.clientSiren,
+            clientVatNumber: document.clientVatNumber,
+            clientElectronicAddress: document.clientElectronicAddress,
+            clientElectronicAddressScheme: document.clientElectronicAddressScheme,
+            operationNature: document.operationNature,
+            clientIsVatTaxable: document.clientIsVatTaxable,
+            clientForeignIdentifier: document.clientForeignIdentifier,
+            deliveryAddress: document.deliveryAddress,
+            deliveryCity: document.deliveryCity,
+            deliveryPostalCode: document.deliveryPostalCode,
+            deliveryCountry: document.deliveryCountry,
+            currencyCode: document.currencyCode,
+            isVatExempt: document.isVatExempt,
+            vatExemptionReason: document.vatExemptionReason,
+            totalPriceExcludingTax: document.totalPriceExcludingTax,
+            totalPrice: document.totalPrice,
+            documentNumber: invoiceNumber,
+            type: 'INVOICE',
+            isFromEstimate: true,
+            sourceDocumentId: document.id,
+            estimateStatus: 'ACCEPTED',
+            invoiceStatus: 'DRAFT',
+            companyId,
+            createdAt: new Date(),
+            paymentDueAt: document.paymentDueAt,
+          },
+        });
         for (const service of document.services) {
           await prisma.documentService.create({
             data: {
@@ -592,12 +603,27 @@ export class DocumentService {
               unitPrice: service.unitPrice,
               unit: service.unit,
               itemType: service.itemType,
-              documentId: invoice.id,
+              documentId: created.id,
               wtPrice: service.wtPrice,
               totalPrice: service.totalPrice,
             },
           });
         }
+        await this.syncInvoiceInstalmentPlan(
+          prisma,
+          created,
+          estimatePaymentMode?.paymentMode === 'INSTALMENTS' &&
+            estimatePaymentMode.firstDueDate &&
+            estimatePaymentMode.numberOfInstalments
+            ? {
+                numberOfInstalments: estimatePaymentMode.numberOfInstalments as 2 | 3,
+                firstDueDate: estimatePaymentMode.firstDueDate
+                  .toISOString()
+                  .slice(0, 10),
+              }
+            : undefined,
+        );
+        return created;
       });
 
       return {
@@ -1463,6 +1489,13 @@ export class DocumentService {
               createdAt: true,
               sentAt: true,
               paymentDueAt: true,
+              invoicePaymentMode: {
+                select: {
+                  paymentMode: true,
+                  numberOfInstalments: true,
+                  firstDueDate: true,
+                },
+              },
               services: {
                 select: {
                   id: true,
@@ -1736,6 +1769,7 @@ export class DocumentService {
         message: true,
         status: true,
         createdAt: true,
+        proposedPaymentStages: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -1778,7 +1812,14 @@ export class DocumentService {
     }));
   }
 
-  async createNewDocumentVersion(documentId: string, user: User) {
+  async createNewDocumentVersion(
+    documentId: string,
+    user: User,
+    planChoice?: 'ORIGINAL' | 'CLIENT',
+  ) {
+    if (planChoice && planChoice !== 'ORIGINAL' && planChoice !== 'CLIENT') {
+      throw new BadRequestException('Le choix du plan d’acomptes est invalide.');
+    }
     const companyId = await this.getActiveCompanyId(user, true);
     const sourceDocument = await this.prismaService.document.findFirst({
       where: {
@@ -1790,6 +1831,7 @@ export class DocumentService {
       },
       include: {
         services: true,
+        invoicePaymentMode: true,
         contractPaymentPlan: {
           include: { stages: { orderBy: { sequence: 'asc' } } },
         },
@@ -1812,6 +1854,50 @@ export class DocumentService {
         orderBy: { versionNumber: 'desc' },
         select: { versionNumber: true },
       });
+
+      if (planChoice && !sourceDocument.contractPaymentPlan) {
+        throw new BadRequestException('Ce devis ne comporte pas de plan d’acomptes.');
+      }
+      let contractStages: ReturnType<typeof buildContractStages> | null = null;
+      if (sourceDocument.contractPaymentPlan) {
+        const negotiation = await prisma.estimateNegociation.findFirst({
+          where: { documentId: sourceDocument.id, status: 'RENEGOCIATED' },
+          orderBy: { createdAt: 'desc' },
+          select: { proposedPaymentStages: true },
+        });
+        const proposed = negotiation?.proposedPaymentStages;
+        const proposedStages = Array.isArray(proposed) && proposed.length > 0
+          ? proposed as Array<{ kind: string; percentage: number; triggerCondition: string }>
+          : null;
+        const revisedStages = proposedStages && (
+          proposedStages.length !== sourceDocument.contractPaymentPlan.stages.length ||
+          proposedStages.some((stage, index) => {
+            const original = sourceDocument.contractPaymentPlan?.stages[index];
+            return stage.kind !== original?.kind ||
+              stage.percentage !== original?.percentage ||
+              stage.triggerCondition.trim() !== original?.triggerCondition.trim();
+          })
+        ) ? proposedStages : null;
+        if (revisedStages && !planChoice) {
+          throw new BadRequestException('Choisissez le plan d’acomptes du nouveau devis.');
+        }
+        if (planChoice === 'CLIENT' && !revisedStages) {
+          throw new BadRequestException('Aucune proposition d’acomptes du client n’est disponible.');
+        }
+        contractStages = planChoice === 'CLIENT' && revisedStages
+          ? buildContractStages(
+              sourceDocument.contractPaymentPlan.totalAmountInCents,
+              revisedStages.filter((stage) => stage.kind === 'DEPOSIT'),
+              revisedStages.find((stage) => stage.kind === 'BALANCE')?.triggerCondition,
+            )
+          : sourceDocument.contractPaymentPlan.stages.map((stage) => ({
+              sequence: stage.sequence,
+              kind: stage.kind,
+              percentage: stage.percentage,
+              amountInCents: stage.amountInCents,
+              triggerCondition: stage.triggerCondition,
+            }));
+      }
 
       const document = await prisma.document.create({
         data: {
@@ -1869,34 +1955,29 @@ export class DocumentService {
         })),
       });
 
-      if (sourceDocument.contractPaymentPlan) {
-        const negotiation = await prisma.estimateNegociation.findFirst({
-          where: { documentId: sourceDocument.id, status: 'RENEGOCIATED' },
-          orderBy: { createdAt: 'desc' },
-          select: { proposedPaymentStages: true },
+      if (sourceDocument.invoicePaymentMode?.paymentMode === 'INSTALMENTS') {
+        const sourcePaymentMode = sourceDocument.invoicePaymentMode;
+        if (
+          !sourcePaymentMode.firstDueDate ||
+          (sourcePaymentMode.numberOfInstalments !== 2 &&
+            sourcePaymentMode.numberOfInstalments !== 3)
+        ) {
+          throw new BadRequestException(
+            'Les détails du paiement en plusieurs fois du devis sont incomplets.',
+          );
+        }
+        await this.syncInvoiceInstalmentPlan(prisma, document, {
+          numberOfInstalments: sourcePaymentMode.numberOfInstalments,
+          firstDueDate: sourcePaymentMode.firstDueDate.toISOString().slice(0, 10),
         });
-        const proposed = negotiation?.proposedPaymentStages;
-        const proposedStages = Array.isArray(proposed)
-          ? proposed as Array<{ kind: string; percentage: number; triggerCondition: string }>
-          : null;
-        const stages = proposedStages
-          ? buildContractStages(
-              sourceDocument.contractPaymentPlan.totalAmountInCents,
-              proposedStages.filter((stage) => stage.kind === 'DEPOSIT'),
-              proposedStages.find((stage) => stage.kind === 'BALANCE')?.triggerCondition,
-            )
-          : sourceDocument.contractPaymentPlan.stages.map((stage) => ({
-              sequence: stage.sequence,
-              kind: stage.kind,
-              percentage: stage.percentage,
-              amountInCents: stage.amountInCents,
-              triggerCondition: stage.triggerCondition,
-            }));
+      }
+
+      if (sourceDocument.contractPaymentPlan && contractStages) {
         await prisma.contractPaymentPlan.create({
           data: {
             estimateId: document.id,
             totalAmountInCents: sourceDocument.contractPaymentPlan.totalAmountInCents,
-            stages: { create: stages },
+            stages: { create: contractStages },
           },
         });
       }

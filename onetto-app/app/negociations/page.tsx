@@ -12,8 +12,8 @@ async function NegociationPage({
 
   if (!negociationToken) {
     return (
-      <main className="grid min-h-screen place-items-center bg-background p-6">
-        <p className="rounded-xl bg-white px-5 py-4 text-sm">
+      <main className="grid min-h-screen place-items-center bg-ui-background p-6">
+        <p className="rounded-ui-card border border-ui-border bg-ui-surface px-6 py-5 text-sm text-ui-text shadow-ui-card">
           Token de négociation invalide ou requis.
         </p>
       </main>
@@ -23,8 +23,8 @@ async function NegociationPage({
   const response = await getNegociationByTokenServer(negociationToken);
   if (!response.ok) {
     return (
-      <main className="grid min-h-screen place-items-center bg-background p-6">
-        <p className="rounded-xl bg-white px-5 py-4 text-sm">
+      <main className="grid min-h-screen place-items-center bg-ui-background p-6">
+        <p className="rounded-ui-card border border-ui-border bg-ui-surface px-6 py-5 text-sm text-ui-text shadow-ui-card">
           Cette négociation est introuvable ou n’est plus disponible.
         </p>
       </main>
