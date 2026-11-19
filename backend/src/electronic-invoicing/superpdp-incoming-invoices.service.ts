@@ -10,6 +10,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { S3StorageService } from 'src/storage/s3-storage.service';
 import { ElectronicInvoiceValidationService } from './electronic-invoice-validation.service';
 import { SuperPdpOAuthService } from './superpdp-oauth.service';
+import { SupplierInvoicePdfService } from './supplier-invoice-pdf.service';
 
 @Injectable()
 export class SuperPdpIncomingInvoicesService {
@@ -20,6 +21,7 @@ export class SuperPdpIncomingInvoicesService {
     private readonly notifications: NotificationsService,
     private readonly storage: S3StorageService,
     private readonly validator: ElectronicInvoiceValidationService,
+    private readonly supplierPdf: SupplierInvoicePdfService,
   ) {}
 
   async synchronizeAll() {
@@ -67,7 +69,11 @@ export class SuperPdpIncomingInvoicesService {
       await this.upsertIncoming(companyId, invoice);
   }
 
-  async downloadInvoice(companyId: string, invoiceId: string) {
+  async downloadInvoice(
+    companyId: string,
+    invoiceId: string,
+    format: 'original' | 'pdf' = 'original',
+  ) {
     const invoice = await this.prisma.receivedElectronicInvoice.findFirst({
       where: { id: invoiceId, companyId, provider: 'SUPER_PDP' },
       select: {
@@ -109,44 +115,17 @@ export class SuperPdpIncomingInvoicesService {
       .replace(/[^a-zA-Z0-9._-]/g, '_')
       .slice(0, 120);
 
-    if (isPdf) {
+    if (format === 'pdf' && !isPdf) {
       return {
-        buffer: original.buffer,
+        buffer: await this.supplierPdf.render(original.buffer),
         contentType: 'application/pdf',
-        fileName: `${baseName}.pdf`,
+        fileName: `${baseName}-lecture.pdf`,
       };
     }
-
-    const token = await this.oauth.getAccessToken(companyId);
-    const converted = await fetch(
-      `https://api.superpdp.tech/v1.beta/invoices/${encodeURIComponent(invoice.providerInvoiceId)}?format=factur-x`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/pdf',
-        },
-      },
-    );
-    if (!converted.ok) {
-      const body = await converted.text();
-      this.logger.error(
-        `SuperPDP Factur-X conversion HTTP ${converted.status}${body ? `: ${body}` : ''}`,
-      );
-      throw new BadGatewayException(
-        'Impossible de convertir cette facture XML en PDF Factur-X.',
-      );
-    }
-    const facturX = Buffer.from(await converted.arrayBuffer());
-    if (facturX.subarray(0, 4).toString() !== '%PDF') {
-      throw new BadGatewayException(
-        'SuperPDP n’a pas retourné un PDF Factur-X valide.',
-      );
-    }
-
     return {
-      buffer: facturX,
-      contentType: 'application/pdf',
-      fileName: `factur-x-${baseName}.pdf`,
+      buffer: original.buffer,
+      contentType: isPdf ? 'application/pdf' : 'application/xml',
+      fileName: `${baseName}.${isPdf ? 'pdf' : 'xml'}`,
     };
   }
 

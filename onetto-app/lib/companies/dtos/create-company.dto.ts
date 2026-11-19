@@ -15,6 +15,7 @@ export type CreateCompanyDto = {
   vatExigibility: CompanyVatExigibility;
   electronicAddress: string;
   electronicAddressScheme: "SIREN" | "SIRET" | "VAT" | "GLN" | "PEPPOL";
+  b2bInvoiceFormat: "UBL" | "FACTUR_X";
   vatNumber?: string;
   bank?: string | null;
   IBAN: string;

@@ -29,6 +29,7 @@ export type SupplierInvoice = {
   currencyCode: string;
   totalIncludingTax: number;
   status: string;
+  originalContentType: string | null;
   receivedAt: string;
 };
 export const getSupplierInvoices = (companyId: string) =>
@@ -44,12 +45,13 @@ export const synchronizeSupplierInvoices = (companyId: string) =>
 export async function downloadSupplierInvoice(
   companyId: string,
   invoiceId: string,
+  format: 'original' | 'pdf',
 ): Promise<Result<void, ApiError>> {
   try {
     const response = await fetch(
       buildApiUrl(
         process.env.NEXT_PUBLIC_API_URL,
-        `api/electronic-invoicing/superpdp/companies/${companyId}/incoming-invoices/${invoiceId}/download`,
+        `api/electronic-invoicing/superpdp/companies/${companyId}/incoming-invoices/${invoiceId}/download?format=${format}`,
       ),
       {
         credentials: "include",

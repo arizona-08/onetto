@@ -14,6 +14,7 @@ import type {
   CompanyLegalStatus,
   CompanyVatExigibility,
   CompanyVatRegime,
+  B2BInvoiceFormat,
 } from '@prisma/client';
 
 export class UpdateCompanyDto {
@@ -123,6 +124,10 @@ export class UpdateCompanyDto {
   @IsOptional()
   @IsIn(['SIREN', 'SIRET', 'VAT', 'GLN', 'PEPPOL'])
   electronicAddressScheme?: CompanyElectronicAddressScheme;
+
+  @IsOptional()
+  @IsIn(['UBL', 'FACTUR_X'])
+  b2bInvoiceFormat?: B2BInvoiceFormat;
 
   @IsOptional()
   @IsString()

@@ -193,6 +193,7 @@ model Company {
   vatExigibility            CompanyVatExigibility @default(UNKNOWN)
   electronicAddress         String
   electronicAddressScheme   CompanyElectronicAddressScheme @default(SIREN)
+  b2bInvoiceFormat          B2BInvoiceFormat @default(UBL)
 
   documents                      Document[]
   owner                          User                            @relation(fields: [ownerId], references: [id])
@@ -291,6 +292,11 @@ enum CompanyElectronicAddressScheme {
   VAT
   GLN
   PEPPOL
+}
+
+enum B2BInvoiceFormat {
+  UBL
+  FACTUR_X
 }
 
 enum CompanyStatus {

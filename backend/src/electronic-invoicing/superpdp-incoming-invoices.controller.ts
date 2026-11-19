@@ -1,7 +1,9 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Param,
+  Query,
   Post,
   Req,
   Res,
@@ -80,12 +82,21 @@ export class SuperPdpIncomingInvoicesController {
   async download(
     @Param('companyId') companyId: string,
     @Param('invoiceId') invoiceId: string,
+    @Query('format') format: string | undefined,
     @Req() req: ExtendedRequest,
     @Res() response: Response,
   ) {
     if (!req.user) throw new UnauthorizedException('Non authentifié');
     await this.assertAccess(companyId, req.user.id);
-    const file = await this.incoming.downloadInvoice(companyId, invoiceId);
+    if (format && format !== 'pdf' && format !== 'original') {
+      throw new BadRequestException('Format de téléchargement invalide.');
+    }
+    const requestedFormat = format === 'pdf' ? 'pdf' : 'original';
+    const file = await this.incoming.downloadInvoice(
+      companyId,
+      invoiceId,
+      requestedFormat,
+    );
     response.setHeader('Content-Type', file.contentType);
     response.setHeader(
       'Content-Disposition',

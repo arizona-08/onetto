@@ -111,6 +111,10 @@ export class CreateCompanyDto {
   @IsIn(['SIREN', 'SIRET', 'VAT', 'GLN', 'PEPPOL'])
   electronicAddressScheme: 'SIREN' | 'SIRET' | 'VAT' | 'GLN' | 'PEPPOL';
 
+  @IsOptional()
+  @IsIn(['UBL', 'FACTUR_X'])
+  b2bInvoiceFormat?: 'UBL' | 'FACTUR_X';
+
   @IsString()
   vatNumber?: string;
 

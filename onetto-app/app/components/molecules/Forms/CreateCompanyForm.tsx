@@ -46,6 +46,7 @@ const emptyCompany: CreateCompanyDto = {
   vatExigibility: "UNKNOWN",
   electronicAddress: "",
   electronicAddressScheme: "SIREN",
+  b2bInvoiceFormat: "UBL",
   vatNumber: "",
   bank: "",
   IBAN: "",
@@ -60,7 +61,7 @@ function CreateCompanyForm({
   const router = useRouter();
   const { showToast } = useToast();
   const [companyInfos, setCompanyInfos] = useState<CreateCompanyDto>(
-    companyToEdit ?? emptyCompany,
+    companyToEdit ? { ...emptyCompany, ...companyToEdit } : emptyCompany,
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConnectingSuperPdp, setIsConnectingSuperPdp] = useState(false);
@@ -207,6 +208,7 @@ function CreateCompanyForm({
       vatExigibility: companyInfos.vatExigibility,
       electronicAddress: companyInfos.electronicAddress,
       electronicAddressScheme: companyInfos.electronicAddressScheme,
+      b2bInvoiceFormat: companyInfos.b2bInvoiceFormat,
       vatNumber: companyInfos.vatNumber,
       bank: companyInfos.bank?.trim() || null,
       IBAN: companyInfos.IBAN,
@@ -564,6 +566,27 @@ function CreateCompanyForm({
           </select>
         </div>
       </div>
+
+      {companyToEdit && (
+        <div className="mt-5 flex flex-col gap-2 border-t border-ui-border pt-5">
+          <label htmlFor="b2bInvoiceFormat" className={labelClassName}>
+            Format des factures B2B envoyées via SuperPDP
+          </label>
+          <select
+            id="b2bInvoiceFormat"
+            name="b2bInvoiceFormat"
+            value={companyInfos.b2bInvoiceFormat}
+            onChange={handleInputChange}
+            className={inputClassName}
+          >
+            <option value="UBL">UBL (XML structuré)</option>
+            <option value="FACTUR_X">Factur-X (PDF avec données XML)</option>
+          </select>
+          <p className="text-xs leading-5 text-ui-secondary">
+            Ce choix s’applique aux nouvelles factures B2B. Les factures déjà transmises ou en cours de renvoi conservent leur format initial.
+          </p>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">

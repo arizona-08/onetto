@@ -1,5 +1,5 @@
 "use client";
-import { Bell, Download, FileInput, Inbox } from "lucide-react";
+import { Bell, FileInput, Inbox } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getMyCompanies } from "@/lib/companies/companies";
 import {
@@ -12,6 +12,7 @@ import {
   synchronizeSupplierInvoices,
 } from "@/lib/notifications/notifications";
 import { useToast } from "@/app/components/context/ToastContext";
+import SupplierInvoiceDownloadMenu, { type SupplierInvoiceDownloadFormat } from "./SupplierInvoiceDownloadMenu";
 
 export default function NotificationsPage() {
   const [view, setView] = useState<"notifications" | "supplier-invoices">(
@@ -30,7 +31,7 @@ export default function NotificationsPage() {
       new URLSearchParams(window.location.search).get("view") ===
       "supplier-invoices"
     )
-      setView("supplier-invoices");
+      queueMicrotask(() => setView("supplier-invoices"));
   }, []);
   useEffect(() => {
     void getNotifications().then((r) => r.ok && setNotifications(r.data));
@@ -53,10 +54,10 @@ export default function NotificationsPage() {
     setIsSynchronizing(false);
     if (response.ok) await loadInvoices(companyId);
   }
-  async function download(invoice: SupplierInvoice) {
+  async function download(invoice: SupplierInvoice, format: SupplierInvoiceDownloadFormat) {
     if (!companyId) return;
     setDownloadingInvoiceId(invoice.id);
-    const response = await downloadSupplierInvoice(companyId, invoice.id);
+    const response = await downloadSupplierInvoice(companyId, invoice.id, format);
     setDownloadingInvoiceId(null);
     if (!response.ok) {
       showToast(
@@ -126,7 +127,7 @@ export default function NotificationsPage() {
           )}
         </div>
       ) : (
-        <div className="mt-5 overflow-hidden rounded-xl border border-zinc-200 bg-white">
+        <div className="mt-5 rounded-xl border border-zinc-200 bg-white">
           <div className="flex justify-end border-b border-zinc-200 p-3">
             <button
               onClick={() => void synchronize()}
@@ -164,17 +165,12 @@ export default function NotificationsPage() {
                     {Number(i.totalIncludingTax).toFixed(2)} {i.currencyCode}
                   </td>
                   <td className="p-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => void download(i)}
-                      disabled={downloadingInvoiceId === i.id}
-                      className="inline-flex items-center gap-2 rounded-md px-3 py-2 font-semibold text-primary hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Download className="h-4 w-4" />
-                      {downloadingInvoiceId === i.id
-                        ? "Téléchargement…"
-                        : "Télécharger"}
-                    </button>
+                    <SupplierInvoiceDownloadMenu
+                      invoiceNumber={i.invoiceNumber ?? i.id}
+                      originalContentType={i.originalContentType}
+                      busy={downloadingInvoiceId === i.id}
+                      onDownload={(format) => void download(i, format)}
+                    />
                   </td>
                 </tr>
               ))}

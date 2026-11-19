@@ -174,10 +174,21 @@ export class SuperPdpB2bService {
         },
       }));
 
+    // Keep the format chosen for this invoice stable across retries, even if
+    // the company setting changes after the first transmission attempt.
+    const companyFormat = document.company.b2bInvoiceFormat === 'FACTUR_X'
+      ? 'factur-x'
+      : 'ubl-peppol';
+    const submittedFormat = existing?.submittedFormat === 'factur-x' ||
+      existing?.submittedFormat === 'ubl-peppol'
+        ? existing.submittedFormat
+        : companyFormat;
+
     await this.prisma.electronicInvoiceTransmission.update({
       where: { id: transmission.id },
       data: {
         status: 'SUBMITTING',
+        submittedFormat,
         attemptCount: { increment: 1 },
         lastError: null,
       },
@@ -196,15 +207,16 @@ export class SuperPdpB2bService {
         document.documentNumber ?? document.id,
         'pdf',
       );
-      // The directory endpoint selected for Tricatel accepts Peppol BIS
-      // Billing 3.0. We retain the French Factur-X as the immutable archive
-      // and build the equivalent UBL transport document with Peppol's profile.
-      const ubl = await this.facturX.generatePeppolUbl(document.id, input.user);
-      await this.validateElectronicInvoice(
-        ubl,
-        document.documentNumber ?? document.id,
-        'xml',
-      );
+      const file = submittedFormat === 'factur-x'
+        ? facturX
+        : await this.facturX.generatePeppolUbl(document.id, input.user);
+      if (submittedFormat === 'ubl-peppol') {
+        await this.validateElectronicInvoice(
+          file,
+          document.documentNumber ?? document.id,
+          'xml',
+        );
+      }
       const token = await this.oauth.getAccessToken(input.companyId);
       const url = new URL('https://api.superpdp.tech/v1.beta/invoices');
       // The document UUID is a stable external id accepted by SuperPDP (max. 36 chars).
@@ -215,11 +227,13 @@ export class SuperPdpB2bService {
         documentId: document.id,
         documentNumber: document.documentNumber,
         endpoint: url.toString(),
-        format: 'ubl-peppol',
+        format: submittedFormat,
         facturXBytes: facturX.length,
         facturXFingerprint: createHash('sha256').update(facturX).digest('hex'),
-        ublBytes: ubl.length,
-        ublFingerprint: createHash('sha256').update(ubl).digest('hex'),
+        ...(submittedFormat === 'ubl-peppol' ? {
+          ublBytes: file.length,
+          ublFingerprint: createHash('sha256').update(file).digest('hex'),
+        } : {}),
         operationNature: document.operationNature,
         buyer: {
           clientSiren: document.clientSiren,
@@ -231,9 +245,9 @@ export class SuperPdpB2bService {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/xml',
+          'Content-Type': submittedFormat === 'factur-x' ? 'application/pdf' : 'application/xml',
         },
-        body: Uint8Array.from(ubl),
+        body: Uint8Array.from(file),
       });
       if (!response.ok) {
         const details = (await response.text()).slice(0, 1000);
@@ -249,8 +263,8 @@ export class SuperPdpB2bService {
         where: { id: transmission.id },
         data: {
           providerInvoiceId: String(providerInvoice.id),
-          submittedFormat: 'ubl-peppol',
-          documentFingerprint: createHash('sha256').update(ubl).digest('hex'),
+          submittedFormat,
+          documentFingerprint: createHash('sha256').update(file).digest('hex'),
           status: 'SUBMITTED',
           providerStatus: 'api:uploaded',
           submittedAt: new Date(),
@@ -571,6 +585,7 @@ export class SuperPdpB2bService {
           ],
         },
       },
+      include: { company: { select: { b2bInvoiceFormat: true } } },
     });
     if (!document)
       throw new NotFoundException('Facture introuvable ou accès non autorisé.');
@@ -585,7 +600,7 @@ export class SuperPdpB2bService {
     const form = new FormData();
     form.append(
       'file',
-      new Blob([Uint8Array.from(file)], { type: 'application/pdf' }),
+      new Blob([Uint8Array.from(file)], { type: extension === 'pdf' ? 'application/pdf' : 'application/xml' }),
       `invoice-${documentNumber}.${extension}`,
     );
     let response: Response;
