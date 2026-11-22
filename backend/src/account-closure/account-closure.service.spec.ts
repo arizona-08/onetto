@@ -47,7 +47,14 @@ describe('AccountClosureService', () => {
     $transaction: jest.fn(),
   };
   const companies = { closeCompany: jest.fn() };
-  const mail = { sendMail: jest.fn() };
+  const mail = {
+    sendMail: jest.fn(),
+    createAppNotificationMail: jest.fn().mockReturnValue({
+      subject: 'Onetto — Espace entreprise fermé',
+      text: 'Notification Onetto',
+      html: '<div>Notification Onetto</div>',
+    }),
+  };
   const service = new AccountClosureService(
     prisma as never,
     companies as never,
@@ -152,6 +159,38 @@ describe('AccountClosureService', () => {
     expect(tx.appNotification.createMany.mock.calls[0][0].data).toHaveLength(2);
     expect(tx.companyUser.deleteMany).not.toHaveBeenCalledWith({
       where: { companyId: 'c1' },
+    });
+  });
+
+  it('envoie l’avis de fermeture avec le template HTML sans changer son objet ni son texte', async () => {
+    prisma.appNotification.findMany.mockResolvedValueOnce([
+      {
+        id: 'notice-1',
+        title: 'Espace entreprise fermé',
+        message: 'Votre accès opérationnel est terminé.',
+        user: { email: 'collaborateur@example.test', closedAt: null },
+      },
+    ]);
+    await (
+      service as unknown as {
+        sendClosureNotices: (companyIds: string[]) => Promise<void>;
+      }
+    ).sendClosureNotices(['company-1']);
+
+    expect(mail.createAppNotificationMail).toHaveBeenCalledWith({
+      type: 'COMPANY_CLOSED',
+      title: 'Espace entreprise fermé',
+      message: 'Votre accès opérationnel est terminé.',
+    });
+    expect(mail.sendMail).toHaveBeenCalledWith({
+      to: 'collaborateur@example.test',
+      subject: 'Espace entreprise fermé',
+      text: 'Votre accès opérationnel est terminé.',
+      html: '<div>Notification Onetto</div>',
+    });
+    expect(prisma.appNotification.update).toHaveBeenCalledWith({
+      where: { id: 'notice-1' },
+      data: { emailSentAt: expect.any(Date) },
     });
   });
 

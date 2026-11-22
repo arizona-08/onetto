@@ -403,6 +403,11 @@ export class AccountClosureService {
       try {
         await this.mail.sendMail({
           to: notice.user.email,
+          ...this.mail.createAppNotificationMail({
+            type: 'COMPANY_CLOSED',
+            title: notice.title,
+            message: notice.message,
+          }),
           subject: notice.title,
           text: notice.message,
         });

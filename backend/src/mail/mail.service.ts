@@ -1,6 +1,10 @@
 import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable } from '@nestjs/common';
-import { AppNotificationType, ReminderType, SubscriptionPlan } from '@prisma/client';
+import {
+  AppNotificationType,
+  ReminderType,
+  SubscriptionPlan,
+} from '@prisma/client';
 
 type Attachment = {
   filename: string;
@@ -112,6 +116,57 @@ const planLabels: Record<SubscriptionPlan, string> = {
   PRO_YEARLY: 'Pro — Annuel',
 };
 
+const notificationStyles: Record<
+  AppNotificationType,
+  { badge: string; actionLabel: string; note: string }
+> = {
+  COMPANY_CLOSED: {
+    badge: 'ESPACE ENTREPRISE FERMÉ',
+    actionLabel: 'Voir dans Onetto',
+    note: 'Votre accès opérationnel à cette entreprise est terminé.',
+  },
+  SUPPLIER_INVOICE_RECEIVED: {
+    badge: 'FACTURE FOURNISSEUR',
+    actionLabel: 'Voir la facture fournisseur',
+    note: 'Retrouvez cette facture dans le centre de notifications de votre espace Onetto.',
+  },
+  PAYMENT_SUBMITTED: {
+    badge: 'PAIEMENT EN COURS',
+    actionLabel: 'Suivre le paiement',
+    note: 'Le paiement est en cours de traitement. Suivez son statut depuis votre espace Onetto.',
+  },
+  PAYMENT_SUCCEEDED: {
+    badge: 'RÈGLEMENT REÇU',
+    actionLabel: 'Voir la facture',
+    note: 'Retrouvez les détails du règlement dans votre espace Onetto.',
+  },
+  PAYMENT_FAILED: {
+    badge: 'PAIEMENT ÉCHOUÉ',
+    actionLabel: 'Voir la facture',
+    note: 'Consultez la facture et son statut de paiement dans votre espace Onetto.',
+  },
+  ESTIMATE_ACCEPTED: {
+    badge: 'DEVIS ACCEPTÉ',
+    actionLabel: 'Consulter le devis',
+    note: 'Retrouvez les détails du devis et préparez la suite depuis votre espace Onetto.',
+  },
+  ESTIMATE_RENEGOTIATED: {
+    badge: 'DEVIS À RÉVISER',
+    actionLabel: 'Consulter le devis',
+    note: 'Retrouvez la demande du client dans votre espace Onetto.',
+  },
+  ESTIMATE_REJECTED: {
+    badge: 'DEVIS REFUSÉ',
+    actionLabel: 'Consulter le devis',
+    note: 'Retrouvez les détails du devis dans votre espace Onetto.',
+  },
+  CONTRACT_MANDATE_ACTIVE: {
+    badge: 'MANDAT AUTORISÉ',
+    actionLabel: 'Consulter le devis',
+    note: 'Retrouvez les étapes du projet dans votre espace Onetto.',
+  },
+};
+
 const formatAmount = (amount: number) => `${amount.toFixed(2)} €`;
 const formatDate = (date: Date) => date.toLocaleDateString('fr-FR');
 
@@ -135,23 +190,28 @@ export class MailService {
     const link = input.href
       ? `${process.env.FRONTEND_URL}${input.href}`
       : undefined;
+    const style = input.type ? notificationStyles[input.type] : undefined;
     return {
       subject: `Onetto — ${input.title}`,
       text: `${input.title}\n\n${input.message}${link ? `\n\nVoir dans Onetto : ${link}` : ''}`,
-      html: input.type === 'ESTIMATE_ACCEPTED'
-        ? this.createEmailLayout({
-            badge: 'DEVIS ACCEPTÉ',
-            title: this.escapeHtml(input.title),
-            greeting: 'Bonjour,',
-            message: this.escapeHtml(input.message),
-            details: this.createDetailsTable([['Statut du devis', 'Accepté']]),
-            action: link
-              ? { label: 'Consulter le devis', url: this.escapeHtml(link) }
-              : undefined,
-            footer: 'Onetto · Votre espace documentaire',
-            note: 'Retrouvez les détails du devis et préparez la suite depuis votre espace Onetto.',
-          })
-        : `<h1>${input.title}</h1><p>${input.message}</p>${link ? `<p><a href="${link}">Voir dans Onetto</a></p>` : ''}`,
+      html: this.createEmailLayout({
+        badge: style?.badge ?? 'NOTIFICATION ONETTO',
+        title: this.escapeHtml(input.title),
+        greeting: 'Bonjour,',
+        message: this.escapeHtml(input.message),
+        details:
+          input.type === 'ESTIMATE_ACCEPTED'
+            ? this.createDetailsTable([['Statut du devis', 'Accepté']])
+            : '',
+        action: link
+          ? {
+              label: style?.actionLabel ?? 'Voir dans Onetto',
+              url: this.escapeHtml(link),
+            }
+          : undefined,
+        footer: 'Onetto · Votre espace documentaire',
+        note: style?.note ?? 'Retrouvez les détails dans votre espace Onetto.',
+      }),
     };
   }
 

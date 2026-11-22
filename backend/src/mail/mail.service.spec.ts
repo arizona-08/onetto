@@ -14,6 +14,74 @@ const reminderTypes = [
 describe('MailService templates', () => {
   const service = new MailService({ sendMail: jest.fn() } as never);
 
+  it.each([
+    ['PAYMENT_SUBMITTED', 'PAIEMENT EN COURS'],
+    ['PAYMENT_SUCCEEDED', 'RÈGLEMENT REÇU'],
+    ['PAYMENT_FAILED', 'PAIEMENT ÉCHOUÉ'],
+    ['ESTIMATE_RENEGOTIATED', 'DEVIS À RÉVISER'],
+    ['ESTIMATE_REJECTED', 'DEVIS REFUSÉ'],
+    ['CONTRACT_MANDATE_ACTIVE', 'MANDAT AUTORISÉ'],
+  ] as const)('utilise le template Onetto pour %s', (type, badge) => {
+    const previousFrontendUrl = process.env.FRONTEND_URL;
+    process.env.FRONTEND_URL = 'https://onetto.test';
+    try {
+      const mail = service.createAppNotificationMail({
+        type,
+        title: 'Paiement en cours',
+        message: 'Facture <FACT-42> en cours.',
+        href: '/documents/42',
+      });
+
+      expect(mail.html).toContain(badge);
+      expect(mail.html).toContain('Facture &lt;FACT-42&gt; en cours.');
+      expect(mail.html).toContain('https://onetto.test/documents/42');
+      expect(mail.html).toContain('Onetto · Votre espace documentaire');
+      expect(mail.text).toContain('Facture <FACT-42> en cours.');
+    } finally {
+      if (previousFrontendUrl === undefined) delete process.env.FRONTEND_URL;
+      else process.env.FRONTEND_URL = previousFrontendUrl;
+    }
+  });
+
+  it('présente la fermeture d’entreprise sans lien vers un espace fermé', () => {
+    const mail = service.createAppNotificationMail({
+      type: 'COMPANY_CLOSED',
+      title: 'Espace entreprise fermé',
+      message: 'L’entreprise Atelier <test> a été fermée.',
+    });
+
+    expect(mail.html).toContain('ESPACE ENTREPRISE FERMÉ');
+    expect(mail.html).toContain('Atelier &lt;test&gt;');
+    expect(mail.html).not.toContain('<a href=');
+  });
+
+  it('utilise le template Onetto pour une nouvelle facture fournisseur', () => {
+    const previousFrontendUrl = process.env.FRONTEND_URL;
+    process.env.FRONTEND_URL = 'https://onetto.test';
+    try {
+      const mail = service.createAppNotificationMail({
+        type: 'SUPPLIER_INVOICE_RECEIVED',
+        title: 'Nouvelle facture fournisseur',
+        message: 'ACME <test> vous a envoyé une facture FACT-42.',
+        href: '/notifications?view=supplier-invoices',
+      });
+
+      expect(mail.subject).toBe('Onetto — Nouvelle facture fournisseur');
+      expect(mail.text).toContain(
+        'ACME <test> vous a envoyé une facture FACT-42.',
+      );
+      expect(mail.html).toContain('FACTURE FOURNISSEUR');
+      expect(mail.html).toContain('ACME &lt;test&gt;');
+      expect(mail.html).toContain('Voir la facture fournisseur');
+      expect(mail.html).toContain(
+        'https://onetto.test/notifications?view=supplier-invoices',
+      );
+    } finally {
+      if (previousFrontendUrl === undefined) delete process.env.FRONTEND_URL;
+      else process.env.FRONTEND_URL = previousFrontendUrl;
+    }
+  });
+
   it('reprend le template Onetto pour une invitation Pro avec remise récurrente', () => {
     const mail = service.createAdminUserInvitationMail({
       email: 'ada@example.test',
