@@ -205,6 +205,8 @@ export type PublicPayment = {
     | "invoiceInstalmentPlan"
   > & {
     company: {
+      id: string;
+      logoUpdatedAt?: string | null;
       name: string;
       email: string;
       address: string;
@@ -249,6 +251,8 @@ export type PublicNegociation = {
     totalPriceExcludingTax: number;
     services: DocumentService[];
     company: {
+      id: string;
+      logoUpdatedAt?: string | null;
       name: string;
       email: string;
       phoneNumber: string;

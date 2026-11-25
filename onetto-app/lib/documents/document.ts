@@ -93,6 +93,13 @@ export async function retryInvoicePayment(documentId: string) {
   );
 }
 
+export async function resendInvoicePaymentLink(documentId: string) {
+  return apiClient<{ success: true; message: string }>(
+    `api/documents/${documentId}/resend-payment-link`,
+    { method: "POST" },
+  );
+}
+
 export type SuperPdpDirectoryCompany = {
   number: string;
   formal_name: string;

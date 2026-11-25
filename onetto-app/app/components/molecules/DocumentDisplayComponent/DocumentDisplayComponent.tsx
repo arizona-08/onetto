@@ -7,6 +7,8 @@ import React from "react";
 import { useActiveCompany } from "../../context/ActiveCompanyContext";
 import { useAuthUser } from "../../context/AuthUserContext";
 import DocumentVersionSelector from "../DocumentVersionSelector";
+import DocumentParty from "../DocumentParty";
+import CompanyLogo from "../CompanyLogo";
 
 interface DocumentDisplayComponentProps {
   document: Document;
@@ -71,7 +73,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
 
   return (
     <>
-      <article className="mx-auto mt-5 w-full max-w-2xl overflow-hidden rounded-xl bg-white text-xs leading-relaxed text-zinc-950 sm:mt-6 sm:rounded-md print:mt-0 print:max-w-none print:rounded-none">
+      <article className="mx-auto mt-5 w-full max-w-2xl overflow-hidden rounded-ui-control border border-ui-border bg-ui-surface text-xs leading-relaxed text-ui-text shadow-ui-card sm:mt-6 print:mt-0 print:max-w-none print:rounded-none print:border-0 print:shadow-none">
         <div className="flex justify-end px-4 pt-4 sm:px-7 sm:pt-5 print:hidden">
           <DocumentVersionSelector
             documentId={document.id}
@@ -79,87 +81,52 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
             mode="display"
           />
         </div>
-        <header className="px-4 py-5 sm:px-7 sm:py-6">
-          <div className="flex items-start justify-between gap-3 sm:gap-6">
-            <div className="min-w-0">
-              <p className="font-title text-5xl font-medium uppercase leading-none tracking-tighter text-primary sm:text-7xl">
-                {isInvoice ? "Facture" : "Devis"}
-              </p>
-              <span className="mt-2 inline-block max-w-full break-all rounded-full border border-black bg-white px-2 py-1 text-xs">
-                n° {document.documentNumber}
-              </span>
-
-              <div className="mt-5 flex flex-col gap-2">
-                <div>
-                  <p className="font-semibold text-zinc-500">
-                    {isInvoice ? "Date d’émission" : "Date du devis"}
-                  </p>
-                  <p>
-                    {formatDate(
-                      isInvoice
-                        ? (document.sentAt ?? new Date().toISOString())
-                        : document.createdAt,
-                    )}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="font-semibold text-zinc-500">Date d’échéance</p>
-                  <p>{formatDate(document.paymentDueAt)}</p>
-                </div>
-              </div>
+        <header className="px-4 pt-6 pb-5 sm:px-7 sm:pt-8 sm:pb-6">
+          <div className="flex items-start justify-between gap-4">
+            <CompanyLogo companyId={document.companyId} updatedAt={activeCompany?.logoUpdatedAt} className="w-20 sm:w-30" />
+            <div className="min-w-0 text-right">
+              <h1 className="font-title text-3xl font-semibold uppercase tracking-tight text-ui-text sm:text-4xl">
+                {isInvoice ? "FACTURE" : "DEVIS"}
+              </h1>
+              <p className="mt-1 break-all text-sm font-medium text-ui-secondary">N° {document.documentNumber}</p>
+              {document.contractStageInvoice && <p className="mt-1 text-xs font-semibold text-ui-primary">{document.contractStageInvoice.kind === "DEPOSIT" ? "Facture d’acompte" : "Facture de solde"}</p>}
             </div>
-
-            <div className="h-14 w-14 shrink-0 rounded-md bg-primary sm:h-20 sm:w-20" />
           </div>
 
-          <hr className="mt-10 inline-block w-full text-primary" />
-
-          <div className="mt-7 grid gap-6 sm:grid-cols-2">
-            <section>
-              <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-semibold">
-                  {companyName}
-                </p>
-                <p>Statut : Micro-entreprise</p>
-                <p>SIREN : {companySiren}</p>
-                <p>TVA intracommunautaire : {companyVatNumber}</p>
-                <p>Téléphone : {companyPhoneNumber}</p>
-                <p>Email : {contactEmail}</p>
-                <p className="min-h-4">{companyAddress}</p>
-                <p className="min-h-4">
-                  {companyPostalCode}, {companyCity}
-                </p>
-              </div>
-            </section>
-
-            <section className="min-w-0 text-left sm:text-right">
-              <p className="mb-2 font-semibold uppercase text-zinc-500">
-                À l’attention de
-              </p>
-              <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-semibold">
-                  {document.clientName}
-                </p>
-                <p className="break-words">{document.clientEmail}</p>
-                {document.clientType === "BUSINESS" && document.clientSiren && (
-                  <p>SIREN : {document.clientSiren}</p>
-                )}
-                {document.clientType === "BUSINESS" &&
-                  document.clientVatNumber && (
-                    <p>TVA intracommunautaire : {document.clientVatNumber}</p>
-                  )}
-                <p className="break-words">{document.clientAddress}</p>
-                <p>
-                  {document.clientPostalCode}, {document.clientCity},{" "}
-                  {document.clientCountry}
-                </p>
-              </div>
-            </section>
+          <div className="mt-8 grid gap-6 sm:grid-cols-2">
+            <DocumentParty
+              heading="Émise par"
+              name={companyName}
+              address={[companyAddress, `${companyPostalCode}, ${companyCity}`]}
+              details={[
+                { label: "Statut", value: "Micro-entreprise" },
+                { label: "Tél.", value: companyPhoneNumber },
+                { label: "SIREN", value: companySiren },
+                { label: "TVA intracommunautaire", value: companyVatNumber },
+                { label: "Email", value: contactEmail },
+              ]}
+            />
+            <DocumentParty
+              heading="À l’attention de"
+              name={document.clientName}
+              address={[document.clientAddress, `${document.clientPostalCode}, ${document.clientCity}, ${document.clientCountry}`]}
+              details={[
+                { label: "Email", value: document.clientEmail },
+                ...(document.clientType === "BUSINESS" ? [
+                  { label: "SIREN", value: document.clientSiren },
+                  { label: "TVA intracommunautaire", value: document.clientVatNumber },
+                ] : []),
+              ]}
+              right={false}
+            />
+          </div>
+          <div className="mt-7 grid grid-cols-2 gap-4 border-y border-ui-border py-4">
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-ui-secondary">{isInvoice ? "Date d’émission" : "Date du devis"}</p><p className="mt-1 font-medium">{formatDate(isInvoice ? (document.sentAt ?? new Date().toISOString()) : document.createdAt)}</p></div>
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-ui-secondary">Date d’échéance</p><p className="mt-1 font-medium">{formatDate(document.paymentDueAt)}</p></div>
           </div>
         </header>
 
-        <div className="px-4 py-5 sm:px-7 sm:py-6">
+        <div className="px-4 pb-6 sm:px-7 sm:pb-7">
           <div className="space-y-3 sm:hidden">
             {services.length > 0 ? (
               services.map((serviceLine) => {
@@ -171,18 +138,18 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
                 return (
                   <article
                     key={serviceLine.id}
-                    className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4"
+                    className="rounded-ui-control border border-ui-border bg-ui-subtle p-4"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <p className="font-semibold text-zinc-900">
                         {description}
                       </p>
-                      <p className="shrink-0 font-title text-sm font-semibold text-primary">
+                      <p className="shrink-0 font-title text-sm font-semibold text-ui-text">
                         {currency(lineTotalTTC)}
                       </p>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-zinc-200 pt-3 text-[11px]">
+                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-ui-border pt-3 text-[11px]">
                       <ServiceDetail
                         label="Quantité"
                         value={`${quantity} ${unit}`}
@@ -220,7 +187,7 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
                 <col className="w-[12%]" />
                 <col className="w-[12%]" />
               </colgroup>
-              <thead className="whitespace-nowrap bg-primary/10">
+              <thead className="whitespace-nowrap bg-ui-subtle">
                 <tr className="border-b border-zinc-200 font-semibold uppercase text-zinc-600">
                   <th className="py-2.5 pl-1 pr-1.5">Description</th>
                   <th className="px-1.5 py-2.5">Qté</th>
@@ -272,18 +239,18 @@ function DocumentDisplayComponent({ document }: DocumentDisplayComponentProps) {
           </div>
 
           <div className="mt-6 flex justify-end">
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center gap-12 text-zinc-500">
+            <div className="w-full max-w-60 space-y-2 bg-ui-subtle p-3 text-xs">
+              <div className="flex items-center justify-between gap-4 text-ui-secondary">
                 <p>Sous-total :</p>
                 <p>{currency(totalHT)}</p>
               </div>
 
-              <div className="flex items-center gap-12 text-zinc-500">
+              <div className="flex items-center justify-between gap-4 text-ui-secondary">
                 <p>Total TVA :</p>
                 <p>{currency(totalTVA)}</p>
               </div>
 
-              <div className="flex items-center gap-12 font-semibold text-primary">
+              <div className="flex items-center justify-between gap-4 border-t border-ui-border pt-2 font-semibold text-ui-text">
                 <p>TOTAL TTC :</p>
                 <p>{currency(totalTTC)}</p>
               </div>

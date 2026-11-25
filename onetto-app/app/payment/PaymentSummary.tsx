@@ -4,6 +4,7 @@ import { PublicPayment } from "@/app/types";
 import { formatCurrency, formatDate } from "@/shared/utils";
 import { CreditCard, FileText } from "lucide-react";
 import InstalmentSchedule from "../components/molecules/InstalmentSchedule";
+import CompanyLogo from "../components/molecules/CompanyLogo";
 
 export default function PaymentSummary({
   payment,
@@ -37,14 +38,15 @@ export default function PaymentSummary({
         </header>
 
         <article className="overflow-hidden rounded-ui-card border border-ui-border bg-ui-surface shadow-ui-card">
-          <div className="border-b border-ui-border bg-ui-primary-soft/35 px-5 py-6 sm:px-8 sm:py-7">
-            <h1 className="font-title text-3xl font-semibold tracking-tight text-ui-text sm:text-4xl">
-              Facture
+          <div className="border-b border-ui-border px-5 py-6 sm:px-8 sm:py-7">
+            <CompanyLogo companyId={document.company.id} updatedAt={document.company.logoUpdatedAt} className="mb-5 w-16" />
+            <h1 className="font-title text-3xl font-semibold uppercase tracking-tight text-ui-text sm:text-4xl">
+              FACTURE
             </h1>
             <p className="mt-1 text-sm font-medium text-ui-secondary">
               n° {document.documentNumber}
             </p>
-            <div className="mt-6 grid gap-4 text-sm text-ui-secondary sm:grid-cols-2">
+            <div className="mt-7 grid gap-4 text-sm text-ui-secondary sm:grid-cols-2">
               <p>
                 <span className="block text-xs font-medium text-ui-secondary">Émise par</span>
                 <span className="mt-1 block font-semibold text-ui-text">{document.company.name}</span>
@@ -76,12 +78,12 @@ export default function PaymentSummary({
                 </div>
               ))}
             </div>
-            <div className="ml-auto mt-6 w-full max-w-xs rounded-ui-control border border-ui-border bg-ui-subtle p-4 text-sm">
+            <div className="ml-auto mt-6 w-full max-w-xs bg-ui-subtle p-4 text-sm">
               <div className="flex justify-between gap-4 text-ui-secondary">
                 <span>Sous-total</span>
                 <span className="tabular-nums">{formatCurrency(document.totalPriceExcludingTax)}</span>
               </div>
-              <div className="mt-3 flex justify-between gap-4 border-t border-ui-border pt-3 font-semibold text-ui-primary">
+              <div className="mt-3 flex justify-between gap-4 border-t border-ui-border bg-ui-border/60 px-2 py-2 font-semibold text-ui-text">
                 <span>Total TTC</span>
                 <span className="tabular-nums">{formatCurrency(document.totalPrice)}</span>
               </div>

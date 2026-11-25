@@ -33,7 +33,7 @@ export class FacturXService {
         },
       },
       include: {
-        company: true,
+        company: { include: { logo: true } },
         services: true,
         contractStageInvoice: {
           include: {
@@ -207,7 +207,7 @@ export class FacturXService {
         },
       },
       include: {
-        company: true, services: true,
+        company: { include: { logo: true } }, services: true,
         contractStageInvoice: {
           include: { plan: { include: { estimate: { include: { services: true } }, stages: { include: { invoice: true } } } } },
         },

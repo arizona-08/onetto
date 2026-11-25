@@ -14,13 +14,39 @@ import { CreateCompanyServiceDto } from './dtos/create-company-service.dto';
 import { UpdateCompanyClientDto } from './dtos/update-company-client.dto';
 import { UpdateCompanyServiceDto } from './dtos/update-company-service.dto';
 import { PlanAccessService } from 'src/plan-access/plan-access.service';
+import sharp from 'sharp';
+import { randomUUID } from 'crypto';
+import { S3StorageService } from 'src/storage/s3-storage.service';
 
 @Injectable()
 export class CompaniesService {
+  private readonly logoLocks = new Map<string, Promise<void>>();
+
   constructor(
     private readonly prismaService: PrismaService,
     private readonly planAccessService: PlanAccessService,
+    private readonly storage: S3StorageService,
   ) {}
+
+  private async withLogoLock<T>(
+    companyId: string,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    const previous = this.logoLocks.get(companyId) ?? Promise.resolve();
+    let unlock!: () => void;
+    const current = new Promise<void>((resolve) => {
+      unlock = resolve;
+    });
+    this.logoLocks.set(companyId, current);
+    await previous;
+    try {
+      return await action();
+    } finally {
+      if (this.logoLocks.get(companyId) === current)
+        this.logoLocks.delete(companyId);
+      unlock();
+    }
+  }
 
   private async getOwnedCompany(companyId: string, userId: string) {
     const company = await this.prismaService.company.findFirst({
@@ -34,6 +60,148 @@ export class CompaniesService {
     }
 
     return company;
+  }
+
+  async setLogo(
+    companyId: string,
+    userId: string,
+    file?: {
+      buffer: Buffer;
+      mimetype: string;
+      originalname: string;
+    },
+  ) {
+    const company = await this.getOwnedCompany(companyId, userId);
+    if (company.status === 'CLOSED')
+      throw new BadRequestException(
+        'Une entreprise fermée ne peut pas être modifiée.',
+      );
+    if (!file?.buffer?.length || file.buffer.length > 2_000_000) {
+      throw new BadRequestException('Le logo doit peser moins de 2 Mo.');
+    }
+
+    const extension = file.originalname.split('.').pop()?.toLowerCase();
+    const accepted = new Map([
+      ['png', ['image/png', 'png']],
+      ['jpg', ['image/jpeg', 'jpeg']],
+      ['jpeg', ['image/jpeg', 'jpeg']],
+      ['webp', ['image/webp', 'webp']],
+      ['svg', ['image/svg+xml', 'svg']],
+    ]);
+    const expected = extension ? accepted.get(extension) : undefined;
+    if (!expected || file.mimetype !== expected[0]) {
+      throw new BadRequestException(
+        'Format accepté : PNG, JPG, JPEG, WEBP ou SVG.',
+      );
+    }
+    if (
+      extension === 'svg' &&
+      /<!DOCTYPE|<!ENTITY|<\?|<\s*(?:script|foreignObject|image|use|animate|set|filter|feImage)\b|\bon[a-z]+\s*=|\b(?:href|xlink:href|style)\s*=|url\s*\(/i.test(
+        file.buffer.toString('utf8'),
+      )
+    ) {
+      throw new BadRequestException(
+        'Ce SVG contient des ressources externes ou du contenu actif.',
+      );
+    }
+
+    let content: Buffer;
+    try {
+      const image = sharp(file.buffer, { limitInputPixels: 16_000_000 });
+      const metadata = await image.metadata();
+      if (metadata.format !== expected[1]) throw new Error('Format incohérent');
+      content =
+        extension === 'svg'
+          ? file.buffer
+          : await image
+              .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+              .png()
+              .toBuffer();
+    } catch {
+      throw new BadRequestException(
+        'Le fichier image est invalide ou trop grand.',
+      );
+    }
+
+    return this.withLogoLock(companyId, async () => {
+      const previous = await this.prismaService.companyLogo.findUnique({
+        where: { companyId },
+        select: { s3Key: true },
+      });
+      if (previous?.s3Key)
+        await this.storage.deleteCompanyLogo(companyId, previous.s3Key);
+      // Clear the reference before uploading: a failed upload must not leave a deleted S3 key in use.
+      await this.prismaService.$transaction([
+        this.prismaService.companyLogo.deleteMany({ where: { companyId } }),
+        this.prismaService.company.update({
+          where: { id: companyId },
+          data: { logoUpdatedAt: null },
+        }),
+      ]);
+      const key = `companies/${companyId}/logos/${randomUUID()}.${extension === 'svg' ? 'svg' : 'png'}`;
+      const contentType = extension === 'svg' ? 'image/svg+xml' : 'image/png';
+      await this.storage.storeCompanyLogo({
+        companyId,
+        key,
+        content,
+        contentType,
+      });
+      try {
+        const [, updatedCompany] = await this.prismaService.$transaction([
+          this.prismaService.companyLogo.create({
+            data: { companyId, s3Key: key, contentType },
+          }),
+          this.prismaService.company.update({
+            where: { id: companyId },
+            data: { logoUpdatedAt: new Date() },
+          }),
+        ]);
+        return { logoUpdatedAt: updatedCompany.logoUpdatedAt };
+      } catch (error) {
+        await this.storage.deleteCompanyLogo(companyId, key);
+        throw error;
+      }
+    });
+  }
+
+  async removeLogo(companyId: string, userId: string) {
+    const company = await this.getOwnedCompany(companyId, userId);
+    if (company.status === 'CLOSED')
+      throw new BadRequestException(
+        'Une entreprise fermée ne peut pas être modifiée.',
+      );
+    return this.withLogoLock(companyId, async () => {
+      const previous = await this.prismaService.companyLogo.findUnique({
+        where: { companyId },
+        select: { s3Key: true },
+      });
+      if (previous?.s3Key)
+        await this.storage.deleteCompanyLogo(companyId, previous.s3Key);
+      await this.prismaService.$transaction([
+        this.prismaService.companyLogo.deleteMany({ where: { companyId } }),
+        this.prismaService.company.update({
+          where: { id: companyId },
+          data: { logoUpdatedAt: null },
+        }),
+      ]);
+      return { logoUpdatedAt: null };
+    });
+  }
+
+  async getLogo(
+    companyId: string,
+  ): Promise<{ content: Buffer; contentType: string }> {
+    const logo = await this.prismaService.companyLogo.findUnique({
+      where: { companyId },
+      select: { s3Key: true, contentType: true },
+    });
+    if (!logo) throw new NotFoundException('Logo introuvable.');
+    if (logo.s3Key)
+      return {
+        content: await this.storage.getCompanyLogo(companyId, logo.s3Key),
+        contentType: logo.contentType ?? 'image/png',
+      };
+    throw new NotFoundException('Logo introuvable.');
   }
 
   private async getAccessibleCompany(companyId: string, userId: string) {
@@ -423,14 +591,18 @@ export class CompaniesService {
         'Une entreprise fermée ne peut pas être modifiée.',
       );
     }
-    const { id: _id, ownerId: _ownerId, ...companyData } = data;
+    const companyData = { ...data };
+    delete companyData.id;
+    delete companyData.ownerId;
 
     try {
       return await this.prismaService.company.update({
         where: { id: companyId },
         data: {
           ...companyData,
-          ...(companyData.bank !== undefined ? { bank: companyData.bank?.trim() || null } : {}),
+          ...(companyData.bank !== undefined
+            ? { bank: companyData.bank?.trim() || null }
+            : {}),
           ...(companyData.vatExigibility
             ? { hasVatOnDebits: companyData.vatExigibility === 'ON_DEBITS' }
             : {}),

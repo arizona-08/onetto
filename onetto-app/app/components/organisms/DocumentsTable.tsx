@@ -37,6 +37,7 @@ import {
   reconcileInstalmentPayments,
   reconcileOneTimePayment,
   retryInvoicePayment,
+  resendInvoicePaymentLink,
   resendInstalmentMandateAuthorisation,
   sendDocumentToClient,
 } from "@/lib/documents/document";
@@ -536,6 +537,26 @@ function DocumentsTable({
     }
   }
 
+  async function handleResendPaymentLink(document: Document) {
+    setRetryingDocumentIds((ids) => [...ids, document.id]);
+    try {
+      const response = await resendInvoicePaymentLink(document.id);
+      if (!response.ok) {
+        if (isGoCardlessAccessTokenInactive(response.error)) {
+          setGoCardlessReconnectCompanyId(document.companyId);
+          return;
+        }
+        showToast(typeof response.error.message === "string" ? response.error.message : "Impossible de renvoyer le lien de paiement.", "error");
+        return;
+      }
+      showToast("Le lien de paiement a été renvoyé au client.", "success");
+    } catch {
+      showToast("Impossible de renvoyer le lien de paiement.", "error");
+    } finally {
+      setRetryingDocumentIds((ids) => ids.filter((id) => id !== document.id));
+    }
+  }
+
   async function handleManualPaymentStatus(
     document: Document,
   ): Promise<boolean> {
@@ -740,6 +761,15 @@ function DocumentsTable({
         label: "Envoyer un nouveau lien",
         icon: RotateCcw,
         onSelect: () => void handleRetryInvoicePayment(document.id),
+      });
+    }
+    if (!isInstalments && !document.contractStageInvoice &&
+      ["PENDING", "OVERDUE"].includes(document.invoiceStatus) &&
+      document.invoicePaymentLinks?.[0]?.provider === "GOCARDLESS") {
+      actions.push({
+        label: "Renvoyer le lien de paiement",
+        icon: Send,
+        onSelect: () => void handleResendPaymentLink(document),
       });
     }
     if (hasUnpaidFailedInstalment(document)) {

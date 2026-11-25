@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import AcceptEstimateModal from "./AcceptEstimateModal";
+import CompanyLogo from "@/app/components/molecules/CompanyLogo";
 
 type NegociationViewProps = { negociation: PublicNegociation; token: string };
 type NegociationStatus = PublicNegociation["status"];
@@ -193,9 +194,7 @@ export default function NegociationView({
                     n° {document.documentNumber}
                   </p>
                 </div>
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-ui-control bg-ui-primary-soft text-ui-primary">
-                  <FileText className="h-6 w-6" aria-hidden="true" />
-                </div>
+                <CompanyLogo companyId={company.id} updatedAt={company.logoUpdatedAt} className="w-12" />
               </div>
               <div className="mt-7 grid gap-3 text-sm text-ui-secondary sm:grid-cols-2">
                 <p>

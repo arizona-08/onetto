@@ -1358,6 +1358,11 @@ export class DocumentService {
         include: {
           services: withServices,
           invoicePaymentMode: true,
+          invoicePaymentLinks: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { provider: true },
+          },
           contractPaymentPlan: {
             include: { stages: { include: { payment: true, invoice: { select: { id: true, documentNumber: true, invoiceStatus: true, totalPrice: true } } }, orderBy: { sequence: 'asc' } } },
           },
@@ -1513,6 +1518,8 @@ export class DocumentService {
               },
               company: {
                 select: {
+                  id: true,
+                  logoUpdatedAt: true,
                   status: true,
                   name: true,
                   email: true,
@@ -2400,6 +2407,71 @@ export class DocumentService {
     }
   }
 
+  async resendInvoicePaymentLink(documentId: string, user: User) {
+    const document = await this.getDocumentById(documentId, user, true);
+    if (
+      document.type !== 'INVOICE' ||
+      !document.sentAt ||
+      !['PENDING', 'OVERDUE'].includes(document.invoiceStatus ?? '') ||
+      document.contractStageInvoice
+    ) {
+      throw new BadRequestException(
+        'Seule une facture en attente ou échue à paiement unique peut recevoir ce lien.',
+      );
+    }
+    if (!(await this.isCompanyUser(user.id, document.companyId))) {
+      throw new BadRequestException(
+        "Vous n'avez pas la permission de renvoyer ce lien.",
+      );
+    }
+    const { paymentMode } = await this.getPaymentModeDetails(documentId);
+    if (paymentMode !== 'ONE_TIME') {
+      throw new BadRequestException(
+        'Utilisez le suivi des échéances pour cette facture.',
+      );
+    }
+
+    const refreshed = await this.gocardlessProvider.getCurrentOneTimeFlow(
+      documentId,
+      { renewPublicAccess: true },
+    );
+    if (!refreshed.url) {
+      throw new BadRequestException(
+        refreshed.message ?? 'Le lien de paiement ne peut pas être renouvelé.',
+      );
+    }
+    const company = await this.getInvoiceCompany(document.companyId);
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ??
+      'http://localhost:3000';
+    const paymentLink = `${frontendUrl}/payment?token=${refreshed.accessToken}`;
+    const mailContent = this.mailService.createInvoicePaymentLinkResendMail({
+      clientName: document.clientName,
+      documentNumber: document.documentNumber,
+      totalPrice: document.totalPrice,
+      paymentDueAt: document.paymentDueAt,
+      companyName: company.name,
+      companyEmail: company.email,
+      paymentLink,
+    });
+    const invoicePdf = await this.pdfService.generate({ ...document, company });
+    await this.mailService.sendMail({
+      to: document.clientEmail,
+      ...mailContent,
+      attachments: [
+        this.createInvoiceAttachment(
+          document.id,
+          document.documentNumber,
+          invoicePdf,
+        ),
+      ],
+    });
+    return {
+      success: true,
+      message: 'Le lien de paiement a été renvoyé au client.',
+    };
+  }
+
   async resendInstalmentMandateAuthorisation(documentId: string, user: User) {
     const document = await this.getDocumentById(documentId, user, true);
     if (document.type !== 'INVOICE') {
@@ -2608,6 +2680,8 @@ export class DocumentService {
               },
               company: {
                 select: {
+                  id: true,
+                  logoUpdatedAt: true,
                   status: true,
                   name: true,
                   email: true,
@@ -2644,14 +2718,26 @@ export class DocumentService {
           )
         : null;
 
+    const oneTimeFlow =
+      publicAccess.invoice.invoicePaymentMode?.paymentMode !== 'INSTALMENTS' &&
+      publicAccess.invoice.company.status === 'ACTIVE' &&
+      publicAccess.invoicePaymentLink.provider === 'GOCARDLESS'
+        ? await this.gocardlessProvider.getCurrentOneTimeFlow(
+            publicAccess.invoice.id,
+            { accessToken },
+          )
+        : null;
+
     return {
       paymentLink: instalmentFlow
         ? instalmentFlow.url
-        : publicAccess.invoice.company.status === 'ACTIVE' &&
-            publicAccess.invoicePaymentLink.linkStatus === 'VALID'
-          ? publicAccess.invoicePaymentLink.url
-          : null,
-      paymentMessage: instalmentFlow?.message,
+        : oneTimeFlow
+          ? oneTimeFlow.url
+          : publicAccess.invoice.company.status === 'ACTIVE' &&
+              publicAccess.invoicePaymentLink.linkStatus === 'VALID'
+            ? publicAccess.invoicePaymentLink.url
+            : null,
+      paymentMessage: instalmentFlow?.message ?? oneTimeFlow?.message,
       expiresAt: publicAccess.expiresAt,
       document: publicAccess.invoice,
     };
@@ -2671,9 +2757,11 @@ export class DocumentService {
         city: true,
         country: true,
         vatNumber: true,
+        legalStatus: true,
         bank: true,
         IBAN: true,
         BIC: true,
+        logo: { select: { s3Key: true, contentType: true } },
       },
     });
 

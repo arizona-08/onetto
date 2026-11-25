@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  UploadedFile,
   Get,
   Param,
   Patch,
@@ -10,7 +11,9 @@ import {
   Req,
   UnauthorizedException,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CompaniesService } from './companies.service';
 import { AuthGuard } from 'src/auth/auth.guard';
 import { CreateCompanyDto } from './dtos/create-company.dto';
@@ -183,6 +186,27 @@ export class CompaniesController {
       data,
       this.getUserId(req),
     );
+  }
+
+  @Post(':companyId/logo')
+  @UseInterceptors(FileInterceptor('logo', { limits: { fileSize: 2_000_000 } }))
+  uploadLogo(
+    @Param('companyId') companyId: string,
+    @UploadedFile()
+    file:
+      | { buffer: Buffer; mimetype: string; originalname: string }
+      | undefined,
+    @Req() req: ExtendedRequest,
+  ) {
+    return this.companiesService.setLogo(companyId, this.getUserId(req), file);
+  }
+
+  @Delete(':companyId/logo')
+  removeLogo(
+    @Param('companyId') companyId: string,
+    @Req() req: ExtendedRequest,
+  ) {
+    return this.companiesService.removeLogo(companyId, this.getUserId(req));
   }
 
   @Post(':companyId/select')

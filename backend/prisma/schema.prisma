@@ -178,6 +178,7 @@ model Company {
   subjectToVat              Boolean
   vatNumber                 String?
   bank                      String?
+  logoUpdatedAt             DateTime?
   IBAN                      String
   BIC                       String
   status                    CompanyStatus     @default(ACTIVE)
@@ -196,6 +197,7 @@ model Company {
   b2bInvoiceFormat          B2BInvoiceFormat @default(UBL)
 
   documents                      Document[]
+  logo                           CompanyLogo?
   owner                          User                            @relation(fields: [ownerId], references: [id])
   companyUsers                   CompanyUser[]
   lastConnectedUsers             User[]                          @relation("LastConnectedCompany")
@@ -208,6 +210,14 @@ model Company {
   receivedElectronicInvoices     ReceivedElectronicInvoice[]
   electronicReportingSubmissions ElectronicReportingSubmission[]
   notifications                   AppNotification[]
+}
+
+model CompanyLogo {
+  companyId String   @id
+  s3Key     String?
+  contentType String?
+  updatedAt DateTime @updatedAt
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
 enum AppNotificationType {

@@ -548,9 +548,11 @@ export class MailService {
   createContractStageInvoiceMail(
     input: ContractStageInvoiceMailInput,
   ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
-    const label = input.kind === 'DEPOSIT' ? 'facture d’acompte' : 'facture finale';
+    const label =
+      input.kind === 'DEPOSIT' ? 'facture d’acompte' : 'facture finale';
     const subject = `${input.kind === 'DEPOSIT' ? 'Facture d’acompte' : 'Facture finale'} ${input.documentNumber}`;
-    const notice = 'Aucun prélèvement n’est déclenché par cet envoi. Vous serez informé avant tout prélèvement SEPA.';
+    const notice =
+      'Aucun prélèvement n’est déclenché par cet envoi. Vous serez informé avant tout prélèvement SEPA.';
 
     return {
       subject,
@@ -565,8 +567,12 @@ export class MailService {
         input.companyName,
       ].join('\n'),
       html: this.createEmailLayout({
-        badge: input.kind === 'DEPOSIT' ? 'FACTURE D’ACOMPTE' : 'FACTURE FINALE',
-        title: input.kind === 'DEPOSIT' ? 'Votre facture d’acompte est prête' : 'Votre facture finale est prête',
+        badge:
+          input.kind === 'DEPOSIT' ? 'FACTURE D’ACOMPTE' : 'FACTURE FINALE',
+        title:
+          input.kind === 'DEPOSIT'
+            ? 'Votre facture d’acompte est prête'
+            : 'Votre facture finale est prête',
         greeting: `Bonjour ${this.escapeHtml(input.clientName)},`,
         message: `Veuillez trouver en pièce jointe votre ${label} <strong>${this.escapeHtml(input.documentNumber ?? '')}</strong> relative au devis <strong>${this.escapeHtml(input.estimateNumber ?? '')}</strong>.`,
         details: this.createDetailsTable([
@@ -596,6 +602,27 @@ export class MailService {
       subject: `Nouveau lien de paiement — facture ${input.documentNumber}`,
       text: this.createInvoicePaymentRetryText(input),
       html: this.createInvoicePaymentRetryTemplate(input),
+    };
+  }
+
+  createInvoicePaymentLinkResendMail(
+    input: InvoiceMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    return {
+      subject: `Lien de paiement — facture ${input.documentNumber}`,
+      text: [
+        `Bonjour ${input.clientName},`,
+        '',
+        `${input.companyName} vous renvoie le lien de paiement de la facture ${input.documentNumber}.`,
+        `Montant total : ${formatAmount(input.totalPrice)}`,
+        `Date d'échéance : ${formatDate(input.paymentDueAt)}`,
+        '',
+        'Payer la facture :',
+        input.paymentLink,
+        '',
+        `Pour toute question, contactez ${input.companyName} à ${input.companyEmail}.`,
+      ].join('\n'),
+      html: this.createInvoicePaymentLinkResendTemplate(input),
     };
   }
 
@@ -923,6 +950,24 @@ export class MailService {
       greeting: `Bonjour ${input.clientName},`,
       message: `Le règlement de votre facture <strong>${input.documentNumber}</strong> n’a pas pu aboutir. Un nouveau lien de paiement sécurisé a été généré afin de vous permettre de réessayer.`,
       details,
+      action: { label: 'Payer la facture', url: input.paymentLink },
+      footer: `${input.companyName} · ${input.companyEmail}`,
+      note: `Pour toute question, vous pouvez contacter ${input.companyName} à ${input.companyEmail}.`,
+    });
+  }
+
+  private createInvoicePaymentLinkResendTemplate(
+    input: InvoiceMailInput,
+  ): string {
+    return this.createEmailLayout({
+      badge: 'FACTURE',
+      title: 'Votre lien de paiement',
+      greeting: `Bonjour ${input.clientName},`,
+      message: `${input.companyName} vous renvoie le lien de paiement de votre facture <strong>${input.documentNumber}</strong>.`,
+      details: this.createDetailsTable([
+        ['Montant total', formatAmount(input.totalPrice)],
+        ['Date d’échéance', formatDate(input.paymentDueAt)],
+      ]),
       action: { label: 'Payer la facture', url: input.paymentLink },
       footer: `${input.companyName} · ${input.companyEmail}`,
       note: `Pour toute question, vous pouvez contacter ${input.companyName} à ${input.companyEmail}.`,

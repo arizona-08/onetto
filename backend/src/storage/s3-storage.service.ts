@@ -1,4 +1,5 @@
 import {
+  DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
   ObjectLockMode,
@@ -85,7 +86,7 @@ export class S3StorageService {
     const sha256 = this.sha256(input.content);
     const key = `companies/${input.companyId}/documents/${input.documentId}/rendered/${sha256}.pdf`;
     try {
-      const uploaded = await this.client.send(
+      await this.client.send(
         new PutObjectCommand({
           Bucket: this.documentsBucket,
           Key: key,
@@ -108,6 +109,71 @@ export class S3StorageService {
         'Impossible de stocker le PDF du document.',
         error instanceof Error ? error.message : undefined,
       );
+    }
+  }
+
+  async storeCompanyLogo(input: {
+    companyId: string;
+    key: string;
+    content: Buffer;
+    contentType: string;
+  }): Promise<void> {
+    this.assertCompanyLogoKey(input.companyId, input.key);
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.documentsBucket,
+          Key: input.key,
+          Body: input.content,
+          ContentType: input.contentType,
+          ServerSideEncryption: ServerSideEncryption.aws_kms,
+          SSEKMSKeyId: this.documentsKmsKeyId,
+        }),
+      );
+    } catch {
+      throw new BadGatewayException(
+        'Impossible de stocker le logo de l’entreprise.',
+      );
+    }
+  }
+
+  async getCompanyLogo(companyId: string, key: string): Promise<Buffer> {
+    this.assertCompanyLogoKey(companyId, key);
+    try {
+      const response = await this.client.send(
+        new GetObjectCommand({
+          Bucket: this.documentsBucket,
+          Key: key,
+        }),
+      );
+      if (!response.Body) throw new Error('Objet vide');
+      return Buffer.from(await response.Body.transformToByteArray());
+    } catch {
+      throw new BadGatewayException(
+        'Impossible de lire le logo de l’entreprise.',
+      );
+    }
+  }
+
+  async deleteCompanyLogo(companyId: string, key: string): Promise<void> {
+    this.assertCompanyLogoKey(companyId, key);
+    try {
+      await this.client.send(
+        new DeleteObjectCommand({
+          Bucket: this.documentsBucket,
+          Key: key,
+        }),
+      );
+    } catch {
+      throw new BadGatewayException(
+        'Impossible de supprimer l’ancien logo de l’entreprise.',
+      );
+    }
+  }
+
+  private assertCompanyLogoKey(companyId: string, key: string): void {
+    if (!key.startsWith(`companies/${companyId}/logos/`)) {
+      throw new InternalServerErrorException('Clé S3 du logo invalide.');
     }
   }
 

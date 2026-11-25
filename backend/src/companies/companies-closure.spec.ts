@@ -10,7 +10,11 @@ describe('CompaniesService — fermeture', () => {
       update: jest.fn(),
     },
   };
-  const service = new CompaniesService(prisma as never, {} as never);
+  const service = new CompaniesService(
+    prisma as never,
+    {} as never,
+    {} as never,
+  );
   beforeEach(() => jest.clearAllMocks());
 
   it('conserve la date et le motif d’une entreprise déjà fermée', async () => {

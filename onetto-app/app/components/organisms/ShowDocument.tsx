@@ -8,6 +8,7 @@ import {
   downloadFacturX,
   getDocumentNegociations,
   retryInvoicePayment,
+  resendInvoicePaymentLink,
   sendB2BInvoiceToSuperPdp,
   sendDocumentToClient,
   syncB2BInvoiceWithSuperPdp,
@@ -92,6 +93,11 @@ function ShowDocument({ document }: ShowDocumentProps) {
     document.type === "INVOICE" && document.invoiceStatus === "DRAFT";
   const isRejectedInvoice =
     document.type === "INVOICE" && document.invoiceStatus === "REJECTED";
+  const canResendPaymentLink = document.type === "INVOICE" &&
+    !document.contractStageInvoice &&
+    document.invoicePaymentMode?.paymentMode !== "INSTALMENTS" &&
+    ["PENDING", "OVERDUE"].includes(document.invoiceStatus) &&
+    document.invoicePaymentLinks?.[0]?.provider === "GOCARDLESS";
   const b2bTransmission = document.electronicInvoiceTransmissions?.[0];
   const canSendB2B =
     document.type === "INVOICE" &&
@@ -355,6 +361,26 @@ function ShowDocument({ document }: ShowDocumentProps) {
     router.refresh();
   }
 
+  async function handleResendPaymentLink() {
+    setIsRetryingPayment(true);
+    try {
+      const response = await resendInvoicePaymentLink(document.id);
+      if (!response.ok) {
+        if (isGoCardlessAccessTokenInactive(response.error)) {
+          setIsGoCardlessReconnectOpen(true);
+          return;
+        }
+        showToast(typeof response.error.message === "string" ? response.error.message : "Impossible de renvoyer le lien de paiement.", "error");
+        return;
+      }
+      showToast("Le lien de paiement a été renvoyé au client.", "success");
+    } catch {
+      showToast("Impossible de renvoyer le lien de paiement.", "error");
+    } finally {
+      setIsRetryingPayment(false);
+    }
+  }
+
   async function handleDownloadPdf() {
     setIsDownloading(true);
 
@@ -544,6 +570,17 @@ function ShowDocument({ document }: ShowDocumentProps) {
             >
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               {isRetryingPayment ? "Génération…" : "Relancer le paiement"}
+            </button>
+          )}
+          {canResendPaymentLink && (
+            <button
+              type="button"
+              onClick={handleResendPaymentLink}
+              disabled={isRetryingPayment}
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-primary px-3 py-2 text-center text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" aria-hidden="true" />
+              {isRetryingPayment ? "Envoi…" : "Renvoyer le lien de paiement"}
             </button>
           )}
 

@@ -6,6 +6,8 @@ import { Landmark } from "lucide-react";
 import React from "react";
 import { useAuthUser } from "../../context/AuthUserContext";
 import { useActiveCompany } from "../../context/ActiveCompanyContext";
+import DocumentParty from "../../molecules/DocumentParty";
+import CompanyLogo from "../../molecules/CompanyLogo";
 
 interface DocumentPreviewProps {
   type: "estimate" | "invoice";
@@ -55,79 +57,51 @@ function DocumentPreview({
         <span>Aperçu {type === "invoice" ? "de la facture" : "du devis"}</span>
       </div>
 
-      <article className={editorLayout ? "mx-auto w-full max-w-2xl overflow-hidden rounded-ui-control border border-ui-border bg-ui-surface text-[11px] leading-relaxed text-ui-text shadow-ui-card" : "mx-auto w-full max-w-2xl overflow-hidden rounded-md bg-white text-xs leading-relaxed text-zinc-950"}>
-        <header className={editorLayout ? "px-4 py-5 sm:px-6" : "px-7 py-6"}>
-          <div className="flex items-start justify-between gap-6">
-            <div>
-              <p className={editorLayout ? "font-title text-3xl font-semibold text-ui-text" : "flex flex-col font-title text-7xl font-medium uppercase tracking-tighter text-primary"}>
-                {type === "invoice" ? "Facture" : "Devis"}
-              </p>
-              <span className="text-xs text-ui-secondary">{documentNumber ?? "Numéro attribué à l’enregistrement"}</span>
-
-              <div className="mt-5 flex flex-col gap-2">
-                <div>
-                  <p className="font-semibold text-zinc-500">
-                    {type === "invoice" ? "Date d'emission" : "Date du devis"}
-                  </p>
-                  <p>{formatDate(creationDate)}</p>
-                </div>
-
-                <div>
-                  <p className="font-semibold text-zinc-500">Date d’échéance</p>
-                  <p>{formatDate(documentDates.dueDate)}</p>
-                </div>
-              </div>
+      <article className="mx-auto w-full max-w-2xl overflow-hidden rounded-ui-control border border-ui-border bg-ui-surface text-[11px] leading-relaxed text-ui-text shadow-ui-card">
+        <header className={editorLayout ? "px-4 pt-6 pb-5 sm:px-6" : "px-7 pt-8 pb-6"}>
+          <div className="flex items-start justify-between gap-4">
+            <CompanyLogo companyId={activeCompany?.id ?? ""} updatedAt={activeCompany?.logoUpdatedAt} className="w-20 sm:w-30" />
+            <div className="min-w-0 text-right">
+              <h2 className="font-title text-3xl font-semibold uppercase tracking-tight text-ui-text sm:text-4xl">
+                {type === "invoice" ? "FACTURE" : "DEVIS"}
+              </h2>
+              <p className="mt-1 text-xs text-ui-secondary">{documentNumber ? `N° ${documentNumber}` : "Numéro attribué à l’enregistrement"}</p>
             </div>
-
-            {/* Logo de l'entreprise */}
-            <div className={editorLayout ? "flex h-12 w-12 shrink-0 items-center justify-center rounded-ui-control bg-ui-primary-soft font-title text-xl font-bold text-ui-primary" : "h-20 w-20 rounded-md bg-primary"}>{editorLayout ? "O" : null}</div>
           </div>
 
-          {/* divider */}
-          <hr className="inline-block w-full mt-10 text-primary" />
-
-          <div className={`mt-7 grid gap-6 ${editorLayout ? "sm:grid-cols-2" : "md:grid-cols-2"}`}>
-            <section className="">
-              <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-semibold">
-                  {activeCompany?.name ?? ""}
-                </p>
-                <p>SIREN : {activeCompany?.siren ?? ""}</p>
-                <p>TVA intracommunautaire : {activeCompany?.vatNumber ?? ""}</p>
-                <p>Téléphone: {activeCompany?.phoneNumber}</p>
-                <p>Email: {contactEmail}</p>
-                <p className="min-h-4">{activeCompany?.address}</p>
-                <p className="min-h-4">
-                  {activeCompany?.postalCode}, {activeCompany?.city}
-                </p>
-              </div>
-            </section>
-
-            <section className="text-right">
-              <p className="mb-2 font-semibold uppercase text-zinc-500">
-                À l’attention de
-              </p>
-              <div className="space-y-0.5">
-                <p className="min-h-5 font-title text-lg font-semibold">
-                  {client?.name ?? ""}
-                </p>
-                <p>{client?.email ?? ""}</p>
-                {client?.clientType === "BUSINESS" && client.siren && (
-                  <p>SIREN : {client.siren}</p>
-                )}
-                {client?.clientType === "BUSINESS" && client.vatNumber && (
-                  <p>TVA intracommunautaire : {client.vatNumber}</p>
-                )}
-                <p>{client?.address ?? ""}</p>
-                <p>
-                  {[client?.postalCode, client?.city, client?.country].filter(Boolean).join(", ")}
-                </p>
-              </div>
-            </section>
+          <div className={`mt-8 grid gap-6 ${editorLayout ? "sm:grid-cols-2" : "md:grid-cols-2"}`}>
+            <DocumentParty
+              heading="Émise par"
+              name={activeCompany?.name ?? ""}
+              address={[activeCompany?.address ?? "", [activeCompany?.postalCode, activeCompany?.city].filter(Boolean).join(", ")]}
+              details={[
+                { label: "Tél.", value: activeCompany?.phoneNumber },
+                { label: "Email", value: contactEmail },
+                { label: "SIREN", value: activeCompany?.siren },
+                { label: "TVA intracommunautaire", value: activeCompany?.vatNumber },
+              ]}
+            />
+            <DocumentParty
+              heading="À l’attention de"
+              name={client?.name ?? ""}
+              address={[client?.address ?? "", [client?.postalCode, client?.city, client?.country].filter(Boolean).join(", ")]}
+              details={[
+                { label: "Email", value: client?.email },
+                ...(client?.clientType === "BUSINESS" ? [
+                  { label: "SIREN", value: client.siren },
+                  { label: "TVA intracommunautaire", value: client.vatNumber },
+                ] : []),
+              ]}
+              right
+            />
+          </div>
+          <div className="mt-7 grid grid-cols-2 gap-4 border-y border-ui-border py-4">
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-ui-secondary">{type === "invoice" ? "Date d’émission" : "Date du devis"}</p><p className="mt-1 font-medium">{formatDate(creationDate)}</p></div>
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-ui-secondary">Date d’échéance</p><p className="mt-1 font-medium">{formatDate(documentDates.dueDate)}</p></div>
           </div>
         </header>
 
-        <div className={editorLayout ? "px-4 py-5 sm:px-6" : "px-7 py-6"}>
+        <div className={editorLayout ? "px-4 pb-6 sm:px-6" : "px-7 pb-7"}>
           <div className="overflow-x-auto">
             <table className={`w-full table-fixed border-collapse text-left text-[10px] ${editorLayout ? "min-w-[480px]" : ""}`}>
               <colgroup>
@@ -139,7 +113,7 @@ function DocumentPreview({
                 <col className="w-[12%]" />
                 <col className="w-[12%]" />
               </colgroup>
-              <thead className="whitespace-nowrap bg-primary/10">
+              <thead className="whitespace-nowrap bg-ui-subtle">
                 <tr className="border-b border-zinc-200 font-semibold uppercase text-zinc-600">
                   <th className="py-2.5 pl-1 pr-1.5">Description</th>
                   <th className="px-1.5 py-2.5">Qté</th>
@@ -188,18 +162,18 @@ function DocumentPreview({
           </div>
 
           <div className="mt-6 flex justify-end">
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center gap-12 text-zinc-500">
+            <div className="w-full max-w-60 space-y-2 bg-ui-subtle p-3 text-xs">
+              <div className="flex items-center justify-between gap-4 text-ui-secondary">
                 <p>Sous total: </p>
                 <p>{currency(totalHT)}</p>
               </div>
 
-              <div className="flex items-center gap-12 text-zinc-500">
+              <div className="flex items-center justify-between gap-4 text-ui-secondary">
                 <p>Total TVA: </p>
                 <p>{currency(totalTVA)}</p>
               </div>
 
-              <div className="flex items-center gap-12 font-semibold text-primary">
+              <div className="flex items-center justify-between gap-4 border-t border-ui-border pt-2 font-semibold text-ui-text">
                 <p>TOTAL TTC: </p>
                 <p>{currency(totalTTC)}</p>
               </div>

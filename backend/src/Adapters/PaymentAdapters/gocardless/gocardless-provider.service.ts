@@ -18,6 +18,7 @@ import { ConfigService } from '@nestjs/config';
 import { GoCardlessOAuthService } from './gocardless-oauth.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PlanAccessService } from 'src/plan-access/plan-access.service';
+import { randomBytes } from 'crypto';
 
 const supportedOpenBankingSchemes = new Set([
   'faster_payments',
@@ -278,6 +279,18 @@ export class GoCardlessProviderService
 
     console.log('Billing Request Flow:', billingRequestFlow);
 
+    const flowExpiry = new Date(billingRequestFlow.expires_at ?? '');
+    if (
+      !billingRequestFlow.id ||
+      !billingRequestFlow.authorisation_url ||
+      !Number.isFinite(flowExpiry.getTime()) ||
+      flowExpiry <= new Date()
+    ) {
+      throw new InternalServerErrorException(
+        'GoCardless n’a pas fourni de lien de paiement valide.',
+      );
+    }
+
     const persistedPaymentLink =
       await this.prismaService.invoicePaymentLink.create({
         data: {
@@ -285,6 +298,8 @@ export class GoCardlessProviderService
           url: billingRequestFlow.authorisation_url as string,
           provider: 'GOCARDLESS',
           providerReference: billingRequestId,
+          providerFlowId: billingRequestFlow.id,
+          providerFlowExpiresAt: flowExpiry,
         },
       });
 
@@ -318,6 +333,157 @@ export class GoCardlessProviderService
       url: billingRequestFlow.authorisation_url as string,
       paymentLinkId: billingRequestId,
     };
+  }
+
+  async getCurrentOneTimeFlow(
+    invoiceId: string,
+    options: { accessToken?: string; renewPublicAccess?: boolean } = {},
+  ): Promise<{ url: string | null; accessToken: string; message?: string }> {
+    return this.prismaService.$transaction(
+      async (prisma) => {
+        const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "InvoicePublicAccess" WHERE "invoiceId" = ${invoiceId} FOR UPDATE
+      `;
+        if (!rows.length)
+          throw new BadRequestException('Lien de paiement introuvable.');
+        const access = await prisma.invoicePublicAccess.findUnique({
+          where: { invoiceId },
+          include: {
+            invoice: {
+              select: {
+                type: true,
+                invoiceStatus: true,
+                sentAt: true,
+                companyId: true,
+                clientEmail: true,
+                clientName: true,
+                clientAddress: true,
+                clientCity: true,
+                clientPostalCode: true,
+                clientCountry: true,
+                company: { select: { status: true } },
+              },
+            },
+            invoicePaymentLink: {
+              include: {
+                payByBankPayments: {
+                  include: { payByBankPaymentAttempts: true },
+                },
+              },
+            },
+          },
+        });
+        if (
+          !access ||
+          (options.accessToken && access.accessToken !== options.accessToken) ||
+          (!options.renewPublicAccess && access.expiresAt <= new Date())
+        ) {
+          throw new BadRequestException(
+            'Ce lien de paiement est invalide ou expiré.',
+          );
+        }
+        const { invoice, invoicePaymentLink: link } = access;
+        const unavailable = (message: string) => ({
+          url: null,
+          accessToken: access.accessToken,
+          message,
+        });
+        if (
+          invoice.type !== 'INVOICE' ||
+          !invoice.sentAt ||
+          !['PENDING', 'OVERDUE'].includes(invoice.invoiceStatus ?? '') ||
+          invoice.company.status !== 'ACTIVE' ||
+          link.provider !== 'GOCARDLESS' ||
+          link.linkStatus !== 'VALID'
+        ) {
+          return unavailable(
+            'Cette facture ne peut plus être réglée depuis ce lien.',
+          );
+        }
+        if (
+          link.payByBankPayments.some(
+            (payment) =>
+              ['PAYMENT_IN_PROGRESS', 'SUCCESS'].includes(payment.status) ||
+              payment.payByBankPaymentAttempts.some((attempt) =>
+                ['PENDING', 'PAYMENT_IN_PROGRESS', 'SUCCESS'].includes(
+                  attempt.paymentStatus ?? '',
+                ),
+              ),
+          )
+        ) {
+          return unavailable('Un paiement est déjà engagé pour cette facture.');
+        }
+
+        const client = await this.gocardlessOAuthService.getClientForCompany(
+          invoice.companyId,
+        );
+        const request = await client.billingRequests.find(
+          link.providerReference,
+        );
+        if (request.status !== 'pending') {
+          return unavailable(
+            'La demande de paiement GoCardless n’est plus disponible.',
+          );
+        }
+        let url = link.url;
+        if (
+          !link.providerFlowExpiresAt ||
+          link.providerFlowExpiresAt <= new Date() ||
+          !url
+        ) {
+          const redirectUri =
+            this.configService.get<string>('GOCARDLESS_REDIRECT_URI') || '';
+          const flow = await client.billingRequestFlows.create(
+            {
+              redirect_uri: redirectUri,
+              exit_uri: redirectUri,
+              prefilled_customer: this.buildPrefilledCustomer({
+                email: invoice.clientEmail,
+                ...this.customerFromInvoice(invoice),
+              }),
+              links: { billing_request: link.providerReference },
+            },
+            `one-time-flow-${link.id}-${link.providerFlowId ?? 'initial'}`,
+          );
+          const expiry = new Date(flow.expires_at ?? '');
+          if (
+            !flow.id ||
+            !flow.authorisation_url ||
+            !Number.isFinite(expiry.getTime()) ||
+            expiry <= new Date()
+          ) {
+            throw new InternalServerErrorException(
+              'GoCardless n’a pas fourni de nouveau lien valide.',
+            );
+          }
+          url = flow.authorisation_url;
+          await prisma.invoicePaymentLink.update({
+            where: { id: link.id },
+            data: {
+              url,
+              providerFlowId: flow.id,
+              providerFlowExpiresAt: expiry,
+            },
+          });
+        }
+        // Keep an existing valid Onetto link usable when merely resending its email.
+        const accessToken =
+          options.renewPublicAccess && access.expiresAt <= new Date()
+            ? randomBytes(32).toString('hex')
+            : access.accessToken;
+        if (options.renewPublicAccess) {
+          await prisma.invoicePublicAccess.update({
+            where: { id: access.id },
+            data: {
+              accessToken,
+              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            },
+          });
+        }
+        return { url, accessToken };
+      },
+      { timeout: 30000 },
+    );
   }
 
   async createInstalmentsPaymentLink(

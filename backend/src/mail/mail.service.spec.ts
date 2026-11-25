@@ -185,29 +185,47 @@ describe('MailService templates', () => {
     expect(mail.text).toContain('https://pay.test/invoice-1');
   });
 
+  it('renvoie un mail de paiement sans annoncer à tort un échec', () => {
+    const mail = service.createInvoicePaymentLinkResendMail({
+      clientName: 'Client',
+      documentNumber: '#FACT-2026-0001',
+      totalPrice: 120,
+      paymentDueAt: new Date('2026-09-01'),
+      companyName: 'Onetto',
+      companyEmail: 'contact@onetto.test',
+      paymentLink: 'https://onetto.test/payment?token=new',
+    });
+    expect(mail.subject).toContain('Lien de paiement');
+    expect(mail.html).toContain('https://onetto.test/payment?token=new');
+    expect(mail.text).not.toContain("n'a pas pu aboutir");
+  });
+
   it.each([
     ['DEPOSIT', 'Facture d’acompte', 'FACTURE D’ACOMPTE'],
     ['BALANCE', 'Facture finale', 'FACTURE FINALE'],
-  ] as const)('utilise le template Onetto pour une %s', (kind, subject, badge) => {
-    const mail = service.createContractStageInvoiceMail({
-      kind,
-      clientName: 'Client',
-      documentNumber: '#FACT-2026-0036',
-      estimateNumber: '#DEV-2026-0005',
-      totalPrice: 291.60,
-      paymentDueAt: new Date('2026-12-01'),
-      companyName: 'Atelier',
-      companyEmail: 'contact@atelier.test',
-    });
+  ] as const)(
+    'utilise le template Onetto pour une %s',
+    (kind, subject, badge) => {
+      const mail = service.createContractStageInvoiceMail({
+        kind,
+        clientName: 'Client',
+        documentNumber: '#FACT-2026-0036',
+        estimateNumber: '#DEV-2026-0005',
+        totalPrice: 291.6,
+        paymentDueAt: new Date('2026-12-01'),
+        companyName: 'Atelier',
+        companyEmail: 'contact@atelier.test',
+      });
 
-    expect(mail.subject).toBe(`${subject} #FACT-2026-0036`);
-    expect(mail.html).toContain(badge);
-    expect(mail.html).toContain('#DEV-2026-0005');
-    expect(mail.html).toContain('291.60 €');
-    expect(mail.html).toContain('Aucun prélèvement n’est déclenché');
-    expect(mail.html).not.toContain('Payer la facture');
-    expect(mail.text).toContain('Aucun prélèvement n’est déclenché');
-  });
+      expect(mail.subject).toBe(`${subject} #FACT-2026-0036`);
+      expect(mail.html).toContain(badge);
+      expect(mail.html).toContain('#DEV-2026-0005');
+      expect(mail.html).toContain('291.60 €');
+      expect(mail.html).toContain('Aucun prélèvement n’est déclenché');
+      expect(mail.html).not.toContain('Payer la facture');
+      expect(mail.text).toContain('Aucun prélèvement n’est déclenché');
+    },
+  );
 
   it('génère le bouton de négociation dans le template de devis', () => {
     const mail = service.createEstimateMail({

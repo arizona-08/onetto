@@ -26,6 +26,20 @@ export function getCompany(companyId: string) {
   return apiClient<Company>(`api/companies/${companyId}`);
 }
 
+export function getCompanyLogoUrl(companyId: string, updatedAt: string) {
+  return buildApiUrl(process.env.NEXT_PUBLIC_API_URL, `api/company-logos/${encodeURIComponent(companyId)}?v=${encodeURIComponent(updatedAt)}`);
+}
+
+export function uploadCompanyLogo(companyId: string, file: File) {
+  const body = new FormData();
+  body.append("logo", file);
+  return apiClient<{ logoUpdatedAt: string }>(`api/companies/${companyId}/logo`, { method: "POST", body });
+}
+
+export function removeCompanyLogo(companyId: string) {
+  return apiClient<{ logoUpdatedAt: null }>(`api/companies/${companyId}/logo`, { method: "DELETE" });
+}
+
 export function getGoCardlessAuthorizationUrl(
   companyId: string,
   email: string,

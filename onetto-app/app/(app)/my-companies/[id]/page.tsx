@@ -7,11 +7,13 @@ import {
   getGoCardlessVerificationStatusUrl,
 } from "@/lib/companies/companies";
 import { Company } from "@/lib/companies/dtos/create-company.dto";
-import { ArrowLeft, Building2, Landmark } from "lucide-react";
+import { ArrowLeft, Landmark } from "lucide-react";
+import CompanyLogo from "@/app/components/molecules/CompanyLogo";
 import { refreshAuthenticationCookies } from "@/lib/auth/auth";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import React from "react";
+import CompanyLogoSettings from "@/app/components/molecules/Forms/CompanyLogoSettings";
 
 function InformationItem({
   label,
@@ -140,9 +142,7 @@ function MyCompanyPage() {
           <section className="mt-6 rounded-2xl border border-zinc-200 bg-white p-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Building2 className="h-6 w-6" aria-hidden="true" />
-                </div>
+                <CompanyLogo companyId={company.id} updatedAt={company.logoUpdatedAt} className="w-12" />
                 <div>
                   <p className="text-sm font-medium text-zinc-500">
                     Entreprise
@@ -289,6 +289,8 @@ function MyCompanyPage() {
           )}
 
           {company.status !== "CLOSED" && (
+            <>
+            <CompanyLogoSettings companyId={company.id} updatedAt={company.logoUpdatedAt} onUpdated={(logoUpdatedAt) => setCompany((current) => current ? { ...current, logoUpdatedAt } : current)} />
             <section className="mt-6">
               <h2 className="font-title text-xl font-semibold text-zinc-900">
                 Modifier l’entreprise
@@ -304,6 +306,7 @@ function MyCompanyPage() {
                 />
               </div>
             </section>
+            </>
           )}
         </>
       )}

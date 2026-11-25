@@ -246,6 +246,15 @@ export class DocumentController {
     return await this.documentService.retryInvoicePayment(documentId, user);
   }
 
+  @Post(':documentId/resend-payment-link')
+  async resendInvoicePaymentLink(
+    @Param('documentId') documentId: string,
+    @Req() req: ExtendedRequest,
+  ) {
+    if (!req.user) throw new UnauthorizedException('Non authentifié');
+    return this.documentService.resendInvoicePaymentLink(documentId, req.user);
+  }
+
   @Post(':documentId/resend-instalment-mandate-authorisation')
   async resendInstalmentMandateAuthorisation(
     @Param('documentId') documentId: string,

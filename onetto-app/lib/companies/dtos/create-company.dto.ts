@@ -63,6 +63,7 @@ export type CompanyVatExigibility = "UNKNOWN" | "ON_COLLECTION" | "ON_DEBITS";
 
 export type Company = CreateCompanyDto & {
   id: string;
+  logoUpdatedAt?: string | null;
   ownerId: string;
   status: "ACTIVE" | "CLOSED";
   isHidden: boolean;
