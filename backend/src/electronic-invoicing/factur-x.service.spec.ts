@@ -129,28 +129,44 @@ describe('FacturXService buyer address', () => {
 
   it('deducts paid deposits and references their issued invoices on the final invoice', () => {
     const deposit = {
-      documentNumber: '#FACT-2026-0001', totalPrice: 30,
+      documentNumber: '#FACT-2026-0001', totalPrice: 20,
       invoiceStatus: 'PAID', sentAt: new Date('2026-10-25'), createdAt: new Date('2026-10-24'),
     };
-    const result = service['toEn16931']({
+    const secondDeposit = {
+      documentNumber: '#FACT-2026-0002', totalPrice: 10,
+      invoiceStatus: 'PAID', sentAt: new Date('2026-10-26'), createdAt: new Date('2026-10-25'),
+    };
+    const finalInvoice = {
       ...invoice,
-      documentNumber: '#FACT-2026-0002',
+      documentNumber: '#FACT-2026-0003',
       totalPrice: 90,
       totalPriceExcludingTax: 75,
       contractStageInvoice: {
-        kind: 'BALANCE', sequence: 2, percentage: 75,
+        kind: 'BALANCE', sequence: 3, percentage: 75,
         plan: {
           totalAmountInCents: 12000,
           estimate: { documentNumber: '#DEV-2026-0001', totalPriceExcludingTax: 100, services: invoice.services },
-          stages: [{ kind: 'DEPOSIT', invoice: deposit }, { kind: 'BALANCE', invoice: null }],
+          stages: [
+            { kind: 'DEPOSIT', invoice: deposit },
+            { kind: 'DEPOSIT', invoice: secondDeposit },
+            { kind: 'BALANCE', invoice: null },
+          ],
         },
       },
-    });
+    };
+    const result = service['toEn16931'](finalInvoice);
     expect(result.type_code).toBe(380);
     expect(result.process_control.business_process_type).toBe('S4');
     expect(result.totals).toMatchObject({ total_with_vat: '120.00', paid_amount: '30.00', amount_due_for_payment: '90.00' });
     expect(result.preceding_invoice_references).toEqual([{
-      reference: 'FACT-2026-0001', issue_date: '2026-10-25', preceding_invoice_type_code: 386,
+      reference: 'FACT-2026-0001', issue_date: '2026-10-25',
+    }, {
+      reference: 'FACT-2026-0002', issue_date: '2026-10-26',
     }]);
+    const peppol = service['toEn16931'](finalInvoice, 'peppol');
+    expect(peppol.preceding_invoice_references).toEqual([
+      { reference: 'FACT-2026-0001', issue_date: '2026-10-25', preceding_invoice_type_code: 386 },
+      { reference: 'FACT-2026-0002', issue_date: '2026-10-26', preceding_invoice_type_code: 386 },
+    ]);
   });
 });

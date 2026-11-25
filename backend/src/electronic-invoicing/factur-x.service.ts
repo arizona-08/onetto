@@ -543,7 +543,7 @@ export class FacturXService {
         preceding_invoice_references: priorInvoices.map((invoice: any) => ({
           reference: String(invoice.documentNumber ?? '').replace(/[^A-Za-z0-9+\-./]/gu, ''),
           issue_date: (invoice.sentAt ?? invoice.createdAt).toISOString().slice(0, 10),
-          preceding_invoice_type_code: 386,
+          ...(profile === 'peppol' ? { preceding_invoice_type_code: 386 } : {}),
         })),
       } : {}),
       notes:
