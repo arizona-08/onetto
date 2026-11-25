@@ -2214,18 +2214,16 @@ export class DocumentService {
       }
 
       const mailContent = contractStage
-        ? {
-            subject: `${contractStage.kind === 'DEPOSIT' ? 'Facture d’acompte' : 'Facture finale'} ${document.documentNumber}`,
-            text: [
-              `Bonjour ${document.clientName},`,
-              '',
-              `Veuillez trouver ci-joint la ${contractStage.kind === 'DEPOSIT' ? 'facture d’acompte' : 'facture finale'} ${document.documentNumber} relative au devis ${contractStage.plan.estimate.documentNumber}.`,
-              `Montant à régler : ${document.totalPrice.toFixed(2)} EUR.`,
-              'Aucun prélèvement n’est déclenché par cet envoi. Vous serez informé avant tout prélèvement SEPA.',
-              '',
-              `${company!.name}`,
-            ].join('\n'),
-          }
+        ? this.mailService.createContractStageInvoiceMail({
+            kind: contractStage.kind,
+            clientName: document.clientName,
+            documentNumber: document.documentNumber,
+            estimateNumber: contractStage.plan.estimate.documentNumber,
+            totalPrice: document.totalPrice,
+            paymentDueAt: document.paymentDueAt,
+            companyName: company!.name,
+            companyEmail: company!.email,
+          })
         : isInvoice
         ? this.mailService.createInvoiceMail({
             clientName: document.clientName,

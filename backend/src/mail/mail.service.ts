@@ -30,6 +30,17 @@ type InvoiceMailInput = {
   paymentLink: string;
 };
 
+type ContractStageInvoiceMailInput = {
+  kind: 'DEPOSIT' | 'BALANCE';
+  clientName: string;
+  documentNumber: string | null;
+  estimateNumber: string | null;
+  totalPrice: number;
+  paymentDueAt: Date;
+  companyName: string;
+  companyEmail: string;
+};
+
 type EstimateMailInput = {
   clientName: string;
   documentNumber: string | null;
@@ -531,6 +542,40 @@ export class MailService {
       subject: `Votre facture ${input.documentNumber}`,
       text: this.createInvoiceText(input),
       html: this.createInvoiceTemplate(input),
+    };
+  }
+
+  createContractStageInvoiceMail(
+    input: ContractStageInvoiceMailInput,
+  ): Pick<MailOptions, 'subject' | 'text' | 'html'> {
+    const label = input.kind === 'DEPOSIT' ? 'facture d’acompte' : 'facture finale';
+    const subject = `${input.kind === 'DEPOSIT' ? 'Facture d’acompte' : 'Facture finale'} ${input.documentNumber}`;
+    const notice = 'Aucun prélèvement n’est déclenché par cet envoi. Vous serez informé avant tout prélèvement SEPA.';
+
+    return {
+      subject,
+      text: [
+        `Bonjour ${input.clientName},`,
+        '',
+        `Veuillez trouver ci-joint la ${label} ${input.documentNumber} relative au devis ${input.estimateNumber}.`,
+        `Montant à régler : ${formatAmount(input.totalPrice)}.`,
+        `Date d’échéance : ${formatDate(input.paymentDueAt)}.`,
+        notice,
+        '',
+        input.companyName,
+      ].join('\n'),
+      html: this.createEmailLayout({
+        badge: input.kind === 'DEPOSIT' ? 'FACTURE D’ACOMPTE' : 'FACTURE FINALE',
+        title: input.kind === 'DEPOSIT' ? 'Votre facture d’acompte est prête' : 'Votre facture finale est prête',
+        greeting: `Bonjour ${this.escapeHtml(input.clientName)},`,
+        message: `Veuillez trouver en pièce jointe votre ${label} <strong>${this.escapeHtml(input.documentNumber ?? '')}</strong> relative au devis <strong>${this.escapeHtml(input.estimateNumber ?? '')}</strong>.`,
+        details: this.createDetailsTable([
+          ['Montant à régler', formatAmount(input.totalPrice)],
+          ['Date d’échéance', formatDate(input.paymentDueAt)],
+        ]),
+        footer: `${this.escapeHtml(input.companyName)} · ${this.escapeHtml(input.companyEmail)}`,
+        note: notice,
+      }),
     };
   }
 

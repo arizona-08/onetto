@@ -185,6 +185,30 @@ describe('MailService templates', () => {
     expect(mail.text).toContain('https://pay.test/invoice-1');
   });
 
+  it.each([
+    ['DEPOSIT', 'Facture d’acompte', 'FACTURE D’ACOMPTE'],
+    ['BALANCE', 'Facture finale', 'FACTURE FINALE'],
+  ] as const)('utilise le template Onetto pour une %s', (kind, subject, badge) => {
+    const mail = service.createContractStageInvoiceMail({
+      kind,
+      clientName: 'Client',
+      documentNumber: '#FACT-2026-0036',
+      estimateNumber: '#DEV-2026-0005',
+      totalPrice: 291.60,
+      paymentDueAt: new Date('2026-12-01'),
+      companyName: 'Atelier',
+      companyEmail: 'contact@atelier.test',
+    });
+
+    expect(mail.subject).toBe(`${subject} #FACT-2026-0036`);
+    expect(mail.html).toContain(badge);
+    expect(mail.html).toContain('#DEV-2026-0005');
+    expect(mail.html).toContain('291.60 €');
+    expect(mail.html).toContain('Aucun prélèvement n’est déclenché');
+    expect(mail.html).not.toContain('Payer la facture');
+    expect(mail.text).toContain('Aucun prélèvement n’est déclenché');
+  });
+
   it('génère le bouton de négociation dans le template de devis', () => {
     const mail = service.createEstimateMail({
       clientName: 'Client',
